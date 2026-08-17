@@ -3,12 +3,10 @@
  *
  * Replaces Supabase Auth entirely. Uses bcrypt for password hashing and
  * signed session cookies for persistence.
- *
- * Server-side only — never import in client code.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { createMiddleware } from "@tanstack/react-start";
-import { getCookie, setCookie, deleteCookie, getRequest } from "@tanstack/react-start/server";
+import { getCookie, setCookie, deleteCookie } from "@tanstack/react-start/server";
 import bcrypt from "bcryptjs";
 import { query, queryOne, execute, uuid } from "./db";
 import {
@@ -39,19 +37,16 @@ export type SessionPayload = {
 
 const SESSION_COOKIE = "bt_session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
-const BCRYPT_ROUNDS = 10;
 
 /* ----------------------------- session tokens ----------------------------- */
 
 /**
  * Simple HMAC-like session token: base64(userId:timestamp:random).
- * For production, replace with JWT or a session-table approach.
  * The session is stateless — the token encodes the user ID and we look up
  * the rest from MySQL on every request.
  */
 function createSessionToken(userId: string): string {
   const payload = `${userId}:${Date.now()}:${uuid()}`;
-  // Base64-encode for cookie safety
   if (typeof Buffer !== "undefined") {
     return Buffer.from(payload, "utf-8").toString("base64url");
   }
@@ -101,7 +96,7 @@ function readSessionCookie(): string | null {
 
 /** Login: workspace code + user ID + password → session cookie. */
 export const loginAction = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceCode: string; userId: string; password: string }) => {
+  .validator((input: { workspaceCode: string; userId: string; password: string }) => {
     if (!input.workspaceCode?.trim()) throw new Error("Workspace code is required.");
     if (!input.userId?.trim()) throw new Error("User ID is required.");
     if (!input.password) throw new Error("Password is required.");
@@ -247,7 +242,7 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
       phone: profile.phone ?? "",
       jobTitle: profile.job_title ?? "",
       avatarUrl: profile.avatar_url,
-      isActive: profile.is_active,
+      isActive: Boolean(profile.is_active),
     },
     role: role.role,
     workspaces: allWorkspaces.map((w) => ({
@@ -305,36 +300,3 @@ export const requireMySqlAuth = createMiddleware({ type: "function" }).server(
     });
   },
 );
-
-/* ----------------------------- password utils ----------------------------- */
-
-/** Hash a password with bcrypt. */
-export async function hashPassword(plaintext: string): Promise<string> {
-  return bcrypt.hash(plaintext, BCRYPT_ROUNDS);
-}
-
-/** Verify a password against a bcrypt hash. */
-export async function verifyPassword(
-  plaintext: string,
-  hash: string,
-): Promise<boolean> {
-  return bcrypt.compare(plaintext, hash);
-}
-
-/** Check if a user has super_admin role. */
-export async function isSuperAdmin(userId: string): Promise<boolean> {
-  const role = await queryOne<UserRole>(
-    "SELECT role FROM user_roles WHERE user_id = ? AND role = 'super_admin' LIMIT 1",
-    [userId],
-  );
-  return !!role;
-}
-
-/** Check if a user can manage workspace users (owner or manager). */
-export async function canManageWorkspaceUsers(userId: string): Promise<boolean> {
-  const role = await queryOne<UserRole>(
-    "SELECT role FROM user_roles WHERE user_id = ? AND role IN ('owner', 'manager') LIMIT 1",
-    [userId],
-  );
-  return !!role;
-}

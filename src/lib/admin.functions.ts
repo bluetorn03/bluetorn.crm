@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireMySqlAuth, hashPassword, isSuperAdmin, canManageWorkspaceUsers } from "./auth.functions";
+import { requireMySqlAuth } from "./auth.functions";
+import { hashPassword, isSuperAdmin, canManageWorkspaceUsers } from "./server-utils";
 import { query, queryOne, execute, uuid } from "./db";
 import type { Profile, UserRole, Workspace } from "./db-types";
 import {
@@ -60,7 +61,7 @@ export const getPlatformStatus = createServerFn({ method: "GET" }).handler(async
 
 /** One-time creation of the first platform Super Admin. Refuses once one exists. */
 export const bootstrapPlatform = createServerFn({ method: "POST" })
-  .inputValidator((input: BootstrapInput) => {
+  .validator((input: BootstrapInput) => {
     if (!isValidUserCode(input.userCode)) throw new Error("Invalid user ID.");
     if (!input.fullName?.trim()) throw new Error("Full name is required.");
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.email ?? "")) throw new Error("A valid email is required.");
@@ -116,7 +117,7 @@ export const bootstrapPlatform = createServerFn({ method: "POST" })
 /** Super Admin creates a client workspace together with its Owner account. */
 export const adminCreateWorkspace = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
-  .inputValidator((input: WorkspaceInput) => {
+  .validator((input: WorkspaceInput) => {
     if (!isValidWorkspaceCode(input.code)) throw new Error("Workspace code must be 3-31 letters, digits or dashes.");
     if (!input.name?.trim()) throw new Error("Company name is required.");
     if (!isValidUserCode(input.owner?.userCode ?? "")) throw new Error("Invalid owner user ID.");
@@ -176,7 +177,7 @@ export const adminCreateWorkspace = createServerFn({ method: "POST" })
 /** Create a user inside a workspace. Super Admin, or an Owner/Manager of that workspace. */
 export const createWorkspaceUser = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
-  .inputValidator((input: WorkspaceUserInput) => {
+  .validator((input: WorkspaceUserInput) => {
     if (!input.workspaceId) throw new Error("Workspace is required.");
     if (!isValidUserCode(input.userCode)) throw new Error("User ID must be 2-31 lowercase letters, digits, dot, dash or underscore.");
     if (!input.fullName?.trim()) throw new Error("Full name is required.");
@@ -247,7 +248,7 @@ export const createWorkspaceUser = createServerFn({ method: "POST" })
 /** Activate/deactivate a workspace user. Super Admin, or Owner/Manager of that workspace. */
 export const setUserActive = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
-  .inputValidator((input: { userId: string; isActive: boolean }) => {
+  .validator((input: { userId: string; isActive: boolean }) => {
     if (!input.userId) throw new Error("User is required.");
     return input;
   })
@@ -279,7 +280,7 @@ export const setUserActive = createServerFn({ method: "POST" })
 /** Set a user's password. Super Admin, or Owner/Manager of that workspace. */
 export const setUserPassword = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
-  .inputValidator((input: { userId: string; password: string }) => {
+  .validator((input: { userId: string; password: string }) => {
     if (!input.userId) throw new Error("User is required.");
     if ((input.password ?? "").length < 8) throw new Error("Password must be at least 8 characters.");
     return input;
@@ -311,7 +312,7 @@ export const setUserPassword = createServerFn({ method: "POST" })
 /** Update workspace details. Super Admin only. */
 export const adminUpdateWorkspace = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
-  .inputValidator((input: { workspaceId: string; patch: Record<string, unknown> }) => {
+  .validator((input: { workspaceId: string; patch: Record<string, unknown> }) => {
     if (!input.workspaceId) throw new Error("Workspace is required.");
     return input;
   })

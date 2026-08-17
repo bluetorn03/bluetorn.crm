@@ -21,8 +21,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import { createWorkspaceUser, setUserActive, setUserPassword } from "@/lib/admin.functions";
+import {
+  getWorkspaceSettingsFn,
+  updateWorkspaceSettingsFn,
+  getWorkspaceMembersFn,
+  updateSelfProfileFn,
+  changeSelfPasswordFn,
+  type WorkspaceMemberItem,
+} from "@/lib/settings.functions";
 import { useSession } from "@/hooks/use-session";
 import { relativeTime } from "@/lib/format";
 
@@ -40,17 +47,7 @@ export const Route = createFileRoute("/app/settings")({
   component: SettingsPage,
 });
 
-type MemberRow = {
-  id: string;
-  user_code: string;
-  full_name: string;
-  email: string | null;
-  phone: string | null;
-  job_title: string | null;
-  is_active: boolean;
-  last_login_at: string | null;
-  role: string | null;
-};
+type MemberRow = WorkspaceMemberItem;
 
 function SettingsPage() {
   const { workspace, user, role, can, refresh } = useSession();
@@ -89,6 +86,9 @@ function SettingsPage() {
 
 function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => Promise<void> }) {
   const { workspace } = useSession();
+  const getSettings = useServerFn(getWorkspaceSettingsFn);
+  const updateSettings = useServerFn(updateWorkspaceSettingsFn);
+
   const [form, setForm] = useState({
     name: workspace.name,
     legalName: "",
@@ -102,12 +102,7 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
     queryKey: ["workspace-settings", workspace.id],
     enabled: Boolean(workspace.id),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("workspaces")
-        .select("name, legal_name, contact_email, contact_phone, address")
-        .eq("id", workspace.id)
-        .maybeSingle();
-      if (error) throw error;
+      const data = await getSettings({ data: { workspaceId: workspace.id } });
       if (data) {
         setForm({
           name: data.name ?? "",
@@ -124,17 +119,18 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
 
   const save = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from("workspaces")
-        .update({
-          name: form.name.trim(),
-          legal_name: form.legalName.trim() || null,
-          contact_email: form.contactEmail.trim() || null,
-          contact_phone: form.contactPhone.trim() || null,
-          address: form.address.trim() || null,
-        })
-        .eq("id", workspace.id);
-      if (error) throw error;
+      await updateSettings({
+        data: {
+          workspaceId: workspace.id,
+          patch: {
+            name: form.name.trim(),
+            legalName: form.legalName.trim() || null,
+            contactEmail: form.contactEmail.trim() || null,
+            contactPhone: form.contactPhone.trim() || null,
+            address: form.address.trim() || null,
+          },
+        },
+      });
     },
     onSuccess: async () => {
       toast.success("Workspace updated");
@@ -192,6 +188,7 @@ function TeamTab({
   role: string;
 }) {
   const queryClient = useQueryClient();
+  const getMembers = useServerFn(getWorkspaceMembersFn);
   const addUser = useServerFn(createWorkspaceUser);
   const toggleActive = useServerFn(setUserActive);
   const resetPassword = useServerFn(setUserPassword);
@@ -203,19 +200,7 @@ function TeamTab({
   const members = useQuery({
     queryKey: ["workspace-members", workspaceId],
     enabled: Boolean(workspaceId),
-    queryFn: async (): Promise<MemberRow[]> => {
-      const [{ data: profiles, error }, { data: roles }] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id, user_code, full_name, email, phone, job_title, is_active, last_login_at")
-          .eq("workspace_id", workspaceId)
-          .order("created_at", { ascending: true }),
-        supabase.from("user_roles").select("user_id, role").eq("workspace_id", workspaceId),
-      ]);
-      if (error) throw error;
-      const roleMap = new Map((roles ?? []).map((r) => [r.user_id, r.role as string]));
-      return (profiles ?? []).map((p) => ({ ...p, role: roleMap.get(p.id) ?? null }));
-    },
+    queryFn: () => getMembers({ data: { workspaceId } }),
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["workspace-members", workspaceId] });
@@ -253,21 +238,26 @@ function TeamTab({
   });
 
   const reset = useMutation({
-    mutationFn: (v: { userId: string; password: string }) => resetPassword({ data: v }),
+    mutationFn: () =>
+      resetPassword({
+        data: { userId: resetFor?.id ?? "", password: newPassword },
+      }),
     onSuccess: () => {
-      toast.success("Password updated");
+      toast.success("Password reset");
       setResetFor(null);
       setNewPassword("");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const list = members.data ?? [];
+
   return (
     <SectionCard
-      title="Team"
-      description="People who can sign in to this workspace with their User ID."
+      title="Team members"
+      description="Everyone with access to this workspace."
       action={
-        canManage ? (
+        canManage && (
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>
               <Button size="sm">
@@ -277,18 +267,20 @@ function TeamTab({
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add team member</DialogTitle>
-                <DialogDescription>They sign in with the workspace code, this User ID and the password you set.</DialogDescription>
+                <DialogDescription>Create login credentials for a new teammate.</DialogDescription>
               </DialogHeader>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="User ID" value={form.userCode} onChange={(v) => setForm({ ...form, userCode: v })} />
-                <Field label="Full name" value={form.fullName} onChange={(v) => setForm({ ...form, fullName: v })} />
-                <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-                <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+              <div className="grid gap-3 py-2">
+                <Field label="Full name *" value={form.fullName} onChange={(v) => setForm({ ...form, fullName: v })} />
+                <Field label="User ID (login) *" value={form.userCode} onChange={(v) => setForm({ ...form, userCode: v })} />
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
+                  <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+                </div>
                 <Field label="Job title" value={form.jobTitle} onChange={(v) => setForm({ ...form, jobTitle: v })} />
-                <div className="space-y-1.5">
+                <div>
                   <Label className="text-xs">Role</Label>
                   <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
-                    <SelectTrigger>
+                    <SelectTrigger className="mt-1">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -297,75 +289,101 @@ function TeamTab({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="sm:col-span-2">
-                  <Field
-                    label="Temporary password"
-                    type="password"
-                    value={form.password}
-                    onChange={(v) => setForm({ ...form, password: v })}
-                  />
-                </div>
+                <Field label="Temporary password *" type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} />
               </div>
               <DialogFooter>
-                <Button size="sm" disabled={create.isPending} onClick={() => create.mutate()}>
+                <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+                <Button disabled={!form.fullName || !form.userCode || form.password.length < 8 || create.isPending} onClick={() => create.mutate()}>
                   {create.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Create user
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        ) : undefined
+        )
       }
       bodyClassName="p-0"
     >
-      {members.isLoading ? (
-        <p className="text-muted-foreground p-5 text-sm">Loading team…</p>
-      ) : (
-        <ul className="divide-border divide-y">
-          {(members.data ?? []).map((m) => (
-            <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3.5 sm:px-5">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
-                  {m.full_name}
-                  {m.id === currentUserId && <span className="text-muted-foreground ml-2 text-xs">you</span>}
-                </p>
-                <p className="text-muted-foreground truncate text-xs">
-                  {m.user_code} · {m.job_title || "—"} · {m.last_login_at ? `last seen ${relativeTime(m.last_login_at)}` : "never signed in"}
+      <div className="divide-border divide-y">
+        {list.map((m) => {
+          const isSelf = m.id === currentUserId;
+          const isOwner = m.role === "owner";
+          return (
+            <div key={m.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-foreground text-sm font-medium">{m.full_name}</p>
+                  <StatusBadge status={m.role ?? "employee"} />
+                  {!m.is_active && <StatusBadge status="inactive" />}
+                </div>
+                <p className="text-muted-foreground mt-0.5 text-xs">
+                  User ID: <code className="bg-muted text-foreground rounded px-1">{m.user_code}</code>
+                  {m.job_title ? ` · ${m.job_title}` : ""}
+                  {m.email ? ` · ${m.email}` : ""}
+                  {m.last_login_at ? ` · Last login ${relativeTime(m.last_login_at)}` : ""}
                 </p>
               </div>
-              <StatusBadge label={m.role ? m.role.replace("_", " ") : "no role"} tone="info" />
-              <StatusBadge label={m.is_active ? "Active" : "Disabled"} tone={m.is_active ? "success" : "warning"} />
-              {canManage && m.id !== currentUserId && (
-                <div className="flex gap-1.5">
+
+              {canManage && !isOwner && !isSelf && (
+                <div className="flex items-center gap-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={activate.isPending}
-                    onClick={() => activate.mutate({ userId: m.id, isActive: !m.is_active })}
+                    onClick={() => setResetFor(m)}
                   >
-                    {m.is_active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                    <KeyRound className="mr-1.5 h-3.5 w-3.5" /> Reset password
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setResetFor(m)}>
-                    <KeyRound className="h-4 w-4" />
-                  </Button>
+
+                  {m.is_active ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      disabled={activate.isPending}
+                      onClick={() => activate.mutate({ userId: m.id, isActive: false })}
+                    >
+                      <UserX className="mr-1.5 h-3.5 w-3.5" /> Deactivate
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={activate.isPending}
+                      onClick={() => activate.mutate({ userId: m.id, isActive: true })}
+                    >
+                      <UserCheck className="mr-1.5 h-3.5 w-3.5" /> Reactivate
+                    </Button>
+                  )}
                 </div>
               )}
-            </li>
-          ))}
-        </ul>
-      )}
+            </div>
+          );
+        })}
+      </div>
 
+      {/* Reset password dialog */}
       <Dialog open={Boolean(resetFor)} onOpenChange={(o) => !o && setResetFor(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reset password</DialogTitle>
-            <DialogDescription>Set a new password for {resetFor?.full_name}.</DialogDescription>
+            <DialogDescription>
+              Set a new password for <span className="font-medium text-foreground">{resetFor?.full_name}</span> (User ID: {resetFor?.user_code}).
+            </DialogDescription>
           </DialogHeader>
-          <Field label="New password" type="password" value={newPassword} onChange={setNewPassword} />
+          <div className="py-2">
+            <Field
+              label="New password (min 8 chars)"
+              type="password"
+              value={newPassword}
+              onChange={setNewPassword}
+            />
+          </div>
           <DialogFooter>
+            <Button variant="outline" onClick={() => setResetFor(null)}>
+              Cancel
+            </Button>
             <Button
-              size="sm"
-              disabled={reset.isPending}
-              onClick={() => resetFor && reset.mutate({ userId: resetFor.id, password: newPassword })}
+              disabled={newPassword.length < 8 || reset.isPending}
+              onClick={() => reset.mutate()}
             >
               {reset.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Update password
             </Button>
@@ -378,21 +396,22 @@ function TeamTab({
 
 function AccountTab({ onSaved }: { onSaved: () => Promise<void> }) {
   const { user, role, workspace } = useSession();
+  const updateProfile = useServerFn(updateSelfProfileFn);
+  const changePasswordFn = useServerFn(changeSelfPasswordFn);
+
   const [form, setForm] = useState({ fullName: user.name, email: user.email, phone: user.phone, jobTitle: user.jobTitle });
   const [password, setPassword] = useState("");
 
   const saveProfile = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          full_name: form.fullName.trim(),
+      await updateProfile({
+        data: {
+          fullName: form.fullName.trim(),
           email: form.email.trim() || null,
           phone: form.phone.trim() || null,
-          job_title: form.jobTitle.trim() || null,
-        })
-        .eq("id", user.id);
-      if (error) throw error;
+          jobTitle: form.jobTitle.trim() || null,
+        },
+      });
     },
     onSuccess: async () => {
       toast.success("Profile updated");
@@ -404,8 +423,7 @@ function AccountTab({ onSaved }: { onSaved: () => Promise<void> }) {
   const changePassword = useMutation({
     mutationFn: async () => {
       if (password.length < 8) throw new Error("Password must be at least 8 characters.");
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
+      await changePasswordFn({ data: { password } });
     },
     onSuccess: () => {
       toast.success("Password changed");
@@ -438,8 +456,12 @@ function AccountTab({ onSaved }: { onSaved: () => Promise<void> }) {
         </dl>
         <div className="mt-4 space-y-3">
           <Field label="New password" type="password" value={password} onChange={setPassword} />
-          <Button size="sm" variant="outline" disabled={changePassword.isPending} onClick={() => changePassword.mutate()}>
-            <ShieldCheck className="mr-1.5 h-4 w-4" /> Change password
+          <Button
+            size="sm"
+            disabled={password.length < 8 || changePassword.isPending}
+            onClick={() => changePassword.mutate()}
+          >
+            {changePassword.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Change password
           </Button>
         </div>
       </SectionCard>
@@ -452,7 +474,7 @@ function Field({
   value,
   onChange,
   type = "text",
-  disabled,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -461,18 +483,24 @@ function Field({
   disabled?: boolean;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div>
       <Label className="text-xs">{label}</Label>
-      <Input type={type} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+      <Input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className="mt-1"
+      />
     </div>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <dt className="text-muted-foreground text-xs">{label}</dt>
-      <dd className="truncate text-sm font-medium">{value}</dd>
+    <div className="flex justify-between">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="text-foreground font-medium">{value || "—"}</dd>
     </div>
   );
 }

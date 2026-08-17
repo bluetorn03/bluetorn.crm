@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireMySqlAuth, isSuperAdmin } from "./auth.functions";
+import { requireMySqlAuth } from "./auth.functions";
+import { isSuperAdmin } from "./server-utils";
 import { query, queryOne } from "./db";
 import type { Workspace, Profile, UserRole, AuditLog } from "./db-types";
 
@@ -107,7 +108,7 @@ export const adminPlatformStats = createServerFn({ method: "GET" })
 /** Users across the platform, or inside a single workspace. Super Admin only. */
 export const adminListUsers = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
-  .inputValidator((input: { workspaceId?: string } | undefined) => input ?? {})
+  .validator((input: { workspaceId?: string } | undefined) => input ?? {})
   .handler(async ({ data, context }): Promise<AdminUserRow[]> => {
     await assertSuperAdmin(context.userId);
 
@@ -152,7 +153,7 @@ export const adminListUsers = createServerFn({ method: "GET" })
 /** A single workspace with its members. Super Admin only. */
 export const adminGetWorkspace = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
-  .inputValidator((input: { workspaceId: string }) => {
+  .validator((input: { workspaceId: string }) => {
     if (!input?.workspaceId) throw new Error("Workspace is required.");
     return input;
   })

@@ -15,8 +15,9 @@ dist-ssr
 .tanstack/**
 .nitro
 *.local
-.env.local
-.env.*.local
+.env
+.env.*
+!.env.example
 .antigravity.local.md
 
 # Wrangler / Cloudflare
