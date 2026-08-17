@@ -1,0 +1,10 @@
+revoke execute on function public.can_view_finance(uuid) from public, anon;
+grant execute on function public.can_view_finance(uuid) to authenticated, service_role;
+revoke execute on function public.has_workspace_role(uuid, app_role) from public, anon;
+grant execute on function public.has_workspace_role(uuid, app_role) to authenticated, service_role;
+revoke execute on function public.can_manage_workspace_users(uuid) from public, anon;
+grant execute on function public.can_manage_workspace_users(uuid) to authenticated, service_role;
+revoke execute on function public.is_super_admin(uuid) from public, anon;
+grant execute on function public.is_super_admin(uuid) to authenticated, service_role;
+revoke execute on function public.current_workspace_id() from public, anon;
+grant execute on function public.current_workspace_id() to authenticated, service_role;
