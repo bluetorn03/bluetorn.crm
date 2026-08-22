@@ -39,7 +39,7 @@ function getPool(): Pool {
 /** Run a SELECT and return typed rows. */
 export async function query<T = RowDataPacket>(
   sql: string,
-  params?: unknown[],
+  params?: any[],
 ): Promise<T[]> {
   const [rows] = await getPool().execute<RowDataPacket[]>(sql, params ?? []);
   return rows as T[];
@@ -48,7 +48,7 @@ export async function query<T = RowDataPacket>(
 /** Run a SELECT and return the first row or null. */
 export async function queryOne<T = RowDataPacket>(
   sql: string,
-  params?: unknown[],
+  params?: any[],
 ): Promise<T | null> {
   const rows = await query<T>(sql, params);
   return rows[0] ?? null;
@@ -57,7 +57,7 @@ export async function queryOne<T = RowDataPacket>(
 /** Run an INSERT / UPDATE / DELETE and return the result header. */
 export async function execute(
   sql: string,
-  params?: unknown[],
+  params?: any[],
 ): Promise<ResultSetHeader> {
   const [result] = await getPool().execute<ResultSetHeader>(sql, params ?? []);
   return result;

@@ -88,6 +88,7 @@ function NewInvoiceContent() {
         invoice: {
           invoice_number: invNumberQuery.data ?? `INV-${Date.now()}`,
           customer_id: selectedCustomerId || null,
+          issue_date: new Date().toISOString().slice(0, 10),
           due_date: dueDate,
           tax_rate: taxRate,
           status: "Draft",

@@ -58,10 +58,12 @@ function AdminPlans() {
         description: form.description.trim() || null,
         price_monthly: parseFloat(form.priceMonthly) || 0,
         seat_limit: parseInt(form.seatLimit, 10) || 10,
-        features: form.features
-          .split(",")
-          .map((f) => f.trim())
-          .filter(Boolean),
+        features: JSON.stringify(
+          form.features
+            .split(",")
+            .map((f) => f.trim())
+            .filter(Boolean),
+        ),
         is_active: true,
       }),
     onSuccess: () => {
@@ -223,7 +225,7 @@ function AdminPlans() {
                   </p>
 
                   <ul className="mt-4 space-y-2 border-border border-t pt-4 text-xs">
-                    {(p.features ?? []).map((f, i) => (
+                    {(Array.isArray(p.features) ? p.features : typeof p.features === 'string' ? JSON.parse(p.features || '[]') : []).map((f: string, i: number) => (
                       <li key={i} className="flex items-center gap-2">
                         <Check className="h-3.5 w-3.5 text-primary shrink-0" />
                         <span>{f}</span>

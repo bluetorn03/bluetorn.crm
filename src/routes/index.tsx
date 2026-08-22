@@ -13,9 +13,10 @@ import {
   canonicalWorkspaceCode,
   PLATFORM_WORKSPACE_CODE,
 } from "@/lib/auth-identity";
+import { useSession } from "@/hooks/use-session";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/")(  {
+export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Sign in · BLUETORN CRM" },
@@ -40,12 +41,19 @@ type Alert = { title: string; body: string; tone: "danger" | "warning" | "info";
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { status, isSuperAdmin, refresh } = useSession();
   const [workspaceCode, setWorkspaceCode] = useState("");
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<Alert | null>(null);
   const [needsSetup, setNeedsSetup] = useState(false);
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      navigate({ to: isSuperAdmin ? "/admin" : "/app", replace: true });
+    }
+  }, [status, isSuperAdmin, navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +86,8 @@ function LoginPage() {
       const result = await loginAction({
         data: { workspaceCode: code, userId: uid, password },
       });
+
+      await refresh();
 
       if (result.isSuperAdmin) {
         navigate({ to: "/admin", replace: true });

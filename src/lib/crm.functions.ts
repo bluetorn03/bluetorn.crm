@@ -841,7 +841,7 @@ export const deletePromoMediaFn = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-export type PlatformSettings = Record<string, Record<string, unknown>>;
+export type PlatformSettings = Record<string, Record<string, any>>;
 
 export const getPlatformSettingsFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])

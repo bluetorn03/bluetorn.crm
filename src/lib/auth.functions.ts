@@ -130,10 +130,16 @@ export const loginAction = createServerFn({ method: "POST" })
 
     // 2. Find user profile
     const profile = await queryOne<Profile>(
-      workspace
-        ? "SELECT * FROM profiles WHERE user_code = ? AND workspace_id = ? LIMIT 1"
-        : "SELECT * FROM profiles WHERE user_code = ? AND workspace_id IS NULL LIMIT 1",
-      workspace ? [userCode, workspace.id] : [userCode],
+      isSuperAdmin
+        ? "SELECT * FROM profiles WHERE user_code = ? AND (workspace_id = ? OR workspace_id IS NULL) LIMIT 1"
+        : workspace
+          ? "SELECT * FROM profiles WHERE user_code = ? AND workspace_id = ? LIMIT 1"
+          : "SELECT * FROM profiles WHERE user_code = ? AND workspace_id IS NULL LIMIT 1",
+      isSuperAdmin
+        ? [userCode, workspace?.id ?? ""]
+        : workspace
+          ? [userCode, workspace.id]
+          : [userCode],
     );
 
     if (!profile) {
@@ -157,7 +163,7 @@ export const loginAction = createServerFn({ method: "POST" })
 
     // 5. Get role
     const role = await queryOne<UserRole>(
-      "SELECT * FROM user_roles WHERE user_id = ? LIMIT 1",
+      "SELECT * FROM user_roles WHERE user_id = ? ORDER BY CASE WHEN role = 'super_admin' THEN 0 ELSE 1 END LIMIT 1",
       [profile.id],
     );
     if (!role) {

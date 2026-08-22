@@ -312,8 +312,8 @@ function TeamTab({
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-foreground text-sm font-medium">{m.full_name}</p>
-                  <StatusBadge status={m.role ?? "employee"} />
-                  {!m.is_active && <StatusBadge status="inactive" />}
+                  <StatusBadge label={m.role ?? "employee"} />
+                  {!m.is_active && <StatusBadge label="inactive" tone="danger" />}
                 </div>
                 <p className="text-muted-foreground mt-0.5 text-xs">
                   User ID: <code className="bg-muted text-foreground rounded px-1">{m.user_code}</code>
