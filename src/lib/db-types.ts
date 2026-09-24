@@ -1,8 +1,8 @@
 /**
  * BLUETORN CRM — MySQL-native type definitions.
  *
- * These replace the Supabase-generated `Tables<"...">` types while keeping the
- * exact same shape so that every UI component continues to work without changes.
+ * Native type definitions matching the MySQL database schema so that
+ * every UI component continues to work seamlessly without changes.
  */
 
 /* -------------------------------- workspaces ------------------------------- */
@@ -69,6 +69,7 @@ export interface Customer {
   tags: string | null; // JSON string in MySQL
   notes: string | null;
   assigned_to: string | null;
+  assigned_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -89,6 +90,7 @@ export interface Property {
   image_url: string | null;
   description: string | null;
   assigned_to: string | null;
+  assigned_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -112,10 +114,12 @@ export interface Lead {
   next_follow_up: string | null;
   received_at: string;
   assigned_to: string | null;
+  assigned_at: string | null;
   property_id: string | null;
   customer_id: string | null;
   notes: string | null;
   created_by: string | null;
+  converted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -142,6 +146,7 @@ export interface Task {
   priority: string;
   status: string;
   assigned_to: string | null;
+  assigned_at: string | null;
   lead_id: string | null;
   customer_id: string | null;
   property_id: string | null;
@@ -271,5 +276,20 @@ export interface AuditLog {
   entity_id: string | null;
   metadata: string | null; // JSON string
   ip_address: string | null;
+  created_at: string;
+}
+
+/* ------------------------------ notifications ------------------------------ */
+export interface Notification {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  message: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
+  is_read: boolean;
+  created_by: string | null;
   created_at: string;
 }

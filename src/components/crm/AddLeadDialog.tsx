@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
-import { Plus, Loader2 } from "lucide-react";
+import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { createLead, leadSources, leadStatuses, qk, type Lead } from "@/lib/crm-api";
+import {
+  createLead,
+  listCustomers,
+  listProperties,
+  listMembers,
+  leadSources,
+  qk,
+} from "@/lib/crm-api";
 import { useSession } from "@/hooks/use-session";
 import { toast } from "sonner";
 
@@ -31,6 +38,9 @@ const emptyForm = {
   campaign: "",
   requirement: "",
   budget: "",
+  customer_id: "none",
+  property_id: "none",
+  assigned_to: "unassigned",
 };
 
 export function AddLeadDialog({
@@ -40,9 +50,31 @@ export function AddLeadDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { workspace, user } = useSession();
+  const { workspace, user, role, dbRole } = useSession();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState(emptyForm);
+  const isEmployeeRole = dbRole === "employee" || role === "Employee";
+  const [form, setForm] = useState(() => ({
+    ...emptyForm,
+    assigned_to: isEmployeeRole ? user.id : "unassigned",
+  }));
+
+  const customersQuery = useQuery({
+    queryKey: qk.customers(workspace.id),
+    queryFn: () => listCustomers(workspace.id),
+    enabled: !!workspace.id && open,
+  });
+
+  const propertiesQuery = useQuery({
+    queryKey: qk.properties(workspace.id),
+    queryFn: () => listProperties(workspace.id),
+    enabled: !!workspace.id && open,
+  });
+
+  const membersQuery = useQuery({
+    queryKey: qk.members(workspace.id),
+    queryFn: () => listMembers(workspace.id),
+    enabled: !!workspace.id && open,
+  });
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -58,11 +90,17 @@ export function AddLeadDialog({
         budget: parseFloat(form.budget) || 0,
         currency: workspace.currency,
         status: "New",
+        customer_id: form.customer_id === "none" ? null : form.customer_id,
+        property_id: form.property_id === "none" ? null : form.property_id,
+        assigned_to: form.assigned_to === "unassigned" ? null : form.assigned_to,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qk.leads(workspace.id) });
       toast.success("Lead created successfully.");
-      setForm(emptyForm);
+      setForm({
+        ...emptyForm,
+        assigned_to: isEmployeeRole ? user.id : "unassigned",
+      });
       onOpenChange(false);
     },
     onError: (err: Error) => {
@@ -81,12 +119,12 @@ export function AddLeadDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Add Lead</DialogTitle>
             <DialogDescription>
-              Capture a new lead with source, contact and requirement.
+              Capture a new lead with source, contact, customer and property linking.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -152,6 +190,67 @@ export function AddLeadDialog({
                 />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="leadCustomer">Link Customer</Label>
+                <Select
+                  value={form.customer_id}
+                  onValueChange={(v) => setForm({ ...form, customer_id: v })}
+                >
+                  <SelectTrigger id="leadCustomer">
+                    <SelectValue placeholder="Select customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {customersQuery.data?.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="leadProperty">Interested Property</Label>
+                <Select
+                  value={form.property_id}
+                  onValueChange={(v) => setForm({ ...form, property_id: v })}
+                >
+                  <SelectTrigger id="leadProperty">
+                    <SelectValue placeholder="Select property" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {propertiesQuery.data?.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {!isEmployeeRole && (
+              <div className="space-y-1.5">
+                <Label htmlFor="leadAssigned">Assigned To</Label>
+                <Select
+                  value={form.assigned_to}
+                  onValueChange={(v) => setForm({ ...form, assigned_to: v })}
+                >
+                  <SelectTrigger id="leadAssigned">
+                    <SelectValue placeholder="Unassigned" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {membersQuery.data?.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="leadCampaign">Campaign</Label>
               <Input

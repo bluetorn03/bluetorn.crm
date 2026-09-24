@@ -1,8 +1,7 @@
 /**
  * BLUETORN CRM — MySQL-backed authentication server functions.
  *
- * Replaces Supabase Auth entirely. Uses bcrypt for password hashing and
- * signed session cookies for persistence.
+ * Uses bcrypt for password hashing and signed session cookies for persistence.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { createMiddleware } from "@tanstack/react-start";
@@ -211,7 +210,7 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
   }
 
   const role = await queryOne<UserRole>(
-    "SELECT * FROM user_roles WHERE user_id = ? LIMIT 1",
+    "SELECT * FROM user_roles WHERE user_id = ? ORDER BY CASE WHEN role = 'super_admin' THEN 0 ELSE 1 END LIMIT 1",
     [profile.id],
   );
   if (!role) {
@@ -246,6 +245,7 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
       name: profile.full_name,
       email: profile.email ?? "",
       phone: profile.phone ?? "",
+      whatsappPhone: (profile as any).whatsapp_phone ?? "",
       jobTitle: profile.job_title ?? "",
       avatarUrl: profile.avatar_url,
       isActive: Boolean(profile.is_active),
@@ -293,7 +293,7 @@ export const requireMySqlAuth = createMiddleware({ type: "function" }).server(
     }
 
     const role = await queryOne<UserRole>(
-      "SELECT role FROM user_roles WHERE user_id = ? LIMIT 1",
+      "SELECT role FROM user_roles WHERE user_id = ? ORDER BY CASE WHEN role = 'super_admin' THEN 0 ELSE 1 END LIMIT 1",
       [userId],
     );
 

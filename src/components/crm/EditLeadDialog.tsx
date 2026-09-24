@@ -25,6 +25,7 @@ import {
   logLeadActivity,
   listMembers,
   listProperties,
+  listCustomers,
   leadSources,
   leadStatuses,
   qk,
@@ -42,8 +43,16 @@ export function EditLeadDialog({
   onOpenChange: (open: boolean) => void;
   lead: Lead;
 }) {
-  const { workspace, user } = useSession();
+  const { workspace, user, role, dbRole } = useSession();
   const queryClient = useQueryClient();
+
+  const canAssign =
+    role === "Owner" ||
+    role === "Manager" ||
+    role === "Super Admin" ||
+    dbRole === "owner" ||
+    dbRole === "manager" ||
+    dbRole === "super_admin";
 
   const [form, setForm] = useState({
     name: lead.name ?? "",
@@ -56,6 +65,7 @@ export function EditLeadDialog({
     status: lead.status ?? "New",
     score: lead.score !== null && lead.score !== undefined ? String(lead.score) : "50",
     assigned_to: lead.assigned_to ?? "unassigned",
+    customer_id: lead.customer_id ?? "none",
     property_id: lead.property_id ?? "none",
     notes: lead.notes ?? "",
   });
@@ -73,6 +83,7 @@ export function EditLeadDialog({
         status: lead.status ?? "New",
         score: lead.score !== null && lead.score !== undefined ? String(lead.score) : "50",
         assigned_to: lead.assigned_to ?? "unassigned",
+        customer_id: lead.customer_id ?? "none",
         property_id: lead.property_id ?? "none",
         notes: lead.notes ?? "",
       });
@@ -91,12 +102,18 @@ export function EditLeadDialog({
     enabled: !!workspace.id && open,
   });
 
+  const customersQuery = useQuery({
+    queryKey: qk.customers(workspace.id),
+    queryFn: () => listCustomers(workspace.id),
+    enabled: !!workspace.id && open,
+  });
+
   const mutation = useMutation({
     mutationFn: async () => {
       const budgetNum = parseFloat(form.budget);
       const scoreNum = parseInt(form.score, 10);
 
-      const updated = await updateLead(lead.id, {
+      const patchPayload: Partial<Lead> = {
         name: form.name.trim(),
         phone: form.phone.trim() || null,
         email: form.email.trim() || null,
@@ -105,11 +122,16 @@ export function EditLeadDialog({
         requirement: form.requirement.trim() || null,
         budget: isNaN(budgetNum) ? 0 : budgetNum,
         status: form.status,
-        score: isNaN(scoreNum) ? 50 : Math.min(100, Math.max(0, scoreNum)),
-        assigned_to: form.assigned_to === "unassigned" ? null : form.assigned_to,
+        customer_id: form.customer_id === "none" ? null : form.customer_id,
         property_id: form.property_id === "none" ? null : form.property_id,
         notes: form.notes.trim() || null,
-      });
+      };
+
+      if (canAssign) {
+        patchPayload.assigned_to = form.assigned_to === "unassigned" ? null : form.assigned_to;
+      }
+
+      const updated = await updateLead(lead.id, patchPayload);
 
       // Log activity if status changed
       if (form.status !== lead.status) {
@@ -212,15 +234,11 @@ export function EditLeadDialog({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="editLeadScore">Score (0-100)</Label>
-                <Input
-                  id="editLeadScore"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={form.score}
-                  onChange={(e) => setForm({ ...form, score: e.target.value })}
-                />
+                <Label>Lead Score</Label>
+                <div className="flex h-9 items-center justify-between rounded-md border border-input bg-muted/30 px-3 text-xs font-medium">
+                  <span className="text-muted-foreground">Deterministic Engine</span>
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">{lead.score}/100</span>
+                </div>
               </div>
             </div>
 
@@ -259,19 +277,19 @@ export function EditLeadDialog({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="editLeadAssigned">Assigned To</Label>
+                <Label htmlFor="editLeadCustomer">Link Customer</Label>
                 <Select
-                  value={form.assigned_to}
-                  onValueChange={(v) => setForm({ ...form, assigned_to: v })}
+                  value={form.customer_id}
+                  onValueChange={(v) => setForm({ ...form, customer_id: v })}
                 >
-                  <SelectTrigger id="editLeadAssigned">
-                    <SelectValue placeholder="Select team member" />
+                  <SelectTrigger id="editLeadCustomer">
+                    <SelectValue placeholder="Select customer" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {membersQuery.data?.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.full_name}
+                    <SelectItem value="none">None</SelectItem>
+                    {customersQuery.data?.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -298,6 +316,28 @@ export function EditLeadDialog({
                 </Select>
               </div>
             </div>
+
+            {canAssign && (
+              <div className="space-y-1.5">
+                <Label htmlFor="editLeadAssigned">Assigned To</Label>
+                <Select
+                  value={form.assigned_to}
+                  onValueChange={(v) => setForm({ ...form, assigned_to: v })}
+                >
+                  <SelectTrigger id="editLeadAssigned">
+                    <SelectValue placeholder="Select team member" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {membersQuery.data?.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label htmlFor="editLeadCampaign">Campaign</Label>

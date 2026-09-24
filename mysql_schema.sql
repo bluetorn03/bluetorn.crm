@@ -1,4 +1,4 @@
--- ============================================================================
+                                                              -- ============================================================================
 -- BLUETORN CRM — PRODUCTION MYSQL SCHEMA (TARGET: HOSTINGER MYSQL)
 -- Engine: InnoDB, Charset: utf8mb4 / utf8mb4_unicode_ci
 -- ============================================================================
@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS `profiles` (
   `full_name` VARCHAR(255) NOT NULL,
   `email` VARCHAR(255) DEFAULT NULL,
   `phone` VARCHAR(64) DEFAULT NULL,
+  `whatsapp_phone` VARCHAR(64) DEFAULT NULL,
   `job_title` VARCHAR(128) DEFAULT NULL,
   `avatar_url` TEXT DEFAULT NULL,
   `password_hash` VARCHAR(255) DEFAULT NULL,
@@ -87,11 +88,13 @@ CREATE TABLE IF NOT EXISTS `customers` (
   `tags` JSON DEFAULT NULL,
   `notes` TEXT DEFAULT NULL,
   `assigned_to` VARCHAR(36) DEFAULT NULL,
+  `assigned_at` DATETIME DEFAULT NULL,
   `created_by` VARCHAR(36) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_customers_ws` (`workspace_id`),
+  KEY `idx_customers_assigned` (`assigned_to`),
   CONSTRAINT `fk_customers_ws` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_customers_assigned` FOREIGN KEY (`assigned_to`) REFERENCES `profiles` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -113,12 +116,15 @@ CREATE TABLE IF NOT EXISTS `properties` (
   `image_url` TEXT DEFAULT NULL,
   `description` TEXT DEFAULT NULL,
   `assigned_to` VARCHAR(36) DEFAULT NULL,
+  `assigned_at` DATETIME DEFAULT NULL,
   `created_by` VARCHAR(36) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_properties_ws` (`workspace_id`),
-  CONSTRAINT `fk_properties_ws` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces` (`id`) ON DELETE CASCADE
+  KEY `idx_properties_assigned` (`assigned_to`),
+  CONSTRAINT `fk_properties_ws` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_properties_assigned` FOREIGN KEY (`assigned_to`) REFERENCES `profiles` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
@@ -141,6 +147,7 @@ CREATE TABLE IF NOT EXISTS `leads` (
   `next_follow_up` DATETIME DEFAULT NULL,
   `received_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `assigned_to` VARCHAR(36) DEFAULT NULL,
+  `assigned_at` DATETIME DEFAULT NULL,
   `property_id` VARCHAR(36) DEFAULT NULL,
   `customer_id` VARCHAR(36) DEFAULT NULL,
   `notes` TEXT DEFAULT NULL,
@@ -185,6 +192,7 @@ CREATE TABLE IF NOT EXISTS `tasks` (
   `priority` VARCHAR(32) NOT NULL DEFAULT 'Medium',
   `status` VARCHAR(32) NOT NULL DEFAULT 'Open',
   `assigned_to` VARCHAR(36) DEFAULT NULL,
+  `assigned_at` DATETIME DEFAULT NULL,
   `lead_id` VARCHAR(36) DEFAULT NULL,
   `customer_id` VARCHAR(36) DEFAULT NULL,
   `property_id` VARCHAR(36) DEFAULT NULL,
@@ -193,7 +201,9 @@ CREATE TABLE IF NOT EXISTS `tasks` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_tasks_ws` (`workspace_id`),
-  CONSTRAINT `fk_tasks_ws` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces` (`id`) ON DELETE CASCADE
+  KEY `idx_tasks_assigned` (`assigned_to`),
+  CONSTRAINT `fk_tasks_ws` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_tasks_assigned` FOREIGN KEY (`assigned_to`) REFERENCES `profiles` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
@@ -354,4 +364,26 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_audit_ws_created` (`workspace_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------------
+-- 17. NOTIFICATIONS
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `notifications` (
+  `id` VARCHAR(36) NOT NULL,
+  `workspace_id` VARCHAR(36) NOT NULL,
+  `user_id` VARCHAR(36) NOT NULL,
+  `type` VARCHAR(64) NOT NULL,
+  `title` VARCHAR(255) NOT NULL,
+  `message` TEXT DEFAULT NULL,
+  `entity_type` VARCHAR(64) DEFAULT NULL,
+  `entity_id` VARCHAR(64) DEFAULT NULL,
+  `is_read` TINYINT(1) NOT NULL DEFAULT 0,
+  `created_by` VARCHAR(36) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_notifications_user` (`user_id`, `is_read`),
+  KEY `idx_notifications_ws` (`workspace_id`),
+  CONSTRAINT `fk_notifications_ws` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_notifications_user` FOREIGN KEY (`user_id`) REFERENCES `profiles` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

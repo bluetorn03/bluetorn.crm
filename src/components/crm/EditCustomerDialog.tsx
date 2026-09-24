@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -19,29 +20,27 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { createCustomer, listMembers, customerTypes, customerStatuses, qk } from "@/lib/crm-api";
+import {
+  updateCustomer,
+  listMembers,
+  customerTypes,
+  customerStatuses,
+  qk,
+  type Customer,
+} from "@/lib/crm-api";
 import { useSession } from "@/hooks/use-session";
 import { toast } from "sonner";
 
-const emptyForm = {
-  name: "",
-  phone: "",
-  email: "",
-  type: "Buyer" as string,
-  status: "Prospect" as string,
-  city: "",
-  value: "",
-  assigned_to: "unassigned",
-};
-
-export function AddCustomerDialog({
+export function EditCustomerDialog({
   open,
   onOpenChange,
+  customer,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  customer: Customer;
 }) {
-  const { workspace, user, role, dbRole } = useSession();
+  const { workspace, role, dbRole } = useSession();
   const queryClient = useQueryClient();
 
   const canAssign =
@@ -52,7 +51,33 @@ export function AddCustomerDialog({
     dbRole === "manager" ||
     dbRole === "super_admin";
 
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState({
+    name: customer.name ?? "",
+    phone: customer.phone ?? "",
+    email: customer.email ?? "",
+    type: customer.type ?? "Buyer",
+    status: customer.status ?? "Prospect",
+    city: customer.city ?? "",
+    value: customer.value !== undefined && customer.value !== null ? String(customer.value) : "0",
+    assigned_to: customer.assigned_to ?? "unassigned",
+    notes: customer.notes ?? "",
+  });
+
+  useEffect(() => {
+    if (customer) {
+      setForm({
+        name: customer.name ?? "",
+        phone: customer.phone ?? "",
+        email: customer.email ?? "",
+        type: customer.type ?? "Buyer",
+        status: customer.status ?? "Prospect",
+        city: customer.city ?? "",
+        value: customer.value !== undefined && customer.value !== null ? String(customer.value) : "0",
+        assigned_to: customer.assigned_to ?? "unassigned",
+        notes: customer.notes ?? "",
+      });
+    }
+  }, [customer, open]);
 
   const membersQuery = useQuery({
     queryKey: qk.members(workspace.id),
@@ -61,10 +86,8 @@ export function AddCustomerDialog({
   });
 
   const mutation = useMutation({
-    mutationFn: () =>
-      createCustomer({
-        workspace_id: workspace.id,
-        created_by: user.id,
+    mutationFn: () => {
+      const payload: Parameters<typeof updateCustomer>[1] = {
         name: form.name.trim(),
         phone: form.phone.trim() || null,
         email: form.email.trim() || null,
@@ -72,17 +95,21 @@ export function AddCustomerDialog({
         status: form.status,
         city: form.city.trim() || null,
         value: parseFloat(form.value) || 0,
-        assigned_to: canAssign && form.assigned_to !== "unassigned" ? form.assigned_to : null,
-        currency: workspace.currency,
-      }),
+        notes: form.notes.trim() || null,
+      };
+      if (canAssign) {
+        payload.assigned_to = form.assigned_to === "unassigned" ? null : form.assigned_to;
+      }
+      return updateCustomer(customer.id, payload);
+    },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.customer(customer.id) });
       queryClient.invalidateQueries({ queryKey: qk.customers(workspace.id) });
-      toast.success("Customer created successfully.");
-      setForm(emptyForm);
+      toast.success("Customer updated successfully.");
       onOpenChange(false);
     },
     onError: (err: Error) => {
-      toast.error(err.message || "Failed to create customer.");
+      toast.error(err.message || "Failed to update customer.");
     },
   });
 
@@ -95,21 +122,23 @@ export function AddCustomerDialog({
     mutation.mutate();
   };
 
+  const assignedMember = membersQuery.data?.find((m) => m.id === customer.assigned_to);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Add Customer</DialogTitle>
+            <DialogTitle>Edit Customer</DialogTitle>
             <DialogDescription>
-              Create a customer profile with contact and classification.
+              Update contact information, classification, and details.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
-              <Label htmlFor="custName">Name *</Label>
+              <Label htmlFor="editCustName">Name *</Label>
               <Input
-                id="custName"
+                id="editCustName"
                 placeholder="Full name"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -118,18 +147,18 @@ export function AddCustomerDialog({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="custPhone">Phone</Label>
+                <Label htmlFor="editCustPhone">Phone</Label>
                 <Input
-                  id="custPhone"
+                  id="editCustPhone"
                   placeholder="+91 98200 00000"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="custEmail">Email</Label>
+                <Label htmlFor="editCustEmail">Email</Label>
                 <Input
-                  id="custEmail"
+                  id="editCustEmail"
                   type="email"
                   placeholder="name@example.com"
                   value={form.email}
@@ -139,12 +168,12 @@ export function AddCustomerDialog({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="custType">Type</Label>
+                <Label htmlFor="editCustType">Type</Label>
                 <Select
                   value={form.type}
                   onValueChange={(v) => setForm({ ...form, type: v })}
                 >
-                  <SelectTrigger id="custType">
+                  <SelectTrigger id="editCustType">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -157,12 +186,12 @@ export function AddCustomerDialog({
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="custStatus">Status</Label>
+                <Label htmlFor="editCustStatus">Status</Label>
                 <Select
                   value={form.status}
                   onValueChange={(v) => setForm({ ...form, status: v })}
                 >
-                  <SelectTrigger id="custStatus">
+                  <SelectTrigger id="editCustStatus">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -177,18 +206,18 @@ export function AddCustomerDialog({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="custCity">City</Label>
+                <Label htmlFor="editCustCity">City</Label>
                 <Input
-                  id="custCity"
+                  id="editCustCity"
                   placeholder="e.g. Mumbai"
                   value={form.city}
                   onChange={(e) => setForm({ ...form, city: e.target.value })}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="custValue">Value ({workspace.currency})</Label>
+                <Label htmlFor="editCustValue">Customer Value ({workspace.currency})</Label>
                 <Input
-                  id="custValue"
+                  id="editCustValue"
                   type="number"
                   min="0"
                   placeholder="0"
@@ -197,14 +226,14 @@ export function AddCustomerDialog({
                 />
               </div>
             </div>
-            {canAssign && (
+            {canAssign ? (
               <div className="space-y-1.5">
-                <Label htmlFor="custAssigned">Assigned Employee</Label>
+                <Label htmlFor="editCustAssigned">Assigned Employee</Label>
                 <Select
                   value={form.assigned_to}
                   onValueChange={(v) => setForm({ ...form, assigned_to: v })}
                 >
-                  <SelectTrigger id="custAssigned">
+                  <SelectTrigger id="editCustAssigned">
                     <SelectValue placeholder="Unassigned" />
                   </SelectTrigger>
                   <SelectContent>
@@ -217,7 +246,24 @@ export function AddCustomerDialog({
                   </SelectContent>
                 </Select>
               </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label>Assigned Employee</Label>
+                <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-foreground font-medium">
+                  {assignedMember ? assignedMember.full_name : "Unassigned"}
+                </div>
+              </div>
             )}
+            <div className="space-y-1.5">
+              <Label htmlFor="editCustNotes">Notes</Label>
+              <Textarea
+                id="editCustNotes"
+                placeholder="Relationship notes or preferences..."
+                rows={3}
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              />
+            </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -225,7 +271,7 @@ export function AddCustomerDialog({
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              Create Customer
+              Save Changes
             </Button>
           </DialogFooter>
         </form>

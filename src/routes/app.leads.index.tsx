@@ -10,6 +10,7 @@ import {
   Search,
   Sparkles,
   Trash2,
+  UserCheck,
   Zap,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -26,13 +27,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { listLeads, updateLead, logLeadActivity, leadStatuses, qk, type Lead } from "@/lib/crm-api";
+import { listLeads, listMembers, updateLead, logLeadActivity, leadStatuses, qk, type Lead } from "@/lib/crm-api";
 import { useSession } from "@/hooks/use-session";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { AddLeadDialog } from "@/components/crm/AddLeadDialog";
 import { EditLeadDialog } from "@/components/crm/EditLeadDialog";
 import { ScheduleFollowUpDialog } from "@/components/crm/ScheduleFollowUpDialog";
 import { DeleteLeadDialog } from "@/components/crm/DeleteLeadDialog";
+import { AssignLeadDialog } from "@/components/crm/AssignLeadDialog";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/leads/")({
@@ -48,14 +50,23 @@ export const Route = createFileRoute("/app/leads/")({
 });
 
 function LeadsPage() {
-  const { workspace, user } = useSession();
+  const { workspace, user, role, dbRole } = useSession();
   const queryClient = useQueryClient();
+
+  const canAssign =
+    role === "Owner" ||
+    role === "Manager" ||
+    role === "Super Admin" ||
+    dbRole === "owner" ||
+    dbRole === "manager" ||
+    dbRole === "super_admin";
 
   const [status, setStatus] = useState<string>("All");
   const [q, setQ] = useState("");
   const [addOpen, setAddOpen] = useState(false);
 
   // Active dialog states
+  const [assigningLead, setAssigningLead] = useState<Lead | null>(null);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [followUpLead, setFollowUpLead] = useState<Lead | null>(null);
   const [deletingLead, setDeletingLead] = useState<Lead | null>(null);
@@ -65,6 +76,13 @@ function LeadsPage() {
     queryFn: () => listLeads(workspace.id),
     enabled: !!workspace.id,
   });
+
+  const membersQuery = useQuery({
+    queryKey: qk.members(workspace.id),
+    queryFn: () => listMembers(workspace.id),
+    enabled: !!workspace.id,
+  });
+  const memberMap = new Map((membersQuery.data ?? []).map((m) => [m.id, m.full_name]));
 
   return (
     <div className="space-y-5">
@@ -87,27 +105,39 @@ function LeadsPage() {
 
       {/* Automation Cards */}
       <SectionCard title="Automatic lead capture" description="Live sources feeding this workspace">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {[
-            ["Meta Ads", "Sea View Launch — Jun", "12 today"],
-            ["Google Ads", "Search — Luxury Villas", "8 today"],
-            ["Website forms", "Contact & enquiry", "5 today"],
-            ["Landing pages", "LP — Monsoon Offer", "3 today"],
-            ["WhatsApp", "Click-to-chat", "6 today"],
-            ["Instagram Ads", "Reels — Open House", "2 today"],
-          ].map(([name, campaign, count]) => (
-            <div key={name} className="border-border bg-background flex items-center gap-3 rounded-lg border p-3">
-              <span className="bg-accent text-accent-foreground grid h-8 w-8 shrink-0 place-items-center rounded-lg">
-                <Zap className="h-4 w-4" />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{name}</p>
-                <p className="text-muted-foreground truncate text-xs">{campaign}</p>
-              </div>
-              <span className="text-muted-foreground ml-auto shrink-0 text-xs">{count}</span>
+        {(() => {
+          const allLeads = leadsQuery.data ?? [];
+          const countBySource = (srcKeys: string[]) =>
+            allLeads.filter((l) => srcKeys.some((k) => l.source.toLowerCase().includes(k.toLowerCase()))).length;
+
+          const cards = [
+            { name: "Meta Ads", campaign: "Facebook & Meta campaigns", src: ["Meta Ads", "Facebook"], count: countBySource(["Meta Ads", "Facebook"]) },
+            { name: "Google Ads", campaign: "Search & Display ads", src: ["Google Ads"], count: countBySource(["Google Ads"]) },
+            { name: "Website forms", campaign: "Contact & enquiry forms", src: ["Website"], count: countBySource(["Website"]) },
+            { name: "Landing pages", campaign: "Campaign landing pages", src: ["Landing Page"], count: countBySource(["Landing Page"]) },
+            { name: "WhatsApp", campaign: "Click-to-chat & API", src: ["WhatsApp"], count: countBySource(["WhatsApp"]) },
+            { name: "Instagram Ads", campaign: "Reels & Story ads", src: ["Instagram"], count: countBySource(["Instagram"]) },
+          ];
+
+          return (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {cards.map((c) => (
+                <div key={c.name} className="border-border bg-background flex items-center gap-3 rounded-lg border p-3">
+                  <span className="bg-accent text-accent-foreground grid h-8 w-8 shrink-0 place-items-center rounded-lg">
+                    <Zap className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{c.name}</p>
+                    <p className="text-muted-foreground truncate text-xs">{c.campaign}</p>
+                  </div>
+                  <span className="text-muted-foreground ml-auto shrink-0 text-xs font-semibold">
+                    {c.count} lead{c.count === 1 ? "" : "s"}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          );
+        })()}
       </SectionCard>
 
       {/* Filter and Search Bar */}
@@ -176,6 +206,14 @@ function LeadsPage() {
                               <StatusBadge label={l.source} tone="info" />
                               {l.campaign && <StatusBadge label={l.campaign} tone="neutral" />}
                               {l.external_id && <StatusBadge label={l.external_id} tone="neutral" />}
+                              {l.created_by && memberMap.get(l.created_by) && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:text-blue-300">
+                                  By: {memberMap.get(l.created_by)}
+                                </span>
+                              )}
+                              <span className="inline-flex items-center gap-1 rounded-full bg-muted border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                                Assigned: {l.assigned_to ? memberMap.get(l.assigned_to) || "Assigned" : "Unassigned"}
+                              </span>
                             </div>
                           </div>
 
@@ -207,6 +245,11 @@ function LeadsPage() {
                                 <ChevronRight className="mr-2 h-4 w-4" /> View Details
                               </Link>
                             </DropdownMenuItem>
+                            {canAssign && (
+                              <DropdownMenuItem onClick={() => setAssigningLead(l)}>
+                                <UserCheck className="mr-2 h-4 w-4" /> {l.assigned_to ? "Reassign Lead" : "Assign Lead"}
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem onClick={() => setEditingLead(l)}>
                               <Edit className="mr-2 h-4 w-4" /> Edit Lead
                             </DropdownMenuItem>
@@ -233,6 +276,14 @@ function LeadsPage() {
       </DataState>
 
       {/* Row Action Dialogs */}
+      {assigningLead && (
+        <AssignLeadDialog
+          open={!!assigningLead}
+          onOpenChange={(open) => !open && setAssigningLead(null)}
+          lead={assigningLead}
+        />
+      )}
+
       {editingLead && (
         <EditLeadDialog
           open={!!editingLead}

@@ -9,15 +9,20 @@ import {
   CalendarClock,
   CalendarPlus,
   CheckCircle2,
+  Copy,
   Edit,
+  ExternalLink,
+  Info,
   Mail,
   MessageCircle,
   MessageSquarePlus,
   Phone,
+  Search,
   Send,
   Sparkles,
   Trash2,
   UserCheck,
+  UserPlus,
   Zap,
 } from "lucide-react";
 import { SectionCard } from "@/components/common/SectionCard";
@@ -35,12 +40,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   getLead,
   updateLead,
   listLeadActivity,
   logLeadActivity,
   listProperties,
   listMembers,
+  listCustomers,
   leadStatuses,
   qk,
   type Lead,
@@ -48,10 +62,21 @@ import {
 } from "@/lib/crm-api";
 import { useSession } from "@/hooks/use-session";
 import { formatDateTime, formatMoney } from "@/lib/format";
+import { matchProperties, type PropertyMatch } from "@/lib/property-matching";
+import {
+  normalizePhoneForTel,
+  isMobileDevice,
+  getGmailComposeUrl,
+  formatWhatsAppUrl,
+  createLeadEmailTemplate,
+} from "@/lib/communication";
 import { EditLeadDialog } from "@/components/crm/EditLeadDialog";
 import { ScheduleFollowUpDialog } from "@/components/crm/ScheduleFollowUpDialog";
 import { DeleteLeadDialog } from "@/components/crm/DeleteLeadDialog";
+import { ConvertLeadDialog } from "@/components/crm/ConvertLeadDialog";
+import { AssignLeadDialog } from "@/components/crm/AssignLeadDialog";
 import { toast } from "sonner";
+import { Users } from "lucide-react";
 
 export const Route = createFileRoute("/app/leads/$leadId")({
   head: () => ({
@@ -99,13 +124,24 @@ function LeadDetailPage() {
 }
 
 function LeadDetailView({ lead }: { lead: Lead }) {
-  const { workspace, user } = useSession();
+  const { workspace, user, role, dbRole } = useSession();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const canAssign =
+    role === "Owner" ||
+    role === "Manager" ||
+    role === "Super Admin" ||
+    dbRole === "owner" ||
+    dbRole === "manager" ||
+    dbRole === "super_admin";
+
   const [editOpen, setEditOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
+  const [callDialogOpen, setCallDialogOpen] = useState(false);
 
   // New activity form state
   const [activityNote, setActivityNote] = useState("");
@@ -128,6 +164,14 @@ function LeadDetailView({ lead }: { lead: Lead }) {
     queryFn: () => listMembers(workspace.id),
     enabled: !!workspace.id,
   });
+
+  const customersQuery = useQuery({
+    queryKey: qk.customers(workspace.id),
+    queryFn: () => listCustomers(workspace.id),
+    enabled: !!workspace.id,
+  });
+
+  const linkedCustomer = customersQuery.data?.find((c) => c.id === lead.customer_id);
 
   // Status mutation
   const statusMutation = useMutation({
@@ -201,13 +245,56 @@ function LeadDetailView({ lead }: { lead: Lead }) {
   });
 
   const assignedMember = membersQuery.data?.find((m) => m.id === lead.assigned_to);
+  const creatorMember = membersQuery.data?.find((m) => m.id === lead.created_by);
   const interestedProperty = propertiesQuery.data?.find((p) => p.id === lead.property_id);
-  const matchedProperties = propertiesQuery.data?.slice(0, 4) ?? [];
 
-  const cleanPhone = lead.phone ? lead.phone.replace(/[^0-9]/g, "") : "";
-  const phoneUrl = lead.phone ? `tel:${lead.phone.replace(/[^0-9+]/g, "")}` : undefined;
-  const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
-  const mailUrl = lead.email ? `mailto:${lead.email}` : undefined;
+  // Deterministic property matching
+  const matchResult = propertiesQuery.data
+    ? matchProperties(lead, propertiesQuery.data)
+    : { matches: [], insufficientCriteria: true };
+  const matchedProperties = matchResult.matches.slice(0, 6);
+
+  // Communication Action Handlers
+  const normalizedPhone = normalizePhoneForTel(lead.phone);
+  const telUrl = normalizedPhone ? `tel:${normalizedPhone}` : undefined;
+  const waUrl = formatWhatsAppUrl(
+    lead.phone,
+    `Hi ${lead.name}, this is ${user.name} from ${workspace.name}. I'm following up regarding your property requirement.`
+  );
+
+  const handleCallAction = () => {
+    if (!lead.phone || !normalizedPhone) {
+      toast.error("No valid phone number available for this lead.");
+      return;
+    }
+
+    if (isMobileDevice()) {
+      // Mobile: trigger native dialer directly without blocking
+      window.location.href = telUrl!;
+      toast.info(`Calling ${lead.phone}…`, { description: "Opening your mobile dialer." });
+    } else {
+      // Desktop: attempt standard tel protocol AND show fallback dialog
+      try {
+        window.open(telUrl!, "_self");
+      } catch {
+        // ignore
+      }
+      setCallDialogOpen(true);
+    }
+  };
+
+  const handleEmailAction = () => {
+    if (!lead.email) {
+      toast.error("No email address available for this lead.");
+      return;
+    }
+
+    const { subject, body } = createLeadEmailTemplate(lead.name, user.name, workspace.name);
+    const gmailUrl = getGmailComposeUrl(lead.email, subject, body);
+
+    toast.success(`Opening Gmail Compose for ${lead.email}…`);
+    window.open(gmailUrl, "_blank", "noopener,noreferrer");
+  };
 
   const isFollowUpDue = lead.next_follow_up && new Date(lead.next_follow_up) <= new Date();
 
@@ -246,6 +333,16 @@ function LeadDetailView({ lead }: { lead: Lead }) {
             <p className="text-muted-foreground mt-1 truncate text-xs sm:text-sm">
               {lead.phone || "No phone"} {lead.email ? `· ${lead.email}` : ""}
             </p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-3 text-xs">
+              <span className="inline-flex items-center gap-1 text-muted-foreground">
+                <UserCheck className="h-3.5 w-3.5 text-primary" />
+                Assigned to: <strong className="text-foreground">{assignedMember ? assignedMember.full_name : "Unassigned"}</strong>
+              </span>
+              <span className="inline-flex items-center gap-1 text-muted-foreground">
+                <UserPlus className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                Created by: <strong className="text-foreground">{creatorMember ? creatorMember.full_name : (lead.created_by ? "Team member" : "Manual entry")}</strong>
+              </span>
+            </div>
           </div>
           <div className="text-right">
             <StatusBadge label={lead.status} />
@@ -257,39 +354,63 @@ function LeadDetailView({ lead }: { lead: Lead }) {
 
         {/* Quick Contact & Action Buttons */}
         <div className="mt-5 flex flex-wrap items-center gap-2 pt-3 border-t border-border">
-          {phoneUrl ? (
-            <Button size="sm" variant="outline" asChild>
-              <a href={phoneUrl}>
-                <Phone className="mr-1.5 h-4 w-4 text-emerald-600" /> Call
-              </a>
+          {lead.phone && normalizedPhone ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCallAction}
+            >
+              <Phone className="mr-1.5 h-4 w-4 text-emerald-600" /> Call
             </Button>
           ) : (
-            <Button size="sm" variant="outline" disabled>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled
+              title="No phone number available for this lead"
+            >
               <Phone className="mr-1.5 h-4 w-4" /> Call
             </Button>
           )}
 
           {waUrl ? (
-            <Button size="sm" variant="outline" asChild>
-              <a href={waUrl} target="_blank" rel="noopener noreferrer">
-                <MessageCircle className="mr-1.5 h-4 w-4 text-emerald-600" /> WhatsApp
-              </a>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                window.open(waUrl, "_blank", "noopener,noreferrer");
+                toast.info("Opening WhatsApp…", { description: "WhatsApp Web or Desktop will open. Please log in if prompted." });
+              }}
+            >
+              <MessageCircle className="mr-1.5 h-4 w-4 text-emerald-600" /> Open WhatsApp
             </Button>
           ) : (
-            <Button size="sm" variant="outline" disabled>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled
+              title="No phone number available for WhatsApp"
+            >
               <MessageCircle className="mr-1.5 h-4 w-4" /> WhatsApp
             </Button>
           )}
 
-          {mailUrl ? (
-            <Button size="sm" variant="outline" asChild>
-              <a href={mailUrl}>
-                <Mail className="mr-1.5 h-4 w-4 text-blue-600" /> Email
-              </a>
+          {lead.email ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleEmailAction}
+            >
+              <Mail className="mr-1.5 h-4 w-4 text-blue-600" /> Compose Email
             </Button>
           ) : (
-            <Button size="sm" variant="outline" disabled>
-              <Mail className="mr-1.5 h-4 w-4" /> Email
+            <Button
+              size="sm"
+              variant="outline"
+              disabled
+              title="No email address available for this lead"
+            >
+              <Mail className="mr-1.5 h-4 w-4" /> Compose Email
             </Button>
           )}
 
@@ -360,6 +481,16 @@ function LeadDetailView({ lead }: { lead: Lead }) {
                     : "Not specified",
                 ],
                 ["Assigned to", assignedMember ? assignedMember.full_name : "Unassigned"],
+                [
+                  "Assigned at",
+                  lead.assigned_at
+                    ? formatDateTime(lead.assigned_at)
+                    : lead.assigned_to
+                      ? "Assigned"
+                      : "—",
+                ],
+                ["Created by", creatorMember ? creatorMember.full_name : (lead.created_by ? "Team member" : "Manual entry")],
+                ["Created at", formatDateTime(lead.created_at)],
                 ["Received", formatDateTime(lead.received_at)],
                 [
                   "Next follow-up",
@@ -397,24 +528,39 @@ function LeadDetailView({ lead }: { lead: Lead }) {
           {/* Matched Properties */}
           <SectionCard
             title="Matched properties"
-            description="Active inventory matching buyer profile"
+            description="Active inventory matching buyer requirements"
           >
-            {matchedProperties.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No properties found in workspace.</p>
+            {matchResult.insufficientCriteria ? (
+              <div className="flex flex-col items-center gap-2 py-6 text-center">
+                <Search className="h-8 w-8 text-muted-foreground/50" />
+                <p className="text-sm font-medium text-muted-foreground">No matching properties yet</p>
+                <p className="text-xs text-muted-foreground max-w-xs">
+                  Add budget, location, property type or BHK requirements to find matching properties.
+                </p>
+                <Button size="sm" variant="outline" className="mt-1" onClick={() => setEditOpen(true)}>
+                  <Edit className="mr-1.5 h-3.5 w-3.5" /> Add Requirements
+                </Button>
+              </div>
+            ) : matchedProperties.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-6 text-center">
+                <Building2 className="h-8 w-8 text-muted-foreground/50" />
+                <p className="text-sm font-medium text-muted-foreground">No matching properties found</p>
+                <p className="text-xs text-muted-foreground max-w-xs">
+                  No available properties match this lead's current requirements. New matches will appear automatically when properties are added or requirements change.
+                </p>
+              </div>
             ) : (
               <ul className="grid gap-3 sm:grid-cols-2">
-                {matchedProperties.map((p) => (
-                  <li key={p.id}>
+                {matchedProperties.map((m) => (
+                  <li key={m.property.id}>
                     <Link
                       to="/app/properties/$propertyId"
-                      params={{ propertyId: p.id }}
-                      className={`border-border hover:elev-1 flex gap-3 rounded-lg border p-3 transition-shadow ${
-                        p.id === lead.property_id ? "ring-2 ring-primary/40 bg-primary/5" : ""
-                      }`}
+                      params={{ propertyId: m.property.id }}
+                      className="border-border hover:elev-1 flex gap-3 rounded-lg border p-3 transition-shadow"
                     >
-                      {p.image_url ? (
+                      {m.property.image_url ? (
                         <img
-                          src={p.image_url}
+                          src={m.property.image_url}
                           alt=""
                           loading="lazy"
                           width={64}
@@ -426,12 +572,22 @@ function LeadDetailView({ lead }: { lead: Lead }) {
                           <Building2 className="h-6 w-6" />
                         </div>
                       )}
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{p.name}</p>
-                        <p className="text-muted-foreground truncate text-xs">{p.location || "—"}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{m.property.name}</p>
+                        <p className="text-muted-foreground truncate text-xs">{m.property.location || "—"}</p>
                         <p className="mt-1 text-xs font-semibold">
-                          {formatMoney(p.price, (p.currency ?? "INR") as any, true)}
+                          {formatMoney(m.property.price, (m.property.currency ?? "INR") as any, true)}
                         </p>
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {m.matchReasons.map((reason) => (
+                            <span
+                              key={reason}
+                              className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300"
+                            >
+                              {reason}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </Link>
                   </li>
@@ -583,6 +739,83 @@ function LeadDetailView({ lead }: { lead: Lead }) {
             </div>
           </SectionCard>
 
+          {/* Assigned Employee */}
+          <SectionCard title="Assigned employee">
+            <div className="space-y-3">
+              {assignedMember ? (
+                <div className="flex items-center gap-2.5 p-3 border border-border rounded-lg bg-background">
+                  <div className="bg-primary/10 text-primary grid h-9 w-9 shrink-0 place-items-center rounded-full font-semibold text-xs">
+                    <UserCheck className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">
+                      {assignedMember.full_name}
+                    </p>
+                    <p className="text-muted-foreground truncate text-xs">
+                      {assignedMember.email || "Workspace team member"}
+                    </p>
+                    {lead.assigned_at && (
+                      <p className="text-muted-foreground text-[11px] mt-0.5">
+                        Assigned: {formatDateTime(lead.assigned_at)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No employee assigned.</p>
+              )}
+
+              {canAssign && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setAssignOpen(true)}
+                >
+                  <UserCheck className="mr-1.5 h-4 w-4" />
+                  {lead.assigned_to ? "Reassign Lead" : "Assign Lead"}
+                </Button>
+              )}
+            </div>
+          </SectionCard>
+
+          {/* Linked Customer */}
+          <SectionCard title="Linked customer">
+            {linkedCustomer ? (
+              <Link
+                to="/app/customers/$customerId"
+                params={{ customerId: linkedCustomer.id }}
+                className="block group p-3 border border-border rounded-lg bg-background hover:bg-accent/40 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="bg-primary/10 text-primary grid h-9 w-9 shrink-0 place-items-center rounded-full font-semibold text-xs">
+                    <Users className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold group-hover:text-primary transition-colors">
+                      {linkedCustomer.name}
+                    </p>
+                    <p className="text-muted-foreground truncate text-xs">
+                      {linkedCustomer.phone || linkedCustomer.email || linkedCustomer.type}
+                    </p>
+                  </div>
+                </div>
+              </Link>
+            ) : (
+              <div className="text-muted-foreground text-sm space-y-2">
+                <p>No customer linked yet.</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setEditOpen(true)}
+                >
+                  Link Customer
+                </Button>
+              </div>
+            )}
+          </SectionCard>
+
           {/* Interested Property */}
           <SectionCard title="Interested property">
             {interestedProperty ? (
@@ -630,6 +863,17 @@ function LeadDetailView({ lead }: { lead: Lead }) {
           {/* Quick Actions */}
           <SectionCard title="Quick actions">
             <div className="space-y-2">
+              {canAssign && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={() => setAssignOpen(true)}
+                >
+                  <UserCheck className="mr-2 h-4 w-4" />
+                  {lead.assigned_to ? "Reassign Lead" : "Assign Lead"}
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -646,6 +890,27 @@ function LeadDetailView({ lead }: { lead: Lead }) {
               >
                 <Edit className="mr-2 h-4 w-4" /> Edit Lead Details
               </Button>
+              {linkedCustomer ? (
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200 hover:bg-emerald-500/20"
+                >
+                  <Link to="/app/customers/$customerId" params={{ customerId: linkedCustomer.id }}>
+                    <UserCheck className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" /> View Converted Customer ({linkedCustomer.name})
+                  </Link>
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start text-primary hover:bg-primary/5 font-medium"
+                  onClick={() => setConvertOpen(true)}
+                >
+                  <UserCheck className="mr-2 h-4 w-4" /> Convert to Customer
+                </Button>
+              )}
               <Button asChild variant="outline" size="sm" className="w-full justify-start">
                 <Link to="/app/leads/pipeline">
                   <Zap className="mr-2 h-4 w-4" /> View in Pipeline
@@ -658,10 +923,17 @@ function LeadDetailView({ lead }: { lead: Lead }) {
 
       {/* Dialogs */}
       <EditLeadDialog open={editOpen} onOpenChange={setEditOpen} lead={lead} />
+      <AssignLeadDialog open={assignOpen} onOpenChange={setAssignOpen} lead={lead} />
       <ScheduleFollowUpDialog
         open={followUpOpen}
         onOpenChange={setFollowUpOpen}
         lead={lead}
+      />
+      <ConvertLeadDialog
+        open={convertOpen}
+        onOpenChange={setConvertOpen}
+        lead={lead}
+        onConverted={(cust) => navigate({ to: "/app/customers/$customerId", params: { customerId: cust.id } })}
       />
       <DeleteLeadDialog
         open={deleteOpen}
@@ -669,6 +941,50 @@ function LeadDetailView({ lead }: { lead: Lead }) {
         lead={lead}
         onDeleted={() => navigate({ to: "/app/leads" })}
       />
+
+      {/* Desktop Call Fallback Dialog */}
+      <Dialog open={callDialogOpen} onOpenChange={setCallDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Phone className="h-5 w-5 text-emerald-600" />
+              Call {lead.name}
+            </DialogTitle>
+            <DialogDescription>
+              Calling isn't available on this desktop device without a telephony handler (like Phone Link, FaceTime, or Skype).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="my-2 rounded-lg border border-border bg-muted/40 p-3 space-y-1">
+            <p className="text-xs text-muted-foreground">Phone Number</p>
+            <p className="font-mono text-base font-semibold text-foreground">
+              {lead.phone}
+            </p>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                navigator.clipboard.writeText(lead.phone ?? "");
+                toast.success(`Copied ${lead.phone} to clipboard.`);
+              }}
+            >
+              <Copy className="mr-1.5 h-4 w-4" /> Copy Number
+            </Button>
+            {telUrl && (
+              <Button
+                onClick={() => {
+                  window.open(telUrl, "_self");
+                  toast.info("Attempting to open registered phone app…");
+                }}
+              >
+                <Phone className="mr-1.5 h-4 w-4" /> Try Phone App
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

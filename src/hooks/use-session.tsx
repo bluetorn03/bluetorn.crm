@@ -51,6 +51,7 @@ export type SessionUser = {
   name: string;
   email: string;
   phone: string;
+  whatsappPhone: string;
   jobTitle: string;
   avatarUrl: string | null;
   isActive: boolean;
@@ -77,6 +78,7 @@ const emptyUser: SessionUser = {
   name: "",
   email: "",
   phone: "",
+  whatsappPhone: "",
   jobTitle: "",
   avatarUrl: null,
   isActive: false,

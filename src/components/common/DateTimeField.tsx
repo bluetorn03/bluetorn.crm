@@ -43,7 +43,7 @@ export function DateTimeField({
   onChange: (next: string | null) => void;
   withTime?: boolean;
   required?: boolean;
-  error?: string;
+  error?: string | undefined;
   id?: string;
   disabledBefore?: Date;
 }) {
@@ -51,14 +51,14 @@ export function DateTimeField({
   const parts = useMemo(() => toParts(value), [value]);
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5 min-w-0 w-full">
       {label && (
         <Label htmlFor={id}>
           {label}
           {required && <span className="text-destructive"> *</span>}
         </Label>
       )}
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 min-w-0 w-full">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button
@@ -66,13 +66,15 @@ export function DateTimeField({
               type="button"
               variant="outline"
               className={cn(
-                "flex-1 justify-start font-normal",
+                "min-w-0 flex-1 justify-start font-normal truncate h-9 text-xs sm:text-sm",
                 !parts.date && "text-muted-foreground",
                 error && "border-destructive",
               )}
             >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {parts.date ? formatDate(parts.date.toISOString()) : "Pick a date"}
+              <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+              <span className="truncate">
+                {parts.date ? formatDate(parts.date.toISOString()) : "Pick a date"}
+              </span>
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
@@ -106,11 +108,11 @@ export function DateTimeField({
         </Popover>
 
         {withTime && (
-          <div className="relative w-32 shrink-0">
+          <div className="relative w-full sm:w-32 shrink-0">
             <Clock className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
             <Input
               type="time"
-              className="pl-8"
+              className="pl-8 text-xs sm:text-sm h-9 w-full"
               value={parts.time}
               disabled={!parts.date}
               onChange={(e) => onChange(combine(parts.date, e.target.value || "10:00"))}

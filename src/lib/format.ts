@@ -18,8 +18,10 @@ export function formatMoney(amount: number, currency: CurrencyCode = "INR", comp
 }
 
 /** DD/MM/YYYY */
-export function formatDate(iso: string) {
+export function formatDate(iso?: string | null) {
+  if (!iso) return "—";
   const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
   const p = (n: number) => String(n).padStart(2, "0");
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
 }

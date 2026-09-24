@@ -1,6 +1,6 @@
 import { Phone, StickyNote, ArrowRightLeft, MapPin, IndianRupee, Mail, MessageCircle } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
-import type { Activity } from "@/lib/mock-data";
+import type { Activity } from "@/lib/crm-api";
 
 const icons = {
   call: Phone,

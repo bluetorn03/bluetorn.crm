@@ -17,6 +17,7 @@ import type {
   Plan,
   PromoMedia,
   AuditLog,
+  Notification,
 } from "./db-types";
 
 import {
@@ -36,6 +37,7 @@ import {
   createLeadFn,
   updateLeadFn,
   deleteLeadFn,
+  convertLeadToCustomerFn,
   listLeadActivityFn,
   logLeadActivityFn,
   deleteLeadActivityFn,
@@ -70,10 +72,18 @@ import {
   savePlatformSettingsFn,
   listAuditLogsFn,
   recordAuditFn,
+  getDashboardDataFn,
+  searchCrmFn,
+  listNotificationsFn,
+  unreadNotificationCountFn,
+  markNotificationReadFn,
+  markAllNotificationsReadFn,
   invoiceTotals,
   type Member,
   type InvoiceLineInput,
   type PlatformSettings,
+  type DashboardData,
+  type SearchResult,
 } from "./crm.functions";
 
 export type {
@@ -91,7 +101,12 @@ export type {
   Member,
   InvoiceLineInput,
   PlatformSettings,
+  DashboardData,
+  SearchResult,
+  Notification,
 };
+
+export type Activity = DashboardData["recentActivities"][number];
 
 export { invoiceTotals };
 
@@ -136,6 +151,8 @@ export const paymentStatuses = ["Received", "Pending", "Failed", "Refunded"] as 
 /* --------------------------------- helpers -------------------------------- */
 
 export const qk = {
+  dashboard: (ws: string) => ["dashboard", ws] as const,
+  search: (ws: string, q: string) => ["search", ws, q] as const,
   customers: (ws: string) => ["customers", ws] as const,
   customer: (id: string) => ["customer", id] as const,
   properties: (ws: string) => ["properties", ws] as const,
@@ -152,6 +169,8 @@ export const qk = {
   plans: () => ["plans"] as const,
   promos: () => ["promos"] as const,
   platformSettings: () => ["platform-settings"] as const,
+  notifications: () => ["notifications"] as const,
+  notificationCount: () => ["notification-count"] as const,
 };
 
 /* -------------------------------- members --------------------------------- */
@@ -239,6 +258,12 @@ export async function updateLead(
 
 export async function deleteLead(id: string): Promise<void> {
   await deleteLeadFn({ data: { id } });
+}
+
+export async function convertLeadToCustomer(
+  leadId: string,
+): Promise<{ customer: Customer; alreadyConverted: boolean; isNew: boolean }> {
+  return convertLeadToCustomerFn({ data: { leadId } });
 }
 
 export async function listLeadActivity(leadId: string): Promise<LeadActivity[]> {
@@ -441,4 +466,45 @@ export async function recordAudit(
   input: Partial<AuditLog> & { action: string },
 ): Promise<void> {
   await recordAuditFn({ data: input });
+}
+
+/* ------------------------------- dashboard -------------------------------- */
+
+export async function getDashboardData(
+  workspaceId: string,
+  userRole?: string,
+  userName?: string,
+): Promise<DashboardData> {
+  const payload: { workspaceId: string; userRole?: string; userName?: string } = { workspaceId };
+  if (userRole) payload.userRole = userRole;
+  if (userName) payload.userName = userName;
+  return getDashboardDataFn({ data: payload });
+}
+
+/* --------------------------------- search ---------------------------------- */
+
+export async function searchCrm(
+  workspaceId: string,
+  query: string,
+): Promise<SearchResult> {
+  return searchCrmFn({ data: { workspaceId, query } });
+}
+
+/* ------------------------------ notifications ------------------------------ */
+
+export async function listNotifications(limit?: number): Promise<Notification[]> {
+  return listNotificationsFn({ data: limit !== undefined ? { limit } : {} });
+}
+
+export async function getUnreadNotificationCount(): Promise<number> {
+  const result = await unreadNotificationCountFn();
+  return result.count;
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  await markNotificationReadFn({ data: { id } });
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await markAllNotificationsReadFn();
 }

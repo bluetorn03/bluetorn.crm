@@ -399,16 +399,27 @@ function AccountTab({ onSaved }: { onSaved: () => Promise<void> }) {
   const updateProfile = useServerFn(updateSelfProfileFn);
   const changePasswordFn = useServerFn(changeSelfPasswordFn);
 
-  const [form, setForm] = useState({ fullName: user.name, email: user.email, phone: user.phone, jobTitle: user.jobTitle });
+  const [form, setForm] = useState({
+    fullName: user.name,
+    email: user.email,
+    phone: user.phone,
+    whatsappPhone: user.whatsappPhone,
+    jobTitle: user.jobTitle,
+  });
   const [password, setPassword] = useState("");
 
   const saveProfile = useMutation({
     mutationFn: async () => {
+      // Validate email format if provided
+      if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+        throw new Error("Please enter a valid email address.");
+      }
       await updateProfile({
         data: {
           fullName: form.fullName.trim(),
           email: form.email.trim() || null,
           phone: form.phone.trim() || null,
+          whatsappPhone: form.whatsappPhone.trim() || null,
           jobTitle: form.jobTitle.trim() || null,
         },
       });
@@ -433,35 +444,84 @@ function AccountTab({ onSaved }: { onSaved: () => Promise<void> }) {
   });
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-      <SectionCard title="My profile" description="Visible to your workspace team.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Full name" value={form.fullName} onChange={(v) => setForm({ ...form, fullName: v })} />
-          <Field label="Job title" value={form.jobTitle} onChange={(v) => setForm({ ...form, jobTitle: v })} />
-          <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-          <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
-        </div>
-        <div className="mt-4 flex justify-end">
-          <Button size="sm" disabled={saveProfile.isPending} onClick={() => saveProfile.mutate()}>
-            {saveProfile.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Save profile
-          </Button>
-        </div>
-      </SectionCard>
+    <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <SectionCard title="My profile" description="Visible to your workspace team.">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Full name" value={form.fullName} onChange={(v) => setForm({ ...form, fullName: v })} />
+            <Field label="Job title" value={form.jobTitle} onChange={(v) => setForm({ ...form, jobTitle: v })} />
+            <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
+            <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+          </div>
+          <div className="mt-4 flex justify-end">
+            <Button size="sm" disabled={saveProfile.isPending} onClick={() => saveProfile.mutate()}>
+              {saveProfile.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Save profile
+            </Button>
+          </div>
+        </SectionCard>
 
-      <SectionCard title="Security" description="Sign-in identity and password.">
-        <dl className="space-y-3 text-sm">
-          <Row label="Workspace code" value={workspace.code} />
-          <Row label="User ID" value={user.userCode} />
-          <Row label="Role" value={role} />
-        </dl>
-        <div className="mt-4 space-y-3">
-          <Field label="New password" type="password" value={password} onChange={setPassword} />
-          <Button
-            size="sm"
-            disabled={password.length < 8 || changePassword.isPending}
-            onClick={() => changePassword.mutate()}
-          >
-            {changePassword.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Change password
+        <SectionCard title="Security" description="Sign-in identity and password.">
+          <dl className="space-y-3 text-sm">
+            <Row label="Workspace code" value={workspace.code} />
+            <Row label="User ID" value={user.userCode} />
+            <Row label="Role" value={role} />
+          </dl>
+          <div className="mt-4 space-y-3">
+            <Field label="New password" type="password" value={password} onChange={setPassword} />
+            <Button
+              size="sm"
+              disabled={password.length < 8 || changePassword.isPending}
+              onClick={() => changePassword.mutate()}
+            >
+              {changePassword.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Change password
+            </Button>
+          </div>
+        </SectionCard>
+      </div>
+
+      {/* Communication Settings */}
+      <SectionCard
+        title="Communication settings"
+        description="WhatsApp and email settings used for lead communication."
+      >
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <Label className="text-xs text-muted-foreground">Calling Phone</Label>
+            <p className="mt-1 text-sm font-semibold text-foreground truncate">
+              {form.phone || <span className="text-muted-foreground font-normal">Not configured</span>}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Uses your profile phone number. Edit in My Profile above.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <Label className="text-xs text-muted-foreground">Sender Email</Label>
+            <p className="mt-1 text-sm font-semibold text-foreground truncate">
+              {form.email || <span className="text-muted-foreground font-normal">Not configured</span>}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Uses your profile email. Edit in My Profile above.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-border bg-card p-3">
+            <Label className="text-xs font-medium">WhatsApp Number *</Label>
+            <Input
+              value={form.whatsappPhone}
+              onChange={(e) => setForm({ ...form, whatsappPhone: e.target.value })}
+              placeholder="+91 7304810459"
+              className="mt-1.5 h-9 text-sm"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Your registered WhatsApp number for messaging leads.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex justify-end pt-3 border-t border-border">
+          <Button size="sm" disabled={saveProfile.isPending} onClick={() => saveProfile.mutate()}>
+            {saveProfile.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Save WhatsApp Number
           </Button>
         </div>
       </SectionCard>

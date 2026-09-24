@@ -1,10 +1,73 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Pause, Play, Clock3, Layers, Radio, Volume2, VolumeX } from "lucide-react";
-import { promoMedia } from "@/lib/mock-data";
+import { listPromoMedia, qk } from "@/lib/crm-api";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-const active = promoMedia.filter((m) => m.status === "Active").sort((a, b) => a.priority - b.priority);
+import promo1 from "@/assets/promo-1.jpg";
+import promo2 from "@/assets/promo-2.jpg";
+import promo3 from "@/assets/promo-3.jpg";
+
+type PromoItem = {
+  id: string;
+  title: string;
+  subtitle: string;
+  type: string;
+  src: string;
+  priority: number;
+  status: string;
+  startAt: string;
+  endAt: string | null;
+  target: string;
+  durationSec: number;
+  ctaLabel?: string;
+};
+
+const defaultPromos: PromoItem[] = [
+  {
+    id: "m-1",
+    title: "Lead Capture, Automated",
+    subtitle: "Ads, forms and WhatsApp leads land in one pipeline.",
+    type: "Poster",
+    src: promo1,
+    priority: 1,
+    status: "Active",
+    startAt: new Date().toISOString(),
+    endAt: null,
+    target: "All workspaces",
+    durationSec: 7,
+    ctaLabel: "What's new",
+  },
+  {
+    id: "m-2",
+    title: "Real Estate First",
+    subtitle: "Properties, site visits and bookings built in.",
+    type: "Image",
+    src: promo2,
+    priority: 2,
+    status: "Active",
+    startAt: new Date().toISOString(),
+    endAt: null,
+    target: "All workspaces",
+    durationSec: 7,
+    ctaLabel: "Industry layer",
+  },
+  {
+    id: "m-3",
+    title: "Product tour — 60 seconds",
+    subtitle: "See a full deal move from lead to payment.",
+    type: "Video",
+    src: promo3,
+    priority: 3,
+    status: "Active",
+    startAt: new Date().toISOString(),
+    endAt: null,
+    target: "All workspaces",
+    durationSec: 9,
+    ctaLabel: "Watch tour",
+  },
+];
 
 export function PromoWall({ compact = false }: { compact?: boolean }) {
   const [index, setIndex] = useState(0);
@@ -14,6 +77,30 @@ export function PromoWall({ compact = false }: { compact?: boolean }) {
   const [mounted, setMounted] = useState(false);
   const reduced = useRef(false);
 
+  const promoQuery = useQuery({
+    queryKey: qk.promos(),
+    queryFn: () => listPromoMedia(),
+  });
+
+  const dbPromos = (promoQuery.data ?? [])
+    .filter((m) => m.is_active)
+    .map((m) => ({
+      id: m.id,
+      title: m.title,
+      subtitle: m.body || "",
+      type: "Image",
+      src: m.image_url || promo1,
+      priority: m.priority,
+      status: "Active",
+      startAt: m.start_at,
+      endAt: m.end_at,
+      target: m.target || "All workspaces",
+      durationSec: 7,
+      ctaLabel: "Announcement",
+    }));
+
+  const active: PromoItem[] = dbPromos.length > 0 ? dbPromos : defaultPromos;
+
   useEffect(() => {
     setMounted(true);
     reduced.current =
@@ -22,12 +109,12 @@ export function PromoWall({ compact = false }: { compact?: boolean }) {
     if (reduced.current) setPlaying(false);
   }, []);
 
-  const current = active[index]!;
+  const current = active[index % active.length] || defaultPromos[0]!;
 
   const next = useCallback(() => {
     setIndex((i) => (i + 1) % active.length);
     setProgress(0);
-  }, []);
+  }, [active.length]);
 
   useEffect(() => {
     if (!playing) return;

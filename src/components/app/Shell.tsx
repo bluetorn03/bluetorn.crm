@@ -27,6 +27,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { CommandPalette } from "@/components/app/CommandPalette";
+import { NotificationBell } from "@/components/app/NotificationBell";
 import { useSession } from "@/hooks/use-session";
 import { useTheme } from "@/hooks/use-theme";
 import { initials } from "@/lib/format";
@@ -218,10 +219,7 @@ export function Shell({
               >
                 <Search className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
-                <Bell className="h-5 w-5" />
-                <span className="bg-primary absolute top-2 right-2 h-2 w-2 rounded-full" />
-              </Button>
+              <NotificationBell />
               <Button variant="ghost" size="icon" aria-label="Toggle theme" onClick={toggle}>
                 {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </Button>

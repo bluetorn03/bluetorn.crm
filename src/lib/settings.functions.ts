@@ -107,16 +107,18 @@ export const updateSelfProfileFn = createServerFn({ method: "POST" })
       fullName: string;
       email?: string | null;
       phone?: string | null;
+      whatsappPhone?: string | null;
       jobTitle?: string | null;
     }) => input,
   )
   .handler(async ({ data, context }) => {
     await execute(
-      "UPDATE profiles SET full_name = ?, email = ?, phone = ?, job_title = ? WHERE id = ?",
+      "UPDATE profiles SET full_name = ?, email = ?, phone = ?, whatsapp_phone = ?, job_title = ? WHERE id = ?",
       [
         data.fullName.trim(),
         data.email?.trim() || null,
         data.phone?.trim() || null,
+        data.whatsappPhone?.trim() || null,
         data.jobTitle?.trim() || null,
         context.userId,
       ],

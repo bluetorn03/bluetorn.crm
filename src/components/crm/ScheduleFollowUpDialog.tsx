@@ -105,19 +105,19 @@ export function ScheduleFollowUpDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CalendarClock className="h-5 w-5 text-primary" />
-            {lead?.next_follow_up ? "Edit Follow-Up" : "Schedule Follow-Up"}
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[calc(100dvh-2rem)] sm:max-h-[90dvh] flex flex-col p-4 sm:p-6 overflow-hidden gap-0 rounded-lg">
+        <DialogHeader className="shrink-0 pb-3 border-b border-border">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <CalendarClock className="h-5 w-5 text-primary shrink-0" />
+            <span className="truncate">{lead?.next_follow_up ? "Edit Follow-Up" : "Schedule Follow-Up"}</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="truncate text-xs sm:text-sm">
             Set the next follow-up date and reminder for {lead?.name}.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-3">
-          <div className="space-y-1.5">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-4 pr-0.5 min-w-0 w-full">
+          <div className="space-y-1.5 min-w-0 w-full">
             <DateTimeField
               label="Follow-up Date & Time *"
               value={dateValue}
@@ -126,10 +126,10 @@ export function ScheduleFollowUpDialog({
             />
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 min-w-0 w-full">
             <Label htmlFor="fuType">Activity Type</Label>
             <Select value={type} onValueChange={setType}>
-              <SelectTrigger id="fuType">
+              <SelectTrigger id="fuType" className="w-full h-9 text-xs sm:text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -142,38 +142,41 @@ export function ScheduleFollowUpDialog({
             </Select>
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 min-w-0 w-full">
             <Label htmlFor="fuNote">Agenda / Notes</Label>
             <Textarea
               id="fuNote"
-              placeholder="e.g. Call to discuss 3 BHK pricing and send brochures..."
+              placeholder="e.g. Call to discuss pricing and send brochures..."
               rows={3}
               value={note}
               onChange={(e) => setNote(e.target.value)}
+              className="w-full text-xs sm:text-sm min-h-[70px]"
             />
           </div>
         </div>
 
-        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+        <DialogFooter className="shrink-0 pt-3 border-t border-border flex flex-col-reverse gap-2.5 sm:flex-row sm:items-center sm:justify-between w-full min-w-0">
           {lead?.next_follow_up ? (
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive self-start"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive w-full sm:w-auto justify-center sm:justify-start text-xs sm:text-sm"
               onClick={handleClear}
               disabled={saveMutation.isPending}
             >
-              <Trash2 className="mr-1.5 h-4 w-4" /> Cancel / Clear Follow-Up
+              <Trash2 className="mr-1.5 h-4 w-4 shrink-0" /> Clear Follow-Up
             </Button>
           ) : (
             <div />
           )}
 
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <Button
               type="button"
               variant="outline"
+              size="sm"
+              className="flex-1 sm:flex-none"
               onClick={() => onOpenChange(false)}
               disabled={saveMutation.isPending}
             >
@@ -181,10 +184,12 @@ export function ScheduleFollowUpDialog({
             </Button>
             <Button
               type="button"
+              size="sm"
+              className="flex-1 sm:flex-none"
               onClick={handleSave}
               disabled={saveMutation.isPending || !dateValue}
             >
-              {saveMutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              {saveMutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin shrink-0" />}
               Save Follow-Up
             </Button>
           </div>
