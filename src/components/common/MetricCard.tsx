@@ -61,7 +61,10 @@ export function MetricCard({
   );
 
   return to ? (
-    <Link to={to} className="focus-visible:ring-ring rounded-xl focus-visible:ring-2 focus-visible:outline-none">
+    <Link
+      to={to}
+      className="focus-visible:ring-ring rounded-xl focus-visible:ring-2 focus-visible:outline-none"
+    >
       {body}
     </Link>
   ) : (

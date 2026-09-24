@@ -64,8 +64,10 @@ export const bootstrapPlatform = createServerFn({ method: "POST" })
   .validator((input: BootstrapInput) => {
     if (!isValidUserCode(input.userCode)) throw new Error("Invalid user ID.");
     if (!input.fullName?.trim()) throw new Error("Full name is required.");
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.email ?? "")) throw new Error("A valid email is required.");
-    if ((input.password ?? "").length < 10) throw new Error("Password must be at least 10 characters.");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.email ?? ""))
+      throw new Error("A valid email is required.");
+    if ((input.password ?? "").length < 10)
+      throw new Error("Password must be at least 10 characters.");
     return input;
   })
   .handler(async ({ data }) => {
@@ -79,10 +81,9 @@ export const bootstrapPlatform = createServerFn({ method: "POST" })
     const pwHash = await hashPassword(data.password);
 
     // Ensure platform workspace exists
-    let platformWs = await queryOne<Workspace>(
-      "SELECT * FROM workspaces WHERE code = ? LIMIT 1",
-      [PLATFORM_WORKSPACE_CODE],
-    );
+    let platformWs = await queryOne<Workspace>("SELECT * FROM workspaces WHERE code = ? LIMIT 1", [
+      PLATFORM_WORKSPACE_CODE,
+    ]);
     if (!platformWs) {
       const wsId = uuid();
       await execute(
@@ -118,11 +119,13 @@ export const bootstrapPlatform = createServerFn({ method: "POST" })
 export const adminCreateWorkspace = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: WorkspaceInput) => {
-    if (!isValidWorkspaceCode(input.code)) throw new Error("Workspace code must be 3-31 letters, digits or dashes.");
+    if (!isValidWorkspaceCode(input.code))
+      throw new Error("Workspace code must be 3-31 letters, digits or dashes.");
     if (!input.name?.trim()) throw new Error("Company name is required.");
     if (!isValidUserCode(input.owner?.userCode ?? "")) throw new Error("Invalid owner user ID.");
     if (!input.owner?.fullName?.trim()) throw new Error("Owner name is required.");
-    if ((input.owner?.password ?? "").length < 8) throw new Error("Owner password must be at least 8 characters.");
+    if ((input.owner?.password ?? "").length < 8)
+      throw new Error("Owner password must be at least 8 characters.");
     return input;
   })
   .handler(async ({ data, context }) => {
@@ -133,7 +136,9 @@ export const adminCreateWorkspace = createServerFn({ method: "POST" })
     const code = canonicalWorkspaceCode(data.code);
 
     // Check duplicate
-    const existing = await queryOne<Workspace>("SELECT id FROM workspaces WHERE code = ? LIMIT 1", [code]);
+    const existing = await queryOne<Workspace>("SELECT id FROM workspaces WHERE code = ? LIMIT 1", [
+      code,
+    ]);
     if (existing) throw new Error(`Workspace code ${code} is already in use.`);
 
     const wsId = uuid();
@@ -141,11 +146,18 @@ export const adminCreateWorkspace = createServerFn({ method: "POST" })
       `INSERT INTO workspaces (id, code, name, legal_name, industry, plan, status, currency, timezone, contact_email, contact_phone, seat_limit)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        wsId, code, data.name.trim(), data.legalName?.trim() || null,
-        data.industry?.trim() || "Real Estate", data.plan || "Starter",
-        data.status || "trial", data.currency || "INR",
-        data.timezone || "Asia/Kolkata", data.contactEmail?.trim() || null,
-        data.contactPhone?.trim() || null, data.seatLimit ?? 10,
+        wsId,
+        code,
+        data.name.trim(),
+        data.legalName?.trim() || null,
+        data.industry?.trim() || "Real Estate",
+        data.plan || "Starter",
+        data.status || "trial",
+        data.currency || "INR",
+        data.timezone || "Asia/Kolkata",
+        data.contactEmail?.trim() || null,
+        data.contactPhone?.trim() || null,
+        data.seatLimit ?? 10,
       ],
     );
 
@@ -156,7 +168,15 @@ export const adminCreateWorkspace = createServerFn({ method: "POST" })
     await execute(
       `INSERT INTO profiles (id, workspace_id, user_code, full_name, email, phone, password_hash, job_title)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'Owner')`,
-      [ownerId, wsId, ownerCode, data.owner.fullName.trim(), data.owner.email?.trim() || null, data.owner.phone?.trim() || null, ownerPwHash],
+      [
+        ownerId,
+        wsId,
+        ownerCode,
+        data.owner.fullName.trim(),
+        data.owner.email?.trim() || null,
+        data.owner.phone?.trim() || null,
+        ownerPwHash,
+      ],
     );
 
     const roleId = uuid();
@@ -179,16 +199,20 @@ export const createWorkspaceUser = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: WorkspaceUserInput) => {
     if (!input.workspaceId) throw new Error("Workspace is required.");
-    if (!isValidUserCode(input.userCode)) throw new Error("User ID must be 2-31 lowercase letters, digits, dot, dash or underscore.");
+    if (!isValidUserCode(input.userCode))
+      throw new Error("User ID must be 2-31 lowercase letters, digits, dot, dash or underscore.");
     if (!input.fullName?.trim()) throw new Error("Full name is required.");
     if (!["owner", "manager", "employee"].includes(input.role)) throw new Error("Invalid role.");
-    if ((input.password ?? "").length < 8) throw new Error("Password must be at least 8 characters.");
+    if ((input.password ?? "").length < 8)
+      throw new Error("Password must be at least 8 characters.");
     return input;
   })
   .handler(async ({ data, context }) => {
     const isAdmin = await isSuperAdmin(context.userId);
     const canManage = await canManageWorkspaceUsers(context.userId);
-    const me = await queryOne<Profile>("SELECT workspace_id FROM profiles WHERE id = ?", [context.userId]);
+    const me = await queryOne<Profile>("SELECT workspace_id FROM profiles WHERE id = ?", [
+      context.userId,
+    ]);
     const sameWorkspace = me?.workspace_id === data.workspaceId;
 
     if (!isAdmin && !(sameWorkspace && canManage)) {
@@ -209,7 +233,9 @@ export const createWorkspaceUser = createServerFn({ method: "POST" })
       [workspace.id],
     );
     if ((seatRow?.cnt ?? 0) >= workspace.seat_limit) {
-      throw new Error(`Seat limit reached (${workspace.seat_limit}). Ask Bluetorn to raise the plan limit.`);
+      throw new Error(
+        `Seat limit reached (${workspace.seat_limit}). Ask Bluetorn to raise the plan limit.`,
+      );
     }
 
     const userCode = canonicalUserCode(data.userCode);
@@ -227,19 +253,36 @@ export const createWorkspaceUser = createServerFn({ method: "POST" })
     await execute(
       `INSERT INTO profiles (id, workspace_id, user_code, full_name, email, phone, job_title, password_hash)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [userId, workspace.id, userCode, data.fullName.trim(), data.email?.trim() || null, data.phone?.trim() || null, data.jobTitle?.trim() || null, pwHash],
+      [
+        userId,
+        workspace.id,
+        userCode,
+        data.fullName.trim(),
+        data.email?.trim() || null,
+        data.phone?.trim() || null,
+        data.jobTitle?.trim() || null,
+        pwHash,
+      ],
     );
 
     const roleId = uuid();
-    await execute(
-      "INSERT INTO user_roles (id, user_id, workspace_id, role) VALUES (?, ?, ?, ?)",
-      [roleId, userId, workspace.id, data.role],
-    );
+    await execute("INSERT INTO user_roles (id, user_id, workspace_id, role) VALUES (?, ?, ?, ?)", [
+      roleId,
+      userId,
+      workspace.id,
+      data.role,
+    ]);
 
     await execute(
       `INSERT INTO audit_logs (id, workspace_id, actor_id, action, entity_type, entity_id, metadata)
        VALUES (?, ?, ?, 'user.created', 'profile', ?, ?)`,
-      [uuid(), workspace.id, context.userId, userId, JSON.stringify({ user_code: userCode, role: data.role })],
+      [
+        uuid(),
+        workspace.id,
+        context.userId,
+        userId,
+        JSON.stringify({ user_code: userCode, role: data.role }),
+      ],
     );
 
     return { userId, userCode, workspaceCode: workspace.code };
@@ -257,21 +300,34 @@ export const setUserActive = createServerFn({ method: "POST" })
 
     const isAdmin = await isSuperAdmin(context.userId);
     const canManage = await canManageWorkspaceUsers(context.userId);
-    const me = await queryOne<Profile>("SELECT workspace_id FROM profiles WHERE id = ?", [context.userId]);
+    const me = await queryOne<Profile>("SELECT workspace_id FROM profiles WHERE id = ?", [
+      context.userId,
+    ]);
 
-    const target = await queryOne<Profile>("SELECT id, workspace_id FROM profiles WHERE id = ?", [data.userId]);
+    const target = await queryOne<Profile>("SELECT id, workspace_id FROM profiles WHERE id = ?", [
+      data.userId,
+    ]);
     if (!target) throw new Error("User not found.");
 
     if (!isAdmin && !(canManage && me?.workspace_id && me.workspace_id === target.workspace_id)) {
       throw new Error("You do not have permission to change this user.");
     }
 
-    await execute("UPDATE profiles SET is_active = ? WHERE id = ?", [data.isActive ? 1 : 0, data.userId]);
+    await execute("UPDATE profiles SET is_active = ? WHERE id = ?", [
+      data.isActive ? 1 : 0,
+      data.userId,
+    ]);
 
     await execute(
       `INSERT INTO audit_logs (id, workspace_id, actor_id, action, entity_type, entity_id)
        VALUES (?, ?, ?, ?, 'profile', ?)`,
-      [uuid(), target.workspace_id, context.userId, data.isActive ? "user.activated" : "user.deactivated", data.userId],
+      [
+        uuid(),
+        target.workspace_id,
+        context.userId,
+        data.isActive ? "user.activated" : "user.deactivated",
+        data.userId,
+      ],
     );
 
     return { ok: true };
@@ -282,15 +338,20 @@ export const setUserPassword = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { userId: string; password: string }) => {
     if (!input.userId) throw new Error("User is required.");
-    if ((input.password ?? "").length < 8) throw new Error("Password must be at least 8 characters.");
+    if ((input.password ?? "").length < 8)
+      throw new Error("Password must be at least 8 characters.");
     return input;
   })
   .handler(async ({ data, context }) => {
     const isAdmin = await isSuperAdmin(context.userId);
     const canManage = await canManageWorkspaceUsers(context.userId);
-    const me = await queryOne<Profile>("SELECT workspace_id FROM profiles WHERE id = ?", [context.userId]);
+    const me = await queryOne<Profile>("SELECT workspace_id FROM profiles WHERE id = ?", [
+      context.userId,
+    ]);
 
-    const target = await queryOne<Profile>("SELECT id, workspace_id FROM profiles WHERE id = ?", [data.userId]);
+    const target = await queryOne<Profile>("SELECT id, workspace_id FROM profiles WHERE id = ?", [
+      data.userId,
+    ]);
     if (!target) throw new Error("User not found.");
 
     if (!isAdmin && !(canManage && me?.workspace_id && me.workspace_id === target.workspace_id)) {
@@ -320,7 +381,19 @@ export const adminUpdateWorkspace = createServerFn({ method: "POST" })
     if (!(await isSuperAdmin(context.userId))) {
       throw new Error("Only platform Super Admins can update workspaces.");
     }
-    const allowed = ["name", "legal_name", "industry", "plan", "status", "currency", "timezone", "contact_email", "contact_phone", "address", "seat_limit"];
+    const allowed = [
+      "name",
+      "legal_name",
+      "industry",
+      "plan",
+      "status",
+      "currency",
+      "timezone",
+      "contact_email",
+      "contact_phone",
+      "address",
+      "seat_limit",
+    ];
     const sets: string[] = [];
     const vals: unknown[] = [];
     for (const [key, val] of Object.entries(data.patch)) {

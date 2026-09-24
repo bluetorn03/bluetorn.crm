@@ -6,7 +6,10 @@ export const Route = createFileRoute("/workspace-inactive")({
   head: () => ({
     meta: [
       { title: "Workspace inactive · BLUETORN CRM" },
-      { name: "description", content: "This BLUETORN CRM workspace is currently inactive or suspended." },
+      {
+        name: "description",
+        content: "This BLUETORN CRM workspace is currently inactive or suspended.",
+      },
       { property: "og:title", content: "Workspace inactive · BLUETORN CRM" },
       { property: "og:description", content: "This workspace is currently inactive or suspended." },
     ],

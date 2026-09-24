@@ -13,9 +13,15 @@ export const Route = createFileRoute("/app/calendar")({
   head: () => ({
     meta: [
       { title: "Calendar · BLUETORN CRM" },
-      { name: "description", content: "Visits, follow-ups, meetings and payment due dates in one calendar." },
+      {
+        name: "description",
+        content: "Visits, follow-ups, meetings and payment due dates in one calendar.",
+      },
       { property: "og:title", content: "Calendar · BLUETORN CRM" },
-      { property: "og:description", content: "Visits, follow-ups and payment dates in one calendar." },
+      {
+        property: "og:description",
+        content: "Visits, follow-ups and payment dates in one calendar.",
+      },
     ],
   }),
   component: CalendarPage,
@@ -156,7 +162,9 @@ function CalendarPage() {
                 onClick={() => setView(v)}
                 className={
                   "rounded-md px-3 py-1.5 text-xs font-medium cursor-pointer " +
-                  (view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")
+                  (view === v
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground")
                 }
               >
                 {v}
@@ -168,7 +176,10 @@ function CalendarPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         {(Object.keys(kindClass) as Ev["kind"][]).map((k) => (
-          <span key={k} className={"rounded-full border px-2.5 py-0.5 text-xs font-medium " + kindClass[k]}>
+          <span
+            key={k}
+            className={"rounded-full border px-2.5 py-0.5 text-xs font-medium " + kindClass[k]}
+          >
             {k}
           </span>
         ))}
@@ -185,13 +196,21 @@ function CalendarPage() {
             {overdueEvents.map((e) => {
               const overdueDays = getOverdueDays(e.at);
               return (
-                <li key={e.kind + e.id} className="hover:bg-accent/40 transition-colors border-l-2 border-l-red-500">
+                <li
+                  key={e.kind + e.id}
+                  className="hover:bg-accent/40 transition-colors border-l-2 border-l-red-500"
+                >
                   {e.linkUrl ? (
                     <Link
                       to={e.linkUrl as any}
                       className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:px-5"
                     >
-                      <span className={"rounded-full border px-2.5 py-0.5 text-[11px] font-medium shrink-0 " + kindClass[e.kind]}>
+                      <span
+                        className={
+                          "rounded-full border px-2.5 py-0.5 text-[11px] font-medium shrink-0 " +
+                          kindClass[e.kind]
+                        }
+                      >
                         {e.kind}
                       </span>
                       <div className="min-w-0">
@@ -217,7 +236,12 @@ function CalendarPage() {
                     </Link>
                   ) : (
                     <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:px-5">
-                      <span className={"rounded-full border px-2.5 py-0.5 text-[11px] font-medium shrink-0 " + kindClass[e.kind]}>
+                      <span
+                        className={
+                          "rounded-full border px-2.5 py-0.5 text-[11px] font-medium shrink-0 " +
+                          kindClass[e.kind]
+                        }
+                      >
                         {e.kind}
                       </span>
                       <div className="min-w-0">
@@ -265,22 +289,36 @@ function CalendarPage() {
                       to={e.linkUrl as any}
                       className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:px-5"
                     >
-                      <span className={"rounded-full border px-2.5 py-0.5 text-[11px] font-medium shrink-0 " + kindClass[e.kind]}>
+                      <span
+                        className={
+                          "rounded-full border px-2.5 py-0.5 text-[11px] font-medium shrink-0 " +
+                          kindClass[e.kind]
+                        }
+                      >
                         {e.kind}
                       </span>
                       <span className="min-w-0 truncate text-sm font-medium flex items-center gap-1 group">
                         <span className="truncate">{e.title}</span>
                         <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-primary shrink-0" />
                       </span>
-                      <span className="text-muted-foreground text-xs shrink-0">{formatTime(e.at)}</span>
+                      <span className="text-muted-foreground text-xs shrink-0">
+                        {formatTime(e.at)}
+                      </span>
                     </Link>
                   ) : (
                     <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:px-5">
-                      <span className={"rounded-full border px-2.5 py-0.5 text-[11px] font-medium shrink-0 " + kindClass[e.kind]}>
+                      <span
+                        className={
+                          "rounded-full border px-2.5 py-0.5 text-[11px] font-medium shrink-0 " +
+                          kindClass[e.kind]
+                        }
+                      >
                         {e.kind}
                       </span>
                       <span className="min-w-0 truncate text-sm font-medium">{e.title}</span>
-                      <span className="text-muted-foreground text-xs shrink-0">{formatTime(e.at)}</span>
+                      <span className="text-muted-foreground text-xs shrink-0">
+                        {formatTime(e.at)}
+                      </span>
                     </div>
                   )}
                 </li>

@@ -12,11 +12,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   listNotifications,
   getUnreadNotificationCount,
@@ -155,7 +151,9 @@ export function NotificationBell() {
                 <div className="mt-0.5">{getIcon(n.type)}</div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-1">
-                    <p className={`text-xs font-medium ${!n.is_read ? "text-foreground font-semibold" : "text-muted-foreground"}`}>
+                    <p
+                      className={`text-xs font-medium ${!n.is_read ? "text-foreground font-semibold" : "text-muted-foreground"}`}
+                    >
                       {n.title}
                     </p>
                     <span className="text-[10px] text-muted-foreground shrink-0">
@@ -163,14 +161,10 @@ export function NotificationBell() {
                     </span>
                   </div>
                   {n.message && (
-                    <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                      {n.message}
-                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{n.message}</p>
                   )}
                 </div>
-                {!n.is_read && (
-                  <span className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />
-                )}
+                {!n.is_read && <span className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />}
               </div>
             ))
           )}

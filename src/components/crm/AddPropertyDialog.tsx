@@ -130,10 +130,7 @@ export function AddPropertyDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="propType">Type</Label>
-                <Select
-                  value={form.type}
-                  onValueChange={(v) => setForm({ ...form, type: v })}
-                >
+                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
                   <SelectTrigger id="propType">
                     <SelectValue />
                   </SelectTrigger>
@@ -148,10 +145,7 @@ export function AddPropertyDialog({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="propStatus">Status</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(v) => setForm({ ...form, status: v })}
-                >
+                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
                   <SelectTrigger id="propStatus">
                     <SelectValue />
                   </SelectTrigger>

@@ -18,7 +18,11 @@ export const Route = createFileRoute("/app/properties/$propertyId")({
   head: () => ({
     meta: [
       { title: "Property · BLUETORN CRM" },
-      { name: "description", content: "Property detail with interested leads, site visits, assigned employee and documents." },
+      {
+        name: "description",
+        content:
+          "Property detail with interested leads, site visits, assigned employee and documents.",
+      },
       { property: "og:title", content: "Property · BLUETORN CRM" },
       { property: "og:description", content: "Property detail with visits, leads and documents." },
     ],
@@ -70,7 +74,9 @@ function PropertyDetailPage() {
   const p = propertyQuery.data;
 
   if (propertyQuery.isLoading) {
-    return <div className="p-8 text-center text-sm text-muted-foreground">Loading property details…</div>;
+    return (
+      <div className="p-8 text-center text-sm text-muted-foreground">Loading property details…</div>
+    );
   }
 
   if (!p) {
@@ -108,7 +114,8 @@ function PropertyDetailPage() {
         <div className="flex items-center gap-2">
           {canAssign && (
             <Button variant="outline" size="sm" onClick={() => setAssignOpen(true)}>
-              <UserCheck className="mr-1.5 h-4 w-4 text-primary" /> {p.assigned_to ? "Reassign Property" : "Assign Property"}
+              <UserCheck className="mr-1.5 h-4 w-4 text-primary" />{" "}
+              {p.assigned_to ? "Reassign Property" : "Assign Property"}
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
@@ -125,16 +132,8 @@ function PropertyDetailPage() {
         </div>
       </div>
 
-      <AssignPropertyDialog
-        open={assignOpen}
-        onOpenChange={setAssignOpen}
-        property={p}
-      />
-      <EditPropertyDialog
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        property={p}
-      />
+      <AssignPropertyDialog open={assignOpen} onOpenChange={setAssignOpen} property={p} />
+      <EditPropertyDialog open={editOpen} onOpenChange={setEditOpen} property={p} />
       <DeletePropertyDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
@@ -156,7 +155,9 @@ function PropertyDetailPage() {
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
             <div className="min-w-0">
               <h1 className="truncate text-xl font-semibold">{p.name}</h1>
-              <p className="text-muted-foreground truncate text-sm">{p.location ?? "Location not specified"}</p>
+              <p className="text-muted-foreground truncate text-sm">
+                {p.location ?? "Location not specified"}
+              </p>
             </div>
             <StatusBadge label={p.status} />
           </div>
@@ -165,7 +166,9 @@ function PropertyDetailPage() {
             <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
               <div>
                 <dt className="text-muted-foreground text-xs">Price</dt>
-                <dd className="mt-0.5 font-semibold">{formatMoney(p.price, (p.currency as CurrencyCode) || "INR")}</dd>
+                <dd className="mt-0.5 font-semibold">
+                  {formatMoney(p.price, (p.currency as CurrencyCode) || "INR")}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground text-xs">Type</dt>
@@ -184,7 +187,9 @@ function PropertyDetailPage() {
 
           {p.description && (
             <SectionCard title="Description">
-              <p className="text-muted-foreground text-sm leading-relaxed whitespace-pre-wrap">{p.description}</p>
+              <p className="text-muted-foreground text-sm leading-relaxed whitespace-pre-wrap">
+                {p.description}
+              </p>
             </SectionCard>
           )}
 
@@ -201,7 +206,9 @@ function PropertyDetailPage() {
           >
             <ul className="divide-border divide-y">
               {visits.length === 0 && (
-                <li className="text-muted-foreground p-4 text-sm">No visits scheduled for this property yet.</li>
+                <li className="text-muted-foreground p-4 text-sm">
+                  No visits scheduled for this property yet.
+                </li>
               )}
               {visits.map((v) => (
                 <li key={v.id} className="px-4 py-3 sm:px-5">
@@ -212,9 +219,15 @@ function PropertyDetailPage() {
                     <StatusBadge label={v.status} />
                   </div>
                   <p className="text-muted-foreground mt-0.5 text-xs">
-                    {formatDateTime(v.start_at)} · {v.assigned_to ? membersQuery.data?.find((m) => m.id === v.assigned_to)?.full_name || "Assigned" : "Unassigned"}
+                    {formatDateTime(v.start_at)} ·{" "}
+                    {v.assigned_to
+                      ? membersQuery.data?.find((m) => m.id === v.assigned_to)?.full_name ||
+                        "Assigned"
+                      : "Unassigned"}
                   </p>
-                  {v.notes && <p className="text-muted-foreground mt-1 text-xs italic">{v.notes}</p>}
+                  {v.notes && (
+                    <p className="text-muted-foreground mt-1 text-xs italic">{v.notes}</p>
+                  )}
                 </li>
               ))}
             </ul>
@@ -230,9 +243,7 @@ function PropertyDetailPage() {
                     {initials(assignedMember.full_name)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {assignedMember.full_name}
-                    </p>
+                    <p className="truncate text-sm font-medium">{assignedMember.full_name}</p>
                     <p className="text-muted-foreground truncate text-xs">
                       {assignedMember.email || "Workspace team member"}
                     </p>
@@ -264,7 +275,9 @@ function PropertyDetailPage() {
           <SectionCard title="Interested leads" bodyClassName="p-0">
             <ul className="divide-border divide-y">
               {interested.length === 0 && (
-                <li className="text-muted-foreground p-4 text-sm">No leads linked to this property yet.</li>
+                <li className="text-muted-foreground p-4 text-sm">
+                  No leads linked to this property yet.
+                </li>
               )}
               {interested.map((l) => (
                 <li key={l.id}>

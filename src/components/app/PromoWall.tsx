@@ -191,7 +191,12 @@ export function PromoWall({ compact = false }: { compact?: boolean }) {
         </div>
 
         <div className="max-w-lg">
-          <h2 className={cn("font-semibold tracking-tight text-white", compact ? "text-xl" : "text-2xl sm:text-3xl")}>
+          <h2
+            className={cn(
+              "font-semibold tracking-tight text-white",
+              compact ? "text-xl" : "text-2xl sm:text-3xl",
+            )}
+          >
             {current.title}
           </h2>
           <p className="mt-2 text-sm text-white/75">{current.subtitle}</p>

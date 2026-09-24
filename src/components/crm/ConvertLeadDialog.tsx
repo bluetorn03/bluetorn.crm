@@ -138,9 +138,9 @@ export function ConvertLeadDialog({
                 <div>
                   <p className="font-semibold text-xs">Existing Matching Customer Detected</p>
                   <p className="text-xs mt-0.5">
-                    Found matching profile:{" "}
-                    <strong>{matchingCustomer.name}</strong> ({matchingCustomer.phone || matchingCustomer.email}).
-                    Conversion will link this lead to the existing customer profile without creating duplicates.
+                    Found matching profile: <strong>{matchingCustomer.name}</strong> (
+                    {matchingCustomer.phone || matchingCustomer.email}). Conversion will link this
+                    lead to the existing customer profile without creating duplicates.
                   </p>
                 </div>
               </div>
@@ -152,7 +152,8 @@ export function ConvertLeadDialog({
                 <div>
                   <p className="font-semibold text-xs">New Customer Profile Creation</p>
                   <p className="text-xs mt-0.5">
-                    No matching customer found by phone or email. A new active customer profile will be created.
+                    No matching customer found by phone or email. A new active customer profile will
+                    be created.
                   </p>
                 </div>
               </div>
@@ -188,7 +189,9 @@ export function ConvertLeadDialog({
               <div>
                 <dt className="text-muted-foreground">Customer Value (Budget)</dt>
                 <dd className="font-medium text-emerald-600 dark:text-emerald-400 font-semibold">
-                  {lead.budget ? formatMoney(lead.budget, (lead.currency || workspace.currency) as any) : "—"}
+                  {lead.budget
+                    ? formatMoney(lead.budget, (lead.currency || workspace.currency) as any)
+                    : "—"}
                 </dd>
               </div>
               {lead.requirement && (
@@ -205,7 +208,9 @@ export function ConvertLeadDialog({
                     <span className="font-semibold">{interestedProperty.name}</span>
                   </div>
                   {interestedProperty.location && (
-                    <span className="text-xs text-muted-foreground">({interestedProperty.location})</span>
+                    <span className="text-xs text-muted-foreground">
+                      ({interestedProperty.location})
+                    </span>
                   )}
                 </div>
               )}

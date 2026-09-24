@@ -17,7 +17,10 @@ function loadEnvFile(filePath) {
       if (eqIdx > 0) {
         const key = trimmed.slice(0, eqIdx).trim();
         let val = trimmed.slice(eqIdx + 1).trim();
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        if (
+          (val.startsWith('"') && val.endsWith('"')) ||
+          (val.startsWith("'") && val.endsWith("'"))
+        ) {
           val = val.slice(1, -1);
         }
         if (!process.env[key]) {
@@ -58,8 +61,12 @@ async function runSecurityAudit() {
       const assignedAtCol = cols.find((c) => c.Field === "assigned_at");
 
       console.log(`[SCHEMA CHECK] Table '${table}':`);
-      console.log(`  - assigned_to column: ${assignedToCol ? `${assignedToCol.Type} (Null: ${assignedToCol.Null})` : "MISSING"}`);
-      console.log(`  - assigned_at column: ${assignedAtCol ? `${assignedAtCol.Type} (Null: ${assignedAtCol.Null})` : "MISSING"}`);
+      console.log(
+        `  - assigned_to column: ${assignedToCol ? `${assignedToCol.Type} (Null: ${assignedToCol.Null})` : "MISSING"}`,
+      );
+      console.log(
+        `  - assigned_at column: ${assignedAtCol ? `${assignedAtCol.Type} (Null: ${assignedAtCol.Null})` : "MISSING"}`,
+      );
 
       const [indexes] = await connection.query(`SHOW INDEX FROM \`${table}\``);
       const assignedIdx = indexes.find((i) => i.Column_name === "assigned_to");
@@ -73,7 +80,9 @@ async function runSecurityAudit() {
       WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL AND COLUMN_NAME = 'assigned_to'
     `);
     fks.forEach((fk) => {
-      console.log(`  - ${fk.TABLE_NAME}.${fk.COLUMN_NAME} -> ${fk.REFERENCED_TABLE_NAME}(${fk.REFERENCED_COLUMN_NAME}) [${fk.CONSTRAINT_NAME}]`);
+      console.log(
+        `  - ${fk.TABLE_NAME}.${fk.COLUMN_NAME} -> ${fk.REFERENCED_TABLE_NAME}(${fk.REFERENCED_COLUMN_NAME}) [${fk.CONSTRAINT_NAME}]`,
+      );
     });
 
     console.log("\n[REFERENTIAL INTEGRITY CHECK]");

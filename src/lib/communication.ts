@@ -64,10 +64,14 @@ export function getMailtoUrl(recipient: string, subject: string, body: string): 
 /**
  * Default CRM follow-up subject & body templates.
  */
-export function createLeadEmailTemplate(leadName: string, senderName?: string, workspaceName?: string) {
+export function createLeadEmailTemplate(
+  leadName: string,
+  senderName?: string,
+  workspaceName?: string,
+) {
   const name = leadName.trim() || "Client";
   const sender = senderName?.trim() || workspaceName || "Bluetorn CRM";
-  
+
   const subject = `Follow-up regarding your property requirement`;
   const body = `Hello ${name},\n\nI'm following up regarding your property requirement. Please let me know a convenient time to discuss the available options.\n\nRegards,\n${sender}`;
 

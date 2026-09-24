@@ -69,7 +69,14 @@ function AdminPlans() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qk.plans() });
       setDialogOpen(false);
-      setForm({ code: "", name: "", description: "", priceMonthly: "", seatLimit: "10", features: "" });
+      setForm({
+        code: "",
+        name: "",
+        description: "",
+        priceMonthly: "",
+        seatLimit: "10",
+        features: "",
+      });
       toast.success("Plan created successfully.");
     },
     onError: (err: Error) => {
@@ -115,7 +122,9 @@ function AdminPlans() {
           <form onSubmit={handleAddPlan}>
             <DialogHeader>
               <DialogTitle>Add Subscription Plan</DialogTitle>
-              <DialogDescription>Create a new tier available for tenant workspaces.</DialogDescription>
+              <DialogDescription>
+                Create a new tier available for tenant workspaces.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="grid grid-cols-2 gap-3">
@@ -225,7 +234,12 @@ function AdminPlans() {
                   </p>
 
                   <ul className="mt-4 space-y-2 border-border border-t pt-4 text-xs">
-                    {(Array.isArray(p.features) ? p.features : typeof p.features === 'string' ? JSON.parse(p.features || '[]') : []).map((f: string, i: number) => (
+                    {(Array.isArray(p.features)
+                      ? p.features
+                      : typeof p.features === "string"
+                        ? JSON.parse(p.features || "[]")
+                        : []
+                    ).map((f: string, i: number) => (
                       <li key={i} className="flex items-center gap-2">
                         <Check className="h-3.5 w-3.5 text-primary shrink-0" />
                         <span>{f}</span>

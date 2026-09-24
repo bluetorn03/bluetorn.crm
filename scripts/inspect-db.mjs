@@ -1,6 +1,6 @@
 /**
  * BLUETORN CRM — Database Inspection Script
- * 
+ *
  * Safely inspects the live MySQL database configuration and schema.
  * Run with: node scripts/inspect-db.mjs
  */
@@ -24,7 +24,10 @@ function loadEnvFile(filePath) {
       if (eqIdx > 0) {
         const key = trimmed.slice(0, eqIdx).trim();
         let val = trimmed.slice(eqIdx + 1).trim();
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        if (
+          (val.startsWith('"') && val.endsWith('"')) ||
+          (val.startsWith("'") && val.endsWith("'"))
+        ) {
           val = val.slice(1, -1);
         }
         if (!process.env[key]) {
@@ -75,13 +78,13 @@ async function inspect() {
       "users",
       "workspace_members",
       "notifications",
-      "activity_logs"
+      "activity_logs",
     ];
 
     // Check existing tables
     const [tables] = await connection.query(
       `SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = ?`,
-      [database]
+      [database],
     );
     const existingTableNames = tables.map((t) => t.TABLE_NAME);
     console.log("📋 All Tables in Database:", existingTableNames.join(", "));
@@ -102,15 +105,17 @@ async function inspect() {
          FROM information_schema.COLUMNS 
          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? 
          ORDER BY ORDINAL_POSITION`,
-        [database, table]
+        [database, table],
       );
 
       console.log("Columns:");
       for (const col of columns) {
-        const isAssignmentCol = ["assigned_to", "assigned_at", "created_by", "owner_id"].includes(col.COLUMN_NAME);
+        const isAssignmentCol = ["assigned_to", "assigned_at", "created_by", "owner_id"].includes(
+          col.COLUMN_NAME,
+        );
         const marker = isAssignmentCol ? " 👈 [ASSIGNMENT FIELD]" : "";
         console.log(
-          `  - ${col.COLUMN_NAME.padEnd(20)} ${col.COLUMN_TYPE.padEnd(20)} Nullable: ${col.IS_NULLABLE.padEnd(4)} Key: ${col.COLUMN_KEY.padEnd(4)} Default: ${String(col.COLUMN_DEFAULT)}${marker}`
+          `  - ${col.COLUMN_NAME.padEnd(20)} ${col.COLUMN_TYPE.padEnd(20)} Nullable: ${col.IS_NULLABLE.padEnd(4)} Key: ${col.COLUMN_KEY.padEnd(4)} Default: ${String(col.COLUMN_DEFAULT)}${marker}`,
         );
       }
 
@@ -128,14 +133,14 @@ async function inspect() {
            ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME 
            AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
          WHERE kcu.TABLE_SCHEMA = ? AND kcu.TABLE_NAME = ? AND kcu.REFERENCED_TABLE_NAME IS NOT NULL`,
-        [database, table]
+        [database, table],
       );
 
       if (fks.length > 0) {
         console.log("Foreign Keys:");
         for (const fk of fks) {
           console.log(
-            `  - ${fk.COLUMN_NAME} -> ${fk.REFERENCED_TABLE_NAME}(${fk.REFERENCED_COLUMN_NAME}) [${fk.CONSTRAINT_NAME}] (ON DELETE ${fk.DELETE_RULE}, ON UPDATE ${fk.UPDATE_RULE})`
+            `  - ${fk.COLUMN_NAME} -> ${fk.REFERENCED_TABLE_NAME}(${fk.REFERENCED_COLUMN_NAME}) [${fk.CONSTRAINT_NAME}] (ON DELETE ${fk.DELETE_RULE}, ON UPDATE ${fk.UPDATE_RULE})`,
           );
         }
       } else {
@@ -148,7 +153,7 @@ async function inspect() {
          FROM information_schema.STATISTICS 
          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? 
          ORDER BY INDEX_NAME, SEQ_IN_INDEX`,
-        [database, table]
+        [database, table],
       );
 
       const idxMap = {};
@@ -161,7 +166,9 @@ async function inspect() {
 
       console.log("Indexes:");
       for (const [idxName, info] of Object.entries(idxMap)) {
-        console.log(`  - ${idxName} (${info.unique ? "UNIQUE" : "INDEX"}): [${info.cols.join(", ")}]`);
+        console.log(
+          `  - ${idxName} (${info.unique ? "UNIQUE" : "INDEX"}): [${info.cols.join(", ")}]`,
+        );
       }
 
       // Row count

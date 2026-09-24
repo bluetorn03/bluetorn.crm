@@ -58,7 +58,12 @@ function AdminUsers() {
 
       <div className="relative min-w-0 sm:max-w-xs">
         <Search className="text-muted-foreground absolute top-2.5 left-3 h-4 w-4" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, user ID or workspace" className="pl-9" />
+        <Input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search name, user ID or workspace"
+          className="pl-9"
+        />
       </div>
 
       {error ? (
@@ -81,7 +86,10 @@ function AdminUsers() {
         <SectionCard bodyClassName="p-0">
           <ul className="divide-border divide-y">
             {rows.map((u) => (
-              <li key={u.id} className="flex items-center justify-between gap-4 px-4 py-3.5 sm:px-5">
+              <li
+                key={u.id}
+                className="flex items-center justify-between gap-4 px-4 py-3.5 sm:px-5"
+              >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{u.fullName}</p>
                   <p className="text-muted-foreground truncate text-xs">

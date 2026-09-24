@@ -93,7 +93,8 @@ export function AssignTaskDialog({
               {task.assigned_to ? "Reassign Task" : "Assign Task"}
             </DialogTitle>
             <DialogDescription>
-              Assign task <strong className="text-foreground">{task.title}</strong> to a team member in this workspace.
+              Assign task <strong className="text-foreground">{task.title}</strong> to a team member
+              in this workspace.
             </DialogDescription>
           </DialogHeader>
 

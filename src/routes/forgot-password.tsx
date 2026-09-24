@@ -41,8 +41,8 @@ function ForgotPassword() {
                 notified
               </li>
               <li className="flex gap-2">
-                <CheckCircle2 className="text-success h-3.5 w-3.5 shrink-0" /> Existing sessions stay
-                active until reset
+                <CheckCircle2 className="text-success h-3.5 w-3.5 shrink-0" /> Existing sessions
+                stay active until reset
               </li>
             </ul>
             <Button asChild variant="outline" className="mt-6 w-full">

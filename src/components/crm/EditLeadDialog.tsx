@@ -216,10 +216,7 @@ export function EditLeadDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="editLeadStatus">Status</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(v) => setForm({ ...form, status: v })}
-                >
+                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
                   <SelectTrigger id="editLeadStatus">
                     <SelectValue />
                   </SelectTrigger>
@@ -237,7 +234,9 @@ export function EditLeadDialog({
                 <Label>Lead Score</Label>
                 <div className="flex h-9 items-center justify-between rounded-md border border-input bg-muted/30 px-3 text-xs font-medium">
                   <span className="text-muted-foreground">Deterministic Engine</span>
-                  <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">{lead.score}/100</span>
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+                    {lead.score}/100
+                  </span>
                 </div>
               </div>
             </div>
@@ -245,10 +244,7 @@ export function EditLeadDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="editLeadSource">Source *</Label>
-                <Select
-                  value={form.source}
-                  onValueChange={(v) => setForm({ ...form, source: v })}
-                >
+                <Select value={form.source} onValueChange={(v) => setForm({ ...form, source: v })}>
                   <SelectTrigger id="editLeadSource">
                     <SelectValue />
                   </SelectTrigger>

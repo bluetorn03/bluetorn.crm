@@ -26,9 +26,15 @@ export const Route = createFileRoute("/app/properties/")({
   head: () => ({
     meta: [
       { title: "Properties · BLUETORN CRM" },
-      { name: "description", content: "Your live inventory with pricing, status and interested leads." },
+      {
+        name: "description",
+        content: "Your live inventory with pricing, status and interested leads.",
+      },
       { property: "og:title", content: "Properties · BLUETORN CRM" },
-      { property: "og:description", content: "Live real-estate inventory with status and interested leads." },
+      {
+        property: "og:description",
+        content: "Live real-estate inventory with status and interested leads.",
+      },
     ],
   }),
   component: PropertiesPage,
@@ -195,7 +201,8 @@ function PropertiesPage() {
                         </DropdownMenuItem>
                         {canAssign && (
                           <DropdownMenuItem onClick={() => setAssigningProperty(p)}>
-                            <UserCheck className="mr-2 h-4 w-4" /> {p.assigned_to ? "Reassign Property" : "Assign Property"}
+                            <UserCheck className="mr-2 h-4 w-4" />{" "}
+                            {p.assigned_to ? "Reassign Property" : "Assign Property"}
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuItem onClick={() => setEditingProperty(p)}>
@@ -217,10 +224,10 @@ function PropertiesPage() {
                     params={{ propertyId: p.id }}
                     className="p-4 block"
                   >
-                    <h2 className="truncate text-sm font-semibold hover:text-primary transition-colors">{p.name}</h2>
-                    <p className="text-muted-foreground truncate text-xs">
-                      {p.location ?? "—"}
-                    </p>
+                    <h2 className="truncate text-sm font-semibold hover:text-primary transition-colors">
+                      {p.name}
+                    </h2>
+                    <p className="text-muted-foreground truncate text-xs">{p.location ?? "—"}</p>
                     <div className="mt-3 flex items-center justify-between">
                       <span className="text-base font-semibold">
                         {formatMoney(p.price, (p.currency ?? "INR") as any, true)}
@@ -239,4 +246,3 @@ function PropertiesPage() {
     </div>
   );
 }
-

@@ -170,7 +170,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<SessionValue>(() => {
     const role = dbRole ? roleLabel[dbRole] : "Employee";
-    const workspace = workspaces.find((w) => w.id === workspaceId) ?? workspaces[0] ?? emptyWorkspace;
+    const workspace =
+      workspaces.find((w) => w.id === workspaceId) ?? workspaces[0] ?? emptyWorkspace;
     return {
       status,
       user,

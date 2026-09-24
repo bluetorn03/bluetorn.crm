@@ -146,7 +146,10 @@ function PaymentsContent() {
                 <Label htmlFor="payInvoice">Invoice</Label>
                 <DataState query={invoicesQuery} loadingLabel="Loading…">
                   {(invoices) => (
-                    <Select value={form.invoiceId} onValueChange={(v) => setForm({ ...form, invoiceId: v })}>
+                    <Select
+                      value={form.invoiceId}
+                      onValueChange={(v) => setForm({ ...form, invoiceId: v })}
+                    >
                       <SelectTrigger id="payInvoice">
                         <SelectValue placeholder="Select invoice (optional)" />
                       </SelectTrigger>
@@ -179,7 +182,10 @@ function PaymentsContent() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="payMethod">Method</Label>
-                  <Select value={form.method} onValueChange={(v) => setForm({ ...form, method: v })}>
+                  <Select
+                    value={form.method}
+                    onValueChange={(v) => setForm({ ...form, method: v })}
+                  >
                     <SelectTrigger id="payMethod">
                       <SelectValue />
                     </SelectTrigger>
@@ -205,7 +211,10 @@ function PaymentsContent() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="payStatus">Status</Label>
-                  <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                  <Select
+                    value={form.status}
+                    onValueChange={(v) => setForm({ ...form, status: v })}
+                  >
                     <SelectTrigger id="payStatus">
                       <SelectValue />
                     </SelectTrigger>
@@ -273,7 +282,9 @@ function PaymentsContent() {
                     {payments.map((p) => (
                       <tr key={p.id} className="hover:bg-accent/50">
                         <td className="px-4 py-2.5 font-medium sm:px-5">{p.reference ?? "—"}</td>
-                        <td className="px-4 py-2.5 text-muted-foreground">{formatDate(p.paid_at)}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground">
+                          {formatDate(p.paid_at)}
+                        </td>
                         <td className="px-4 py-2.5">{p.method}</td>
                         <td className="px-4 py-2.5 text-right font-medium">
                           {formatMoney(p.amount, currency)}

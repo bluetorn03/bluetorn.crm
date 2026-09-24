@@ -228,10 +228,7 @@ export function TaskDialog({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="taskStatus">Status</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(v) => setForm({ ...form, status: v })}
-                >
+                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
                   <SelectTrigger id="taskStatus">
                     <SelectValue />
                   </SelectTrigger>
@@ -279,7 +276,9 @@ export function TaskDialog({
                   </Select>
                 ) : (
                   <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-foreground font-medium h-9 flex items-center">
-                    {membersQuery.data?.find((m) => m.id === (task?.assigned_to ?? form.assigned_to))?.full_name || "Unassigned"}
+                    {membersQuery.data?.find(
+                      (m) => m.id === (task?.assigned_to ?? form.assigned_to),
+                    )?.full_name || "Unassigned"}
                   </div>
                 )}
               </div>
@@ -295,10 +294,14 @@ export function TaskDialog({
               />
             </div>
             <div className="space-y-3 pt-2 border-t border-border">
-              <p className="text-xs font-semibold text-muted-foreground">Link to CRM Record (Optional)</p>
+              <p className="text-xs font-semibold text-muted-foreground">
+                Link to CRM Record (Optional)
+              </p>
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
-                  <Label htmlFor="taskLead" className="text-[11px]">Lead</Label>
+                  <Label htmlFor="taskLead" className="text-[11px]">
+                    Lead
+                  </Label>
                   <Select
                     value={form.lead_id}
                     onValueChange={(v) => setForm({ ...form, lead_id: v })}
@@ -317,7 +320,9 @@ export function TaskDialog({
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="taskCustomer" className="text-[11px]">Customer</Label>
+                  <Label htmlFor="taskCustomer" className="text-[11px]">
+                    Customer
+                  </Label>
                   <Select
                     value={form.customer_id}
                     onValueChange={(v) => setForm({ ...form, customer_id: v })}
@@ -336,7 +341,9 @@ export function TaskDialog({
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="taskProperty" className="text-[11px]">Property</Label>
+                  <Label htmlFor="taskProperty" className="text-[11px]">
+                    Property
+                  </Label>
                   <Select
                     value={form.property_id}
                     onValueChange={(v) => setForm({ ...form, property_id: v })}

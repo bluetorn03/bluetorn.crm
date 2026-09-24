@@ -184,7 +184,9 @@ function AdminSettings() {
                   </div>
                   <Switch
                     checked={form.requireStrongPasswords}
-                    onCheckedChange={(checked) => setForm({ ...form, requireStrongPasswords: checked })}
+                    onCheckedChange={(checked) =>
+                      setForm({ ...form, requireStrongPasswords: checked })
+                    }
                   />
                 </div>
 

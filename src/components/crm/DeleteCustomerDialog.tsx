@@ -52,8 +52,9 @@ export function DeleteCustomerDialog({
           </div>
           <DialogTitle className="text-center">Delete Customer</DialogTitle>
           <DialogDescription className="text-center">
-            Are you sure you want to delete <strong className="text-foreground">{customer.name}</strong>?
-            This will permanently remove this customer record and relationship history. This action cannot be undone.
+            Are you sure you want to delete{" "}
+            <strong className="text-foreground">{customer.name}</strong>? This will permanently
+            remove this customer record and relationship history. This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
 

@@ -37,7 +37,12 @@ export const Route = createFileRoute("/")({
   component: LoginPage,
 });
 
-type Alert = { title: string; body: string; tone: "danger" | "warning" | "info"; icon?: "lock" | "denied" };
+type Alert = {
+  title: string;
+  body: string;
+  tone: "danger" | "warning" | "info";
+  icon?: "lock" | "denied";
+};
 
 function LoginPage() {
   const navigate = useNavigate();
@@ -157,7 +162,10 @@ function LoginPage() {
               <p className="mt-0.5 opacity-90">
                 Create the first Bluetorn Super Admin to start onboarding client workspaces.
               </p>
-              <Link to="/setup" className="mt-2 inline-flex items-center gap-1 font-medium underline">
+              <Link
+                to="/setup"
+                className="mt-2 inline-flex items-center gap-1 font-medium underline"
+              >
                 Set up platform <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
@@ -168,7 +176,8 @@ function LoginPage() {
               role="alert"
               className={cn(
                 "mt-5 flex gap-3 rounded-xl border p-3.5 text-sm",
-                alert.tone === "danger" && "border-destructive/25 bg-destructive/8 text-destructive",
+                alert.tone === "danger" &&
+                  "border-destructive/25 bg-destructive/8 text-destructive",
                 alert.tone === "warning" && "border-warning/30 bg-warning/10 text-warning",
                 alert.tone === "info" && "border-primary/25 bg-primary/8 text-primary",
               )}

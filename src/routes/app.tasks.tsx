@@ -1,7 +1,17 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckSquare, Plus, Loader2, Edit, Trash2, MoreVertical, Calendar, UserCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckSquare,
+  Plus,
+  Loader2,
+  Edit,
+  Trash2,
+  MoreVertical,
+  Calendar,
+  UserCheck,
+} from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SectionCard } from "@/components/common/SectionCard";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -16,7 +26,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { listTasks, listMembers, createTask, updateTask, deleteTask, qk, type Task } from "@/lib/crm-api";
+import {
+  listTasks,
+  listMembers,
+  createTask,
+  updateTask,
+  deleteTask,
+  qk,
+  type Task,
+} from "@/lib/crm-api";
 import { useSession } from "@/hooks/use-session";
 import { formatDate, formatTime } from "@/lib/format";
 import { getOverdueDays } from "@/lib/date-utils";
@@ -87,8 +105,7 @@ function TasksPage() {
   });
 
   const toggleMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      updateTask(id, { status }),
+    mutationFn: ({ id, status }: { id: string; status: string }) => updateTask(id, { status }),
     onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: qk.tasks(workspace.id) });
       queryClient.invalidateQueries({ queryKey: qk.events(workspace.id) });
@@ -132,7 +149,13 @@ function TasksPage() {
         title="Tasks"
         description="Today, upcoming and done."
         actions={
-          <Button size="sm" onClick={() => { setEditingTask(null); setDialogOpen(true); }}>
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditingTask(null);
+              setDialogOpen(true);
+            }}
+          >
             <Plus className="mr-1.5 h-4 w-4" /> Add Task
           </Button>
         }
@@ -179,9 +202,7 @@ function TasksPage() {
 
           const open = taskList.filter((t) => t.status === "Open" || t.status === "In Progress");
 
-          const overdue = open.filter(
-            (t) => t.due_at && new Date(t.due_at) < todayStart
-          );
+          const overdue = open.filter((t) => t.due_at && new Date(t.due_at) < todayStart);
           const overdueIds = new Set(overdue.map((t) => t.id));
 
           const groups = [
@@ -193,7 +214,10 @@ function TasksPage() {
             {
               label: "Today",
               items: open.filter(
-                (t) => !overdueIds.has(t.id) && t.due_at && new Date(t.due_at).toDateString() === todayStr
+                (t) =>
+                  !overdueIds.has(t.id) &&
+                  t.due_at &&
+                  new Date(t.due_at).toDateString() === todayStr,
               ),
               isOverdue: false,
             },
@@ -202,11 +226,17 @@ function TasksPage() {
               items: open.filter(
                 (t) =>
                   !overdueIds.has(t.id) &&
-                  (!t.due_at || (new Date(t.due_at).toDateString() !== todayStr && new Date(t.due_at) >= todayStart))
+                  (!t.due_at ||
+                    (new Date(t.due_at).toDateString() !== todayStr &&
+                      new Date(t.due_at) >= todayStart)),
               ),
               isOverdue: false,
             },
-            { label: "Completed", items: taskList.filter((t) => t.status === "Completed"), isOverdue: false },
+            {
+              label: "Completed",
+              items: taskList.filter((t) => t.status === "Completed"),
+              isOverdue: false,
+            },
           ];
 
           return (
@@ -222,15 +252,23 @@ function TasksPage() {
                     <div className="p-4">
                       <EmptyState
                         icon={CheckSquare}
-                        title={g.isOverdue ? "No overdue tasks" : `Nothing ${g.label.toLowerCase()}`}
-                        description={g.isOverdue ? "All tasks are on schedule." : "Add a task above to keep the day moving."}
+                        title={
+                          g.isOverdue ? "No overdue tasks" : `Nothing ${g.label.toLowerCase()}`
+                        }
+                        description={
+                          g.isOverdue
+                            ? "All tasks are on schedule."
+                            : "Add a task above to keep the day moving."
+                        }
                       />
                     </div>
                   ) : (
                     <ul className="divide-border divide-y">
                       {g.items.map((t) => {
                         const overdueDays = g.isOverdue && t.due_at ? getOverdueDays(t.due_at) : 0;
-                        const assignedMemberName = t.assigned_to ? memberMap.get(t.assigned_to) || "Assigned" : "Unassigned";
+                        const assignedMemberName = t.assigned_to
+                          ? memberMap.get(t.assigned_to) || "Assigned"
+                          : "Unassigned";
                         return (
                           <li
                             key={t.id}
@@ -253,7 +291,10 @@ function TasksPage() {
                                 </p>
                               </div>
                               <p className="text-muted-foreground truncate text-xs mt-0.5">
-                                {t.priority} priority · Assigned: <span className="text-foreground font-medium">{assignedMemberName}</span>
+                                {t.priority} priority · Assigned:{" "}
+                                <span className="text-foreground font-medium">
+                                  {assignedMemberName}
+                                </span>
                                 {t.description ? ` · ${t.description}` : ""}
                               </p>
                               {g.isOverdue && overdueDays > 0 && (
@@ -266,7 +307,14 @@ function TasksPage() {
 
                             <div className="flex shrink-0 items-center gap-2">
                               {t.due_at && (
-                                <span className={"text-xs hidden sm:inline-block " + (g.isOverdue ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground")}>
+                                <span
+                                  className={
+                                    "text-xs hidden sm:inline-block " +
+                                    (g.isOverdue
+                                      ? "text-red-600 dark:text-red-400 font-medium"
+                                      : "text-muted-foreground")
+                                  }
+                                >
                                   {formatDate(t.due_at)} {formatTime(t.due_at)}
                                 </span>
                               )}
@@ -281,14 +329,22 @@ function TasksPage() {
 
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground"
+                                  >
                                     <MoreVertical className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => handleToggleStatus(t.id, t.status)}>
+                                  <DropdownMenuItem
+                                    onClick={() => handleToggleStatus(t.id, t.status)}
+                                  >
                                     <CheckSquare className="mr-2 h-4 w-4" />
-                                    {t.status === "Completed" ? "Mark as Open" : "Mark as Completed"}
+                                    {t.status === "Completed"
+                                      ? "Mark as Open"
+                                      : "Mark as Completed"}
                                   </DropdownMenuItem>
                                   {canAssign && (
                                     <DropdownMenuItem onClick={() => setAssigningTask(t)}>
@@ -296,11 +352,21 @@ function TasksPage() {
                                       {t.assigned_to ? "Reassign Task" : "Assign Task"}
                                     </DropdownMenuItem>
                                   )}
-                                  <DropdownMenuItem onClick={() => { setEditingTask(t); setDialogOpen(true); }}>
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setEditingTask(t);
+                                      setDialogOpen(true);
+                                    }}
+                                  >
                                     <Edit className="mr-2 h-4 w-4" /> Edit Task
                                   </DropdownMenuItem>
                                   {g.isOverdue && (
-                                    <DropdownMenuItem onClick={() => { setEditingTask(t); setDialogOpen(true); }}>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setEditingTask(t);
+                                        setDialogOpen(true);
+                                      }}
+                                    >
                                       <Calendar className="mr-2 h-4 w-4" /> Reschedule
                                     </DropdownMenuItem>
                                   )}

@@ -52,8 +52,9 @@ export function DeletePropertyDialog({
           </div>
           <DialogTitle className="text-center">Delete Property</DialogTitle>
           <DialogDescription className="text-center">
-            Are you sure you want to delete <strong className="text-foreground">{property.name}</strong>?
-            This will permanently remove this listing from workspace inventory. This action cannot be undone.
+            Are you sure you want to delete{" "}
+            <strong className="text-foreground">{property.name}</strong>? This will permanently
+            remove this listing from workspace inventory. This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
 

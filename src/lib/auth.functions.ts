@@ -110,10 +110,9 @@ export const loginAction = createServerFn({ method: "POST" })
     let workspace: Workspace | null = null;
 
     if (!isSuperAdmin) {
-      workspace = await queryOne<Workspace>(
-        "SELECT * FROM workspaces WHERE code = ? LIMIT 1",
-        [wsCode],
-      );
+      workspace = await queryOne<Workspace>("SELECT * FROM workspaces WHERE code = ? LIMIT 1", [
+        wsCode,
+      ]);
       if (!workspace) {
         throw new Error("Invalid workspace code, user ID or password.");
       }
@@ -121,10 +120,9 @@ export const loginAction = createServerFn({ method: "POST" })
         throw new Error("WORKSPACE_INACTIVE");
       }
     } else {
-      workspace = await queryOne<Workspace>(
-        "SELECT * FROM workspaces WHERE code = ? LIMIT 1",
-        [PLATFORM_WORKSPACE_CODE],
-      );
+      workspace = await queryOne<Workspace>("SELECT * FROM workspaces WHERE code = ? LIMIT 1", [
+        PLATFORM_WORKSPACE_CODE,
+      ]);
     }
 
     // 2. Find user profile
@@ -174,10 +172,7 @@ export const loginAction = createServerFn({ method: "POST" })
     setSessionCookie(token);
 
     // 7. Update last_login_at
-    await execute(
-      "UPDATE profiles SET last_login_at = NOW() WHERE id = ?",
-      [profile.id],
-    );
+    await execute("UPDATE profiles SET last_login_at = NOW() WHERE id = ?", [profile.id]);
 
     return {
       ok: true,
@@ -200,10 +195,7 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
   const userId = parseSessionToken(token);
   if (!userId) return { authenticated: false as const };
 
-  const profile = await queryOne<Profile>(
-    "SELECT * FROM profiles WHERE id = ? LIMIT 1",
-    [userId],
-  );
+  const profile = await queryOne<Profile>("SELECT * FROM profiles WHERE id = ? LIMIT 1", [userId]);
   if (!profile || !profile.is_active) {
     clearSessionCookie();
     return { authenticated: false as const };
@@ -221,18 +213,15 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
   // Load workspace
   let workspace: Workspace | null = null;
   if (profile.workspace_id) {
-    workspace = await queryOne<Workspace>(
-      "SELECT * FROM workspaces WHERE id = ? LIMIT 1",
-      [profile.workspace_id],
-    );
+    workspace = await queryOne<Workspace>("SELECT * FROM workspaces WHERE id = ? LIMIT 1", [
+      profile.workspace_id,
+    ]);
   }
 
   // Load all workspaces for super admin
   let allWorkspaces: Workspace[] = [];
   if (role.role === "super_admin") {
-    allWorkspaces = await query<Workspace>(
-      "SELECT * FROM workspaces ORDER BY name",
-    );
+    allWorkspaces = await query<Workspace>("SELECT * FROM workspaces ORDER BY name");
   } else if (workspace) {
     allWorkspaces = [workspace];
   }
@@ -275,34 +264,32 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
  * Server-function middleware that validates the session cookie
  * and injects userId into the context.
  */
-export const requireMySqlAuth = createMiddleware({ type: "function" }).server(
-  async ({ next }) => {
-    const token = readSessionCookie();
-    if (!token) throw new Error("Unauthorized: No session.");
+export const requireMySqlAuth = createMiddleware({ type: "function" }).server(async ({ next }) => {
+  const token = readSessionCookie();
+  if (!token) throw new Error("Unauthorized: No session.");
 
-    const userId = parseSessionToken(token);
-    if (!userId) throw new Error("Unauthorized: Invalid session.");
+  const userId = parseSessionToken(token);
+  if (!userId) throw new Error("Unauthorized: Invalid session.");
 
-    const profile = await queryOne<Profile>(
-      "SELECT id, workspace_id, is_active FROM profiles WHERE id = ? LIMIT 1",
-      [userId],
-    );
-    if (!profile || !profile.is_active) {
-      clearSessionCookie();
-      throw new Error("Unauthorized: Session expired.");
-    }
+  const profile = await queryOne<Profile>(
+    "SELECT id, workspace_id, is_active FROM profiles WHERE id = ? LIMIT 1",
+    [userId],
+  );
+  if (!profile || !profile.is_active) {
+    clearSessionCookie();
+    throw new Error("Unauthorized: Session expired.");
+  }
 
-    const role = await queryOne<UserRole>(
-      "SELECT role FROM user_roles WHERE user_id = ? ORDER BY CASE WHEN role = 'super_admin' THEN 0 ELSE 1 END LIMIT 1",
-      [userId],
-    );
+  const role = await queryOne<UserRole>(
+    "SELECT role FROM user_roles WHERE user_id = ? ORDER BY CASE WHEN role = 'super_admin' THEN 0 ELSE 1 END LIMIT 1",
+    [userId],
+  );
 
-    return next({
-      context: {
-        userId: profile.id,
-        workspaceId: profile.workspace_id,
-        role: role?.role ?? "employee",
-      },
-    });
-  },
-);
+  return next({
+    context: {
+      userId: profile.id,
+      workspaceId: profile.workspace_id,
+      role: role?.role ?? "employee",
+    },
+  });
+});

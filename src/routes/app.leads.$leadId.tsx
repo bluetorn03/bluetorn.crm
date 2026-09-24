@@ -82,9 +82,16 @@ export const Route = createFileRoute("/app/leads/$leadId")({
   head: () => ({
     meta: [
       { title: "Lead Detail · BLUETORN CRM" },
-      { name: "description", content: "Lead detail with source attribution, follow-ups, timeline and matched properties." },
+      {
+        name: "description",
+        content:
+          "Lead detail with source attribution, follow-ups, timeline and matched properties.",
+      },
       { property: "og:title", content: "Lead Detail · BLUETORN CRM" },
-      { property: "og:description", content: "Lead detail with attribution, follow-ups and matched properties." },
+      {
+        property: "og:description",
+        content: "Lead detail with attribution, follow-ups and matched properties.",
+      },
     ],
   }),
   component: LeadDetailPage,
@@ -259,7 +266,7 @@ function LeadDetailView({ lead }: { lead: Lead }) {
   const telUrl = normalizedPhone ? `tel:${normalizedPhone}` : undefined;
   const waUrl = formatWhatsAppUrl(
     lead.phone,
-    `Hi ${lead.name}, this is ${user.name} from ${workspace.name}. I'm following up regarding your property requirement.`
+    `Hi ${lead.name}, this is ${user.name} from ${workspace.name}. I'm following up regarding your property requirement.`,
   );
 
   const handleCallAction = () => {
@@ -336,11 +343,21 @@ function LeadDetailView({ lead }: { lead: Lead }) {
             <div className="mt-2.5 flex flex-wrap items-center gap-3 text-xs">
               <span className="inline-flex items-center gap-1 text-muted-foreground">
                 <UserCheck className="h-3.5 w-3.5 text-primary" />
-                Assigned to: <strong className="text-foreground">{assignedMember ? assignedMember.full_name : "Unassigned"}</strong>
+                Assigned to:{" "}
+                <strong className="text-foreground">
+                  {assignedMember ? assignedMember.full_name : "Unassigned"}
+                </strong>
               </span>
               <span className="inline-flex items-center gap-1 text-muted-foreground">
                 <UserPlus className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                Created by: <strong className="text-foreground">{creatorMember ? creatorMember.full_name : (lead.created_by ? "Team member" : "Manual entry")}</strong>
+                Created by:{" "}
+                <strong className="text-foreground">
+                  {creatorMember
+                    ? creatorMember.full_name
+                    : lead.created_by
+                      ? "Team member"
+                      : "Manual entry"}
+                </strong>
               </span>
             </div>
           </div>
@@ -355,11 +372,7 @@ function LeadDetailView({ lead }: { lead: Lead }) {
         {/* Quick Contact & Action Buttons */}
         <div className="mt-5 flex flex-wrap items-center gap-2 pt-3 border-t border-border">
           {lead.phone && normalizedPhone ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleCallAction}
-            >
+            <Button size="sm" variant="outline" onClick={handleCallAction}>
               <Phone className="mr-1.5 h-4 w-4 text-emerald-600" /> Call
             </Button>
           ) : (
@@ -379,7 +392,9 @@ function LeadDetailView({ lead }: { lead: Lead }) {
               variant="outline"
               onClick={() => {
                 window.open(waUrl, "_blank", "noopener,noreferrer");
-                toast.info("Opening WhatsApp…", { description: "WhatsApp Web or Desktop will open. Please log in if prompted." });
+                toast.info("Opening WhatsApp…", {
+                  description: "WhatsApp Web or Desktop will open. Please log in if prompted.",
+                });
               }}
             >
               <MessageCircle className="mr-1.5 h-4 w-4 text-emerald-600" /> Open WhatsApp
@@ -396,11 +411,7 @@ function LeadDetailView({ lead }: { lead: Lead }) {
           )}
 
           {lead.email ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleEmailAction}
-            >
+            <Button size="sm" variant="outline" onClick={handleEmailAction}>
               <Mail className="mr-1.5 h-4 w-4 text-blue-600" /> Compose Email
             </Button>
           ) : (
@@ -489,7 +500,14 @@ function LeadDetailView({ lead }: { lead: Lead }) {
                       ? "Assigned"
                       : "—",
                 ],
-                ["Created by", creatorMember ? creatorMember.full_name : (lead.created_by ? "Team member" : "Manual entry")],
+                [
+                  "Created by",
+                  creatorMember
+                    ? creatorMember.full_name
+                    : lead.created_by
+                      ? "Team member"
+                      : "Manual entry",
+                ],
                 ["Created at", formatDateTime(lead.created_at)],
                 ["Received", formatDateTime(lead.received_at)],
                 [
@@ -511,7 +529,9 @@ function LeadDetailView({ lead }: { lead: Lead }) {
             <div className="flex flex-wrap gap-2">
               <StatusBadge label={lead.source} tone="info" />
               {lead.campaign && <StatusBadge label={`Campaign: ${lead.campaign}`} tone="neutral" />}
-              {lead.external_id && <StatusBadge label={`External ID: ${lead.external_id}`} tone="neutral" />}
+              {lead.external_id && (
+                <StatusBadge label={`External ID: ${lead.external_id}`} tone="neutral" />
+              )}
               <StatusBadge label={`Created ${formatDateTime(lead.created_at)}`} tone="neutral" />
             </div>
           </SectionCard>
@@ -533,20 +553,31 @@ function LeadDetailView({ lead }: { lead: Lead }) {
             {matchResult.insufficientCriteria ? (
               <div className="flex flex-col items-center gap-2 py-6 text-center">
                 <Search className="h-8 w-8 text-muted-foreground/50" />
-                <p className="text-sm font-medium text-muted-foreground">No matching properties yet</p>
-                <p className="text-xs text-muted-foreground max-w-xs">
-                  Add budget, location, property type or BHK requirements to find matching properties.
+                <p className="text-sm font-medium text-muted-foreground">
+                  No matching properties yet
                 </p>
-                <Button size="sm" variant="outline" className="mt-1" onClick={() => setEditOpen(true)}>
+                <p className="text-xs text-muted-foreground max-w-xs">
+                  Add budget, location, property type or BHK requirements to find matching
+                  properties.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-1"
+                  onClick={() => setEditOpen(true)}
+                >
                   <Edit className="mr-1.5 h-3.5 w-3.5" /> Add Requirements
                 </Button>
               </div>
             ) : matchedProperties.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-6 text-center">
                 <Building2 className="h-8 w-8 text-muted-foreground/50" />
-                <p className="text-sm font-medium text-muted-foreground">No matching properties found</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  No matching properties found
+                </p>
                 <p className="text-xs text-muted-foreground max-w-xs">
-                  No available properties match this lead's current requirements. New matches will appear automatically when properties are added or requirements change.
+                  No available properties match this lead's current requirements. New matches will
+                  appear automatically when properties are added or requirements change.
                 </p>
               </div>
             ) : (
@@ -574,9 +605,15 @@ function LeadDetailView({ lead }: { lead: Lead }) {
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{m.property.name}</p>
-                        <p className="text-muted-foreground truncate text-xs">{m.property.location || "—"}</p>
+                        <p className="text-muted-foreground truncate text-xs">
+                          {m.property.location || "—"}
+                        </p>
                         <p className="mt-1 text-xs font-semibold">
-                          {formatMoney(m.property.price, (m.property.currency ?? "INR") as any, true)}
+                          {formatMoney(
+                            m.property.price,
+                            (m.property.currency ?? "INR") as any,
+                            true,
+                          )}
                         </p>
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           {m.matchReasons.map((reason) => (
@@ -673,7 +710,9 @@ function LeadDetailView({ lead }: { lead: Lead }) {
                           {act.type === "Email" && <Mail className="h-3.5 w-3.5" />}
                           {act.type === "Status Change" && <Zap className="h-3.5 w-3.5" />}
                           {act.type === "Follow-up" && <CalendarClock className="h-3.5 w-3.5" />}
-                          {act.type === "Follow-up Completed" && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />}
+                          {act.type === "Follow-up Completed" && (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                          )}
                           {act.type !== "Call" &&
                             act.type !== "WhatsApp" &&
                             act.type !== "Meeting" &&
@@ -748,9 +787,7 @@ function LeadDetailView({ lead }: { lead: Lead }) {
                     <UserCheck className="h-4 w-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">
-                      {assignedMember.full_name}
-                    </p>
+                    <p className="truncate text-sm font-semibold">{assignedMember.full_name}</p>
                     <p className="text-muted-foreground truncate text-xs">
                       {assignedMember.email || "Workspace team member"}
                     </p>
@@ -842,7 +879,12 @@ function LeadDetailView({ lead }: { lead: Lead }) {
                   {interestedProperty.name}
                 </p>
                 <p className="text-muted-foreground text-xs">
-                  {interestedProperty.location || "Location not set"} · {formatMoney(interestedProperty.price, (interestedProperty.currency ?? "INR") as any, true)}
+                  {interestedProperty.location || "Location not set"} ·{" "}
+                  {formatMoney(
+                    interestedProperty.price,
+                    (interestedProperty.currency ?? "INR") as any,
+                    true,
+                  )}
                 </p>
               </Link>
             ) : (
@@ -898,7 +940,8 @@ function LeadDetailView({ lead }: { lead: Lead }) {
                   className="w-full justify-start border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200 hover:bg-emerald-500/20"
                 >
                   <Link to="/app/customers/$customerId" params={{ customerId: linkedCustomer.id }}>
-                    <UserCheck className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" /> View Converted Customer ({linkedCustomer.name})
+                    <UserCheck className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />{" "}
+                    View Converted Customer ({linkedCustomer.name})
                   </Link>
                 </Button>
               ) : (
@@ -924,16 +967,14 @@ function LeadDetailView({ lead }: { lead: Lead }) {
       {/* Dialogs */}
       <EditLeadDialog open={editOpen} onOpenChange={setEditOpen} lead={lead} />
       <AssignLeadDialog open={assignOpen} onOpenChange={setAssignOpen} lead={lead} />
-      <ScheduleFollowUpDialog
-        open={followUpOpen}
-        onOpenChange={setFollowUpOpen}
-        lead={lead}
-      />
+      <ScheduleFollowUpDialog open={followUpOpen} onOpenChange={setFollowUpOpen} lead={lead} />
       <ConvertLeadDialog
         open={convertOpen}
         onOpenChange={setConvertOpen}
         lead={lead}
-        onConverted={(cust) => navigate({ to: "/app/customers/$customerId", params: { customerId: cust.id } })}
+        onConverted={(cust) =>
+          navigate({ to: "/app/customers/$customerId", params: { customerId: cust.id } })
+        }
       />
       <DeleteLeadDialog
         open={deleteOpen}
@@ -951,15 +992,14 @@ function LeadDetailView({ lead }: { lead: Lead }) {
               Call {lead.name}
             </DialogTitle>
             <DialogDescription>
-              Calling isn't available on this desktop device without a telephony handler (like Phone Link, FaceTime, or Skype).
+              Calling isn't available on this desktop device without a telephony handler (like Phone
+              Link, FaceTime, or Skype).
             </DialogDescription>
           </DialogHeader>
 
           <div className="my-2 rounded-lg border border-border bg-muted/40 p-3 space-y-1">
             <p className="text-xs text-muted-foreground">Phone Number</p>
-            <p className="font-mono text-base font-semibold text-foreground">
-              {lead.phone}
-            </p>
+            <p className="font-mono text-base font-semibold text-foreground">{lead.phone}</p>
           </div>
 
           <DialogFooter className="flex-col sm:flex-row gap-2">

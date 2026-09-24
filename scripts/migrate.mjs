@@ -1,6 +1,6 @@
 /**
  * BLUETORN CRM — Idempotent Production Database Migration Script
- * 
+ *
  * Safely executes mysql_schema.sql and applies incremental column/index
  * updates (whatsapp_phone, assigned_at, assignment foreign keys) if missing.
  *
@@ -29,7 +29,10 @@ function loadEnvFile(filePath) {
       if (eqIdx > 0) {
         const key = trimmed.slice(0, eqIdx).trim();
         let val = trimmed.slice(eqIdx + 1).trim();
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        if (
+          (val.startsWith('"') && val.endsWith('"')) ||
+          (val.startsWith("'") && val.endsWith("'"))
+        ) {
           val = val.slice(1, -1);
         }
         if (!process.env[key]) {
@@ -87,7 +90,9 @@ async function run() {
     const [cols] = await conn.query("SHOW COLUMNS FROM `profiles` LIKE 'whatsapp_phone'");
     if (Array.isArray(cols) && cols.length === 0) {
       console.log("Adding missing whatsapp_phone column to profiles table...");
-      await conn.query("ALTER TABLE `profiles` ADD COLUMN `whatsapp_phone` VARCHAR(64) DEFAULT NULL AFTER `phone`");
+      await conn.query(
+        "ALTER TABLE `profiles` ADD COLUMN `whatsapp_phone` VARCHAR(64) DEFAULT NULL AFTER `phone`",
+      );
       console.log("✅ Column profiles.whatsapp_phone added.");
     } else {
       console.log("✓ Column profiles.whatsapp_phone already exists.");
@@ -103,7 +108,9 @@ async function run() {
       const [cols] = await conn.query(`SHOW COLUMNS FROM \`${tbl}\` LIKE 'assigned_at'`);
       if (Array.isArray(cols) && cols.length === 0) {
         console.log(`Adding missing assigned_at column to ${tbl} table...`);
-        await conn.query(`ALTER TABLE \`${tbl}\` ADD COLUMN \`assigned_at\` DATETIME DEFAULT NULL AFTER \`assigned_to\``);
+        await conn.query(
+          `ALTER TABLE \`${tbl}\` ADD COLUMN \`assigned_at\` DATETIME DEFAULT NULL AFTER \`assigned_to\``,
+        );
         console.log(`✅ Column ${tbl}.assigned_at added.`);
       } else {
         console.log(`✓ Column ${tbl}.assigned_at already exists.`);

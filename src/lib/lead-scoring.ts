@@ -58,7 +58,12 @@ export function calculateLeadScore(lead: Lead): LeadScoreResult {
     budgetPoints = 5;
     budgetReason = `Budget ₹${budget.toLocaleString()} — entry level`;
   }
-  breakdown.push({ factor: "Budget fit", maxPoints: 20, earnedPoints: budgetPoints, reason: budgetReason });
+  breakdown.push({
+    factor: "Budget fit",
+    maxPoints: 20,
+    earnedPoints: budgetPoints,
+    reason: budgetReason,
+  });
 
   // 2. Requirement fit (max 15)
   const req = (lead.requirement || "").trim();
@@ -74,7 +79,12 @@ export function calculateLeadScore(lead: Lead): LeadScoreResult {
     reqPoints = 5;
     reqReason = "Brief requirement provided";
   }
-  breakdown.push({ factor: "Requirement fit", maxPoints: 15, earnedPoints: reqPoints, reason: reqReason });
+  breakdown.push({
+    factor: "Requirement fit",
+    maxPoints: 15,
+    earnedPoints: reqPoints,
+    reason: reqReason,
+  });
 
   // 3. Location / Property fit (max 15)
   let locationPoints = 0;
@@ -82,11 +92,19 @@ export function calculateLeadScore(lead: Lead): LeadScoreResult {
   if (lead.property_id) {
     locationPoints = 15;
     locationReason = "Specific property interest linked";
-  } else if (req.length > 0 && /(?:bhk|bed|flat|apartment|villa|plot|commercial|location|area|sector|city)/i.test(req)) {
+  } else if (
+    req.length > 0 &&
+    /(?:bhk|bed|flat|apartment|villa|plot|commercial|location|area|sector|city)/i.test(req)
+  ) {
     locationPoints = 8;
     locationReason = "Location/property hints in requirement";
   }
-  breakdown.push({ factor: "Location fit", maxPoints: 15, earnedPoints: locationPoints, reason: locationReason });
+  breakdown.push({
+    factor: "Location fit",
+    maxPoints: 15,
+    earnedPoints: locationPoints,
+    reason: locationReason,
+  });
 
   // 4. Timeline / Urgency (max 15)
   let timelinePoints = 0;
@@ -113,7 +131,12 @@ export function calculateLeadScore(lead: Lead): LeadScoreResult {
     timelinePoints = 6;
     timelineReason = "Active stage suggests urgency";
   }
-  breakdown.push({ factor: "Timeline/urgency", maxPoints: 15, earnedPoints: timelinePoints, reason: timelineReason });
+  breakdown.push({
+    factor: "Timeline/urgency",
+    maxPoints: 15,
+    earnedPoints: timelinePoints,
+    reason: timelineReason,
+  });
 
   // 5. Engagement — based on stage progression (max 15)
   const engagementMap: Record<string, number> = {
@@ -132,7 +155,12 @@ export function calculateLeadScore(lead: Lead): LeadScoreResult {
       : engagementPoints >= 5
         ? `${lead.status} — moderate engagement`
         : `${lead.status} — initial engagement`;
-  breakdown.push({ factor: "Engagement", maxPoints: 15, earnedPoints: engagementPoints, reason: engagementReason });
+  breakdown.push({
+    factor: "Engagement",
+    maxPoints: 15,
+    earnedPoints: engagementPoints,
+    reason: engagementReason,
+  });
 
   // 6. Stage / Intent (max 10)
   const intentMap: Record<string, number> = {
@@ -151,7 +179,12 @@ export function calculateLeadScore(lead: Lead): LeadScoreResult {
       : intentPoints >= 3
         ? `${lead.status} — growing intent`
         : `${lead.status} — early stage`;
-  breakdown.push({ factor: "Stage/intent", maxPoints: 10, earnedPoints: intentPoints, reason: intentReason });
+  breakdown.push({
+    factor: "Stage/intent",
+    maxPoints: 10,
+    earnedPoints: intentPoints,
+    reason: intentReason,
+  });
 
   // 7. Follow-up response (max 5)
   let followUpPoints = 0;
@@ -160,23 +193,52 @@ export function calculateLeadScore(lead: Lead): LeadScoreResult {
     followUpPoints = 5;
     followUpReason = "Active follow-up scheduled";
   }
-  breakdown.push({ factor: "Follow-up response", maxPoints: 5, earnedPoints: followUpPoints, reason: followUpReason });
+  breakdown.push({
+    factor: "Follow-up response",
+    maxPoints: 5,
+    earnedPoints: followUpPoints,
+    reason: followUpReason,
+  });
 
   // 8. Data completeness (max 5) — 1 point per field
   let dataPoints = 0;
   const fields: string[] = [];
-  if (lead.phone) { dataPoints++; fields.push("phone"); }
-  if (lead.email) { dataPoints++; fields.push("email"); }
-  if (req.length > 0) { dataPoints++; fields.push("requirement"); }
-  if (budget > 0) { dataPoints++; fields.push("budget"); }
-  if (lead.notes) { dataPoints++; fields.push("notes"); }
-  const dataReason = dataPoints > 0
-    ? `${dataPoints}/5 fields: ${fields.join(", ")}`
-    : "No contact details or preferences";
-  breakdown.push({ factor: "Data completeness", maxPoints: 5, earnedPoints: dataPoints, reason: dataReason });
+  if (lead.phone) {
+    dataPoints++;
+    fields.push("phone");
+  }
+  if (lead.email) {
+    dataPoints++;
+    fields.push("email");
+  }
+  if (req.length > 0) {
+    dataPoints++;
+    fields.push("requirement");
+  }
+  if (budget > 0) {
+    dataPoints++;
+    fields.push("budget");
+  }
+  if (lead.notes) {
+    dataPoints++;
+    fields.push("notes");
+  }
+  const dataReason =
+    dataPoints > 0
+      ? `${dataPoints}/5 fields: ${fields.join(", ")}`
+      : "No contact details or preferences";
+  breakdown.push({
+    factor: "Data completeness",
+    maxPoints: 5,
+    earnedPoints: dataPoints,
+    reason: dataReason,
+  });
 
   // Total
-  const total = Math.min(100, breakdown.reduce((sum, b) => sum + b.earnedPoints, 0));
+  const total = Math.min(
+    100,
+    breakdown.reduce((sum, b) => sum + b.earnedPoints, 0),
+  );
 
   // Category
   let category: ScoreCategory;

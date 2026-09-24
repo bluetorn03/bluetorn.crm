@@ -72,13 +72,59 @@ function parseLeadRequirements(lead: Lead) {
 }
 
 const NON_LOCATION_WORDS = new Set([
-  "bhk", "bed", "beds", "bedroom", "bedrooms", "apartment", "flat", "villa",
-  "plot", "commercial", "office", "warehouse", "house", "home", "floor",
-  "facing", "sea", "road", "near", "with", "and", "for", "the", "looking",
-  "want", "need", "require", "requirement", "budget", "price", "max",
-  "minimum", "maximum", "sqft", "sq", "ft", "area", "carpet",
-  "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
-  "no", "requirement", "specified", "not", "any",
+  "bhk",
+  "bed",
+  "beds",
+  "bedroom",
+  "bedrooms",
+  "apartment",
+  "flat",
+  "villa",
+  "plot",
+  "commercial",
+  "office",
+  "warehouse",
+  "house",
+  "home",
+  "floor",
+  "facing",
+  "sea",
+  "road",
+  "near",
+  "with",
+  "and",
+  "for",
+  "the",
+  "looking",
+  "want",
+  "need",
+  "require",
+  "requirement",
+  "budget",
+  "price",
+  "max",
+  "minimum",
+  "maximum",
+  "sqft",
+  "sq",
+  "ft",
+  "area",
+  "carpet",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "0",
+  "no",
+  "requirement",
+  "specified",
+  "not",
+  "any",
 ]);
 
 function extractLocationKeywords(text: string): string[] {
@@ -156,7 +202,8 @@ export function matchProperties(lead: Lead, allProperties: Property[]): MatchRes
       const propLocation = (property.location ?? "").toLowerCase();
       if (propLocation) {
         const locationMatched = reqs.locationKeywords.some(
-          (kw) => propLocation.includes(kw) || kw.includes(propLocation.split(",")[0]?.trim() ?? "")
+          (kw) =>
+            propLocation.includes(kw) || kw.includes(propLocation.split(",")[0]?.trim() ?? ""),
         );
         if (locationMatched) {
           reasons.push("Location ✓");

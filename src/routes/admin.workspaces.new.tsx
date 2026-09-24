@@ -24,7 +24,10 @@ export const Route = createFileRoute("/admin/workspaces/new")({
       { title: "New workspace · BLUETORN CRM" },
       { name: "description", content: "Provision a new tenant workspace and its Owner account." },
       { property: "og:title", content: "New workspace · BLUETORN CRM" },
-      { property: "og:description", content: "Provision a new tenant workspace and its Owner account." },
+      {
+        property: "og:description",
+        content: "Provision a new tenant workspace and its Owner account.",
+      },
     ],
   }),
   component: AdminWorkspaceNew,
@@ -86,7 +89,10 @@ function AdminWorkspaceNew() {
         description: `Owner signs in with ${result.code} / ${result.ownerUserCode}.`,
       });
       await queryClient.invalidateQueries({ queryKey: ["admin"] });
-      navigate({ to: "/admin/workspaces/$workspaceId", params: { workspaceId: result.workspaceId } });
+      navigate({
+        to: "/admin/workspaces/$workspaceId",
+        params: { workspaceId: result.workspaceId },
+      });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -116,40 +122,61 @@ function AdminWorkspaceNew() {
               />
             </Field>
             <Field label="Company name">
-              <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Skyline Realty" required />
+              <Input
+                value={form.name}
+                onChange={(e) => set("name", e.target.value)}
+                placeholder="Skyline Realty"
+                required
+              />
             </Field>
             <Field label="Legal name">
-              <Input value={form.legalName} onChange={(e) => set("legalName", e.target.value)} placeholder="Skyline Realty Pvt Ltd" />
+              <Input
+                value={form.legalName}
+                onChange={(e) => set("legalName", e.target.value)}
+                placeholder="Skyline Realty Pvt Ltd"
+              />
             </Field>
             <Field label="Industry">
               <Input value={form.industry} onChange={(e) => set("industry", e.target.value)} />
             </Field>
             <Field label="Plan">
               <Select value={form.plan} onValueChange={(v) => set("plan", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {["Starter", "Growth", "Scale"].map((p) => (
-                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </Field>
             <Field label="Status">
               <Select value={form.status} onValueChange={(v) => set("status", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {["trial", "active", "suspended", "inactive"].map((s) => (
-                    <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                    <SelectItem key={s} value={s} className="capitalize">
+                      {s}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </Field>
             <Field label="Currency">
               <Select value={form.currency} onValueChange={(v) => set("currency", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {["INR", "USD", "AED", "EUR"].map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -163,15 +190,25 @@ function AdminWorkspaceNew() {
               />
             </Field>
             <Field label="Contact email">
-              <Input type="email" value={form.contactEmail} onChange={(e) => set("contactEmail", e.target.value)} />
+              <Input
+                type="email"
+                value={form.contactEmail}
+                onChange={(e) => set("contactEmail", e.target.value)}
+              />
             </Field>
             <Field label="Contact phone">
-              <Input value={form.contactPhone} onChange={(e) => set("contactPhone", e.target.value)} />
+              <Input
+                value={form.contactPhone}
+                onChange={(e) => set("contactPhone", e.target.value)}
+              />
             </Field>
           </div>
         </SectionCard>
 
-        <SectionCard title="Owner account" description="Signs in with workspace code, user ID and password.">
+        <SectionCard
+          title="Owner account"
+          description="Signs in with workspace code, user ID and password."
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="User ID" hint="Lowercase, e.g. arjun.mehta">
               <Input
@@ -182,10 +219,18 @@ function AdminWorkspaceNew() {
               />
             </Field>
             <Field label="Full name">
-              <Input value={form.ownerFullName} onChange={(e) => set("ownerFullName", e.target.value)} required />
+              <Input
+                value={form.ownerFullName}
+                onChange={(e) => set("ownerFullName", e.target.value)}
+                required
+              />
             </Field>
             <Field label="Email" hint="For contact and recovery only.">
-              <Input type="email" value={form.ownerEmail} onChange={(e) => set("ownerEmail", e.target.value)} />
+              <Input
+                type="email"
+                value={form.ownerEmail}
+                onChange={(e) => set("ownerEmail", e.target.value)}
+              />
             </Field>
             <Field label="Phone">
               <Input value={form.ownerPhone} onChange={(e) => set("ownerPhone", e.target.value)} />
@@ -207,7 +252,11 @@ function AdminWorkspaceNew() {
             {mutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
             Create workspace
           </Button>
-          <Button type="button" variant="ghost" onClick={() => navigate({ to: "/admin/workspaces" })}>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => navigate({ to: "/admin/workspaces" })}
+          >
             Cancel
           </Button>
         </div>
@@ -216,7 +265,15 @@ function AdminWorkspaceNew() {
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1.5">
       <Label className="text-xs font-medium">{label}</Label>

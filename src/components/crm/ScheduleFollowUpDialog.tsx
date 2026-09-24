@@ -109,7 +109,9 @@ export function ScheduleFollowUpDialog({
         <DialogHeader className="shrink-0 pb-3 border-b border-border">
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <CalendarClock className="h-5 w-5 text-primary shrink-0" />
-            <span className="truncate">{lead?.next_follow_up ? "Edit Follow-Up" : "Schedule Follow-Up"}</span>
+            <span className="truncate">
+              {lead?.next_follow_up ? "Edit Follow-Up" : "Schedule Follow-Up"}
+            </span>
           </DialogTitle>
           <DialogDescription className="truncate text-xs sm:text-sm">
             Set the next follow-up date and reminder for {lead?.name}.
@@ -189,7 +191,9 @@ export function ScheduleFollowUpDialog({
               onClick={handleSave}
               disabled={saveMutation.isPending || !dateValue}
             >
-              {saveMutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin shrink-0" />}
+              {saveMutation.isPending && (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin shrink-0" />
+              )}
               Save Follow-Up
             </Button>
           </div>

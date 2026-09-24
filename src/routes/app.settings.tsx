@@ -20,7 +20,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { createWorkspaceUser, setUserActive, setUserPassword } from "@/lib/admin.functions";
 import {
   getWorkspaceSettingsFn,
@@ -37,9 +43,15 @@ export const Route = createFileRoute("/app/settings")({
   head: () => ({
     meta: [
       { title: "Settings · BLUETORN CRM" },
-      { name: "description", content: "Workspace profile, team roles and account security for your Bluetorn workspace." },
+      {
+        name: "description",
+        content: "Workspace profile, team roles and account security for your Bluetorn workspace.",
+      },
       { property: "og:title", content: "Settings · BLUETORN CRM" },
-      { property: "og:description", content: "Workspace profile, team roles and account security." },
+      {
+        property: "og:description",
+        content: "Workspace profile, team roles and account security.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -56,10 +68,7 @@ function SettingsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Settings"
-        description={`${workspace.name} · ${workspace.code}`}
-      />
+      <PageHeader title="Settings" description={`${workspace.name} · ${workspace.code}`} />
 
       <Tabs defaultValue="workspace">
         <TabsList>
@@ -73,7 +82,12 @@ function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="team" className="mt-4">
-          <TeamTab canManage={canManageTeam} workspaceId={workspace.id} currentUserId={user.id} role={role} />
+          <TeamTab
+            canManage={canManageTeam}
+            workspaceId={workspace.id}
+            currentUserId={user.id}
+            role={role}
+          />
         </TabsContent>
 
         <TabsContent value="account" className="mt-4">
@@ -141,14 +155,42 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-      <SectionCard title="Workspace profile" description="Shown across invoices, documents and shared links.">
+      <SectionCard
+        title="Workspace profile"
+        description="Shown across invoices, documents and shared links."
+      >
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Display name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} disabled={!canEdit} />
-          <Field label="Legal name" value={form.legalName} onChange={(v) => setForm({ ...form, legalName: v })} disabled={!canEdit} />
-          <Field label="Contact email" value={form.contactEmail} onChange={(v) => setForm({ ...form, contactEmail: v })} disabled={!canEdit} />
-          <Field label="Contact phone" value={form.contactPhone} onChange={(v) => setForm({ ...form, contactPhone: v })} disabled={!canEdit} />
+          <Field
+            label="Display name"
+            value={form.name}
+            onChange={(v) => setForm({ ...form, name: v })}
+            disabled={!canEdit}
+          />
+          <Field
+            label="Legal name"
+            value={form.legalName}
+            onChange={(v) => setForm({ ...form, legalName: v })}
+            disabled={!canEdit}
+          />
+          <Field
+            label="Contact email"
+            value={form.contactEmail}
+            onChange={(v) => setForm({ ...form, contactEmail: v })}
+            disabled={!canEdit}
+          />
+          <Field
+            label="Contact phone"
+            value={form.contactPhone}
+            onChange={(v) => setForm({ ...form, contactPhone: v })}
+            disabled={!canEdit}
+          />
           <div className="sm:col-span-2">
-            <Field label="Address" value={form.address} onChange={(v) => setForm({ ...form, address: v })} disabled={!canEdit} />
+            <Field
+              label="Address"
+              value={form.address}
+              onChange={(v) => setForm({ ...form, address: v })}
+              disabled={!canEdit}
+            />
           </div>
         </div>
         {canEdit ? (
@@ -158,7 +200,9 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
             </Button>
           </div>
         ) : (
-          <p className="text-muted-foreground mt-4 text-xs">Only the workspace Owner can edit these details.</p>
+          <p className="text-muted-foreground mt-4 text-xs">
+            Only the workspace Owner can edit these details.
+          </p>
         )}
       </SectionCard>
 
@@ -195,7 +239,15 @@ function TeamTab({
   const [addOpen, setAddOpen] = useState(false);
   const [resetFor, setResetFor] = useState<MemberRow | null>(null);
   const [newPassword, setNewPassword] = useState("");
-  const [form, setForm] = useState({ userCode: "", fullName: "", email: "", phone: "", jobTitle: "", role: "employee", password: "" });
+  const [form, setForm] = useState({
+    userCode: "",
+    fullName: "",
+    email: "",
+    phone: "",
+    jobTitle: "",
+    role: "employee",
+    password: "",
+  });
 
   const members = useQuery({
     queryKey: ["workspace-members", workspaceId],
@@ -203,7 +255,8 @@ function TeamTab({
     queryFn: () => getMembers({ data: { workspaceId } }),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["workspace-members", workspaceId] });
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["workspace-members", workspaceId] });
 
   const create = useMutation({
     mutationFn: () =>
@@ -222,7 +275,15 @@ function TeamTab({
     onSuccess: async () => {
       toast.success("Team member added");
       setAddOpen(false);
-      setForm({ userCode: "", fullName: "", email: "", phone: "", jobTitle: "", role: "employee", password: "" });
+      setForm({
+        userCode: "",
+        fullName: "",
+        email: "",
+        phone: "",
+        jobTitle: "",
+        role: "employee",
+        password: "",
+      });
       await invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -270,13 +331,33 @@ function TeamTab({
                 <DialogDescription>Create login credentials for a new teammate.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-3 py-2">
-                <Field label="Full name *" value={form.fullName} onChange={(v) => setForm({ ...form, fullName: v })} />
-                <Field label="User ID (login) *" value={form.userCode} onChange={(v) => setForm({ ...form, userCode: v })} />
+                <Field
+                  label="Full name *"
+                  value={form.fullName}
+                  onChange={(v) => setForm({ ...form, fullName: v })}
+                />
+                <Field
+                  label="User ID (login) *"
+                  value={form.userCode}
+                  onChange={(v) => setForm({ ...form, userCode: v })}
+                />
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-                  <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+                  <Field
+                    label="Email"
+                    value={form.email}
+                    onChange={(v) => setForm({ ...form, email: v })}
+                  />
+                  <Field
+                    label="Phone"
+                    value={form.phone}
+                    onChange={(v) => setForm({ ...form, phone: v })}
+                  />
                 </div>
-                <Field label="Job title" value={form.jobTitle} onChange={(v) => setForm({ ...form, jobTitle: v })} />
+                <Field
+                  label="Job title"
+                  value={form.jobTitle}
+                  onChange={(v) => setForm({ ...form, jobTitle: v })}
+                />
                 <div>
                   <Label className="text-xs">Role</Label>
                   <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
@@ -289,12 +370,25 @@ function TeamTab({
                     </SelectContent>
                   </Select>
                 </div>
-                <Field label="Temporary password *" type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} />
+                <Field
+                  label="Temporary password *"
+                  type="password"
+                  value={form.password}
+                  onChange={(v) => setForm({ ...form, password: v })}
+                />
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-                <Button disabled={!form.fullName || !form.userCode || form.password.length < 8 || create.isPending} onClick={() => create.mutate()}>
-                  {create.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Create user
+                <Button variant="outline" onClick={() => setAddOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={
+                    !form.fullName || !form.userCode || form.password.length < 8 || create.isPending
+                  }
+                  onClick={() => create.mutate()}
+                >
+                  {create.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Create
+                  user
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -316,7 +410,8 @@ function TeamTab({
                   {!m.is_active && <StatusBadge label="inactive" tone="danger" />}
                 </div>
                 <p className="text-muted-foreground mt-0.5 text-xs">
-                  User ID: <code className="bg-muted text-foreground rounded px-1">{m.user_code}</code>
+                  User ID:{" "}
+                  <code className="bg-muted text-foreground rounded px-1">{m.user_code}</code>
                   {m.job_title ? ` · ${m.job_title}` : ""}
                   {m.email ? ` · ${m.email}` : ""}
                   {m.last_login_at ? ` · Last login ${relativeTime(m.last_login_at)}` : ""}
@@ -325,11 +420,7 @@ function TeamTab({
 
               {canManage && !isOwner && !isSelf && (
                 <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setResetFor(m)}
-                  >
+                  <Button size="sm" variant="outline" onClick={() => setResetFor(m)}>
                     <KeyRound className="mr-1.5 h-3.5 w-3.5" /> Reset password
                   </Button>
 
@@ -366,7 +457,9 @@ function TeamTab({
           <DialogHeader>
             <DialogTitle>Reset password</DialogTitle>
             <DialogDescription>
-              Set a new password for <span className="font-medium text-foreground">{resetFor?.full_name}</span> (User ID: {resetFor?.user_code}).
+              Set a new password for{" "}
+              <span className="font-medium text-foreground">{resetFor?.full_name}</span> (User ID:{" "}
+              {resetFor?.user_code}).
             </DialogDescription>
           </DialogHeader>
           <div className="py-2">
@@ -385,7 +478,8 @@ function TeamTab({
               disabled={newPassword.length < 8 || reset.isPending}
               onClick={() => reset.mutate()}
             >
-              {reset.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Update password
+              {reset.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Update
+              password
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -448,14 +542,31 @@ function AccountTab({ onSaved }: { onSaved: () => Promise<void> }) {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <SectionCard title="My profile" description="Visible to your workspace team.">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Full name" value={form.fullName} onChange={(v) => setForm({ ...form, fullName: v })} />
-            <Field label="Job title" value={form.jobTitle} onChange={(v) => setForm({ ...form, jobTitle: v })} />
-            <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-            <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+            <Field
+              label="Full name"
+              value={form.fullName}
+              onChange={(v) => setForm({ ...form, fullName: v })}
+            />
+            <Field
+              label="Job title"
+              value={form.jobTitle}
+              onChange={(v) => setForm({ ...form, jobTitle: v })}
+            />
+            <Field
+              label="Email"
+              value={form.email}
+              onChange={(v) => setForm({ ...form, email: v })}
+            />
+            <Field
+              label="Phone"
+              value={form.phone}
+              onChange={(v) => setForm({ ...form, phone: v })}
+            />
           </div>
           <div className="mt-4 flex justify-end">
             <Button size="sm" disabled={saveProfile.isPending} onClick={() => saveProfile.mutate()}>
-              {saveProfile.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Save profile
+              {saveProfile.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Save
+              profile
             </Button>
           </div>
         </SectionCard>
@@ -473,7 +584,8 @@ function AccountTab({ onSaved }: { onSaved: () => Promise<void> }) {
               disabled={password.length < 8 || changePassword.isPending}
               onClick={() => changePassword.mutate()}
             >
-              {changePassword.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Change password
+              {changePassword.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}{" "}
+              Change password
             </Button>
           </div>
         </SectionCard>
@@ -488,7 +600,9 @@ function AccountTab({ onSaved }: { onSaved: () => Promise<void> }) {
           <div className="rounded-lg border border-border bg-muted/20 p-3">
             <Label className="text-xs text-muted-foreground">Calling Phone</Label>
             <p className="mt-1 text-sm font-semibold text-foreground truncate">
-              {form.phone || <span className="text-muted-foreground font-normal">Not configured</span>}
+              {form.phone || (
+                <span className="text-muted-foreground font-normal">Not configured</span>
+              )}
             </p>
             <p className="text-[11px] text-muted-foreground mt-1">
               Uses your profile phone number. Edit in My Profile above.
@@ -498,7 +612,9 @@ function AccountTab({ onSaved }: { onSaved: () => Promise<void> }) {
           <div className="rounded-lg border border-border bg-muted/20 p-3">
             <Label className="text-xs text-muted-foreground">Sender Email</Label>
             <p className="mt-1 text-sm font-semibold text-foreground truncate">
-              {form.email || <span className="text-muted-foreground font-normal">Not configured</span>}
+              {form.email || (
+                <span className="text-muted-foreground font-normal">Not configured</span>
+              )}
             </p>
             <p className="text-[11px] text-muted-foreground mt-1">
               Uses your profile email. Edit in My Profile above.
@@ -521,7 +637,8 @@ function AccountTab({ onSaved }: { onSaved: () => Promise<void> }) {
 
         <div className="mt-4 flex justify-end pt-3 border-t border-border">
           <Button size="sm" disabled={saveProfile.isPending} onClick={() => saveProfile.mutate()}>
-            {saveProfile.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Save WhatsApp Number
+            {saveProfile.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Save
+            WhatsApp Number
           </Button>
         </div>
       </SectionCard>

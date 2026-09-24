@@ -19,7 +19,10 @@ export const Route = createFileRoute("/admin/workspaces/")({
       { title: "Workspaces · BLUETORN CRM" },
       { name: "description", content: "Every tenant workspace, its plan, seats and status." },
       { property: "og:title", content: "Workspaces · BLUETORN CRM" },
-      { property: "og:description", content: "Every tenant workspace, its plan, seats and status." },
+      {
+        property: "og:description",
+        content: "Every tenant workspace, its plan, seats and status.",
+      },
     ],
   }),
   component: AdminWorkspaces,
@@ -42,7 +45,8 @@ function AdminWorkspaces() {
 
   const rows = (data ?? []).filter(
     (w) =>
-      w.name.toLowerCase().includes(q.toLowerCase()) || w.code.toLowerCase().includes(q.toLowerCase()),
+      w.name.toLowerCase().includes(q.toLowerCase()) ||
+      w.code.toLowerCase().includes(q.toLowerCase()),
   );
 
   return (
@@ -61,7 +65,12 @@ function AdminWorkspaces() {
 
       <div className="relative min-w-0 sm:max-w-xs">
         <Search className="text-muted-foreground absolute top-2.5 left-3 h-4 w-4" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or code" className="pl-9" />
+        <Input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search name or code"
+          className="pl-9"
+        />
       </div>
 
       {error ? (

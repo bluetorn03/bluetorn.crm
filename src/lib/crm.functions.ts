@@ -244,7 +244,10 @@ export const updateCustomerFn = createServerFn({ method: "POST" })
     vals.push(data.id);
     if (context.role !== "super_admin") {
       vals.push(wsId);
-      await execute(`UPDATE customers SET ${sets.join(", ")} WHERE id = ? AND workspace_id = ?`, vals);
+      await execute(
+        `UPDATE customers SET ${sets.join(", ")} WHERE id = ? AND workspace_id = ?`,
+        vals,
+      );
     } else {
       await execute(`UPDATE customers SET ${sets.join(", ")} WHERE id = ?`, vals);
     }
@@ -404,7 +407,10 @@ export const updatePropertyFn = createServerFn({ method: "POST" })
     vals.push(data.id);
     if (context.role !== "super_admin") {
       vals.push(wsId);
-      await execute(`UPDATE properties SET ${sets.join(", ")} WHERE id = ? AND workspace_id = ?`, vals);
+      await execute(
+        `UPDATE properties SET ${sets.join(", ")} WHERE id = ? AND workspace_id = ?`,
+        vals,
+      );
     } else {
       await execute(`UPDATE properties SET ${sets.join(", ")} WHERE id = ?`, vals);
     }
@@ -466,10 +472,11 @@ export const getLeadFn = createServerFn({ method: "GET" })
     }
     const wsId = getTargetWorkspaceId(undefined, context);
     const ef = employeeFilter(context);
-    return queryOne<Lead>(
-      `SELECT * FROM leads WHERE id = ? AND workspace_id = ?${ef.sql}`,
-      [data.id, wsId, ...ef.params],
-    );
+    return queryOne<Lead>(`SELECT * FROM leads WHERE id = ? AND workspace_id = ?${ef.sql}`, [
+      data.id,
+      wsId,
+      ...ef.params,
+    ]);
   });
 
 export const createLeadFn = createServerFn({ method: "POST" })
@@ -586,20 +593,26 @@ export const updateLeadFn = createServerFn({ method: "POST" })
   .validator((input: { id: string; patch: Partial<Lead> }) => input)
   .handler(async ({ data, context }): Promise<Lead> => {
     const wsId = getTargetWorkspaceId(undefined, context);
-    
+
     // 1. Fetch current lead
     const existingLead = await queryOne<Lead>("SELECT * FROM leads WHERE id = ?", [data.id]);
     if (!existingLead) throw new Error("Lead not found");
 
     // Employee isolation check
     if (isEmployee(context)) {
-      if (existingLead.assigned_to !== context.userId && existingLead.created_by !== context.userId) {
+      if (
+        existingLead.assigned_to !== context.userId &&
+        existingLead.created_by !== context.userId
+      ) {
         throw new Error("Unauthorized: You do not have access to update this lead.");
       }
     }
 
     // If assigned_to is changing, verify authorization & inject assigned_at
-    if (data.patch.assigned_to !== undefined && data.patch.assigned_to !== existingLead.assigned_to) {
+    if (
+      data.patch.assigned_to !== undefined &&
+      data.patch.assigned_to !== existingLead.assigned_to
+    ) {
       if (isEmployee(context)) {
         throw new Error("Unauthorized: Only owners or managers can assign or reassign leads.");
       }
@@ -642,7 +655,11 @@ export const updateLeadFn = createServerFn({ method: "POST" })
     const updatedLead = (await queryOne<Lead>("SELECT * FROM leads WHERE id = ?", [data.id]))!;
 
     // Notify if assignment changed
-    if (data.patch.assigned_to && data.patch.assigned_to !== existingLead.assigned_to && updatedLead) {
+    if (
+      data.patch.assigned_to &&
+      data.patch.assigned_to !== existingLead.assigned_to &&
+      updatedLead
+    ) {
       if (data.patch.assigned_to !== context.userId) {
         await createNotificationInternal({
           workspaceId: wsId,
@@ -745,8 +762,13 @@ export const convertLeadToCustomerFn = createServerFn({ method: "POST" })
           if (updateSets.length > 0) {
             updateSets.push("updated_at = NOW()");
             updateVals.push(customer.id);
-            await conn.execute(`UPDATE customers SET ${updateSets.join(", ")} WHERE id = ?`, updateVals);
-            const [refreshed] = await conn.execute("SELECT * FROM customers WHERE id = ?", [customer.id]);
+            await conn.execute(
+              `UPDATE customers SET ${updateSets.join(", ")} WHERE id = ?`,
+              updateVals,
+            );
+            const [refreshed] = await conn.execute("SELECT * FROM customers WHERE id = ?", [
+              customer.id,
+            ]);
             customer = (refreshed as Customer[])[0]!;
           }
         } else {
@@ -756,7 +778,9 @@ export const convertLeadToCustomerFn = createServerFn({ method: "POST" })
           // Attempt to extract city/location from interested property if present
           let cityLocation: string | null = null;
           if (lead.property_id) {
-            const [propRows] = await conn.execute("SELECT location FROM properties WHERE id = ?", [lead.property_id]);
+            const [propRows] = await conn.execute("SELECT location FROM properties WHERE id = ?", [
+              lead.property_id,
+            ]);
             const props = propRows as { location: string | null }[];
             if (props.length > 0 && props[0]?.location) {
               cityLocation = props[0].location;
@@ -806,11 +830,10 @@ export const convertLeadToCustomerFn = createServerFn({ method: "POST" })
         };
         const wonScore = calculateLeadScore(candidateWonLead as Lead).total;
 
-        await conn.execute("UPDATE leads SET customer_id = ?, status = 'Won', score = ?, converted_at = NOW(), updated_at = NOW() WHERE id = ?", [
-          customer.id,
-          wonScore,
-          lead.id,
-        ]);
+        await conn.execute(
+          "UPDATE leads SET customer_id = ?, status = 'Won', score = ?, converted_at = NOW(), updated_at = NOW() WHERE id = ?",
+          [customer.id, wonScore, lead.id],
+        );
 
         await conn.execute(
           "UPDATE tasks SET customer_id = ? WHERE lead_id = ? AND customer_id IS NULL",
@@ -1297,17 +1320,14 @@ export const listPaymentsFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .validator((input: { workspaceId: string }) => input)
   .handler(async ({ data }): Promise<Payment[]> => {
-    return query<Payment>(
-      "SELECT * FROM payments WHERE workspace_id = ? ORDER BY paid_at DESC",
-      [data.workspaceId],
-    );
+    return query<Payment>("SELECT * FROM payments WHERE workspace_id = ? ORDER BY paid_at DESC", [
+      data.workspaceId,
+    ]);
   });
 
 export const createPaymentFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
-  .validator(
-    (input: Partial<Payment> & { workspace_id: string; amount: number }) => input,
-  )
+  .validator((input: Partial<Payment> & { workspace_id: string; amount: number }) => input)
   .handler(async ({ data }): Promise<Payment> => {
     const id = uuid();
     await execute(
@@ -1528,7 +1548,7 @@ export const getPlatformSettingsFn = createServerFn({ method: "GET" })
       "SELECT `key`, `value` FROM platform_settings",
     );
     return Object.fromEntries(
-      rows.map((r) => [r.key, typeof r.value === "string" ? JSON.parse(r.value) : r.value ?? {}]),
+      rows.map((r) => [r.key, typeof r.value === "string" ? JSON.parse(r.value) : (r.value ?? {})]),
     );
   });
 
@@ -1667,7 +1687,10 @@ export const getDashboardDataFn = createServerFn({ method: "GET" })
       ? "SELECT COUNT(*) as c FROM leads WHERE workspace_id = ? AND status NOT IN ('Won', 'Lost') AND next_follow_up IS NOT NULL AND (assigned_to = ? OR created_by = ?)"
       : "SELECT COUNT(*) as c FROM leads WHERE workspace_id = ? AND status NOT IN ('Won', 'Lost') AND next_follow_up IS NOT NULL";
     const pendingFollowUpsParams = isEmp ? [wsId, userId, userId] : [wsId];
-    const pendingFollowUpsRow = await queryOne<{ c: number }>(pendingFollowUpsSql, pendingFollowUpsParams);
+    const pendingFollowUpsRow = await queryOne<{ c: number }>(
+      pendingFollowUpsSql,
+      pendingFollowUpsParams,
+    );
 
     const stages = ["New", "Contacted", "Interested", "Visit / Meeting", "Negotiation", "Won"];
     const stageSql = isEmp
@@ -1711,7 +1734,10 @@ export const getDashboardDataFn = createServerFn({ method: "GET" })
       ? "SELECT COUNT(*) as c FROM calendar_events WHERE workspace_id = ? AND status = 'Scheduled' AND (assigned_to = ? OR created_by = ?) AND start_at >= NOW()"
       : "SELECT COUNT(*) as c FROM calendar_events WHERE workspace_id = ? AND status = 'Scheduled' AND start_at >= NOW()";
     const upcomingVisitsParams = isEmp ? [wsId, userId, userId] : [wsId];
-    const upcomingVisitsRow = await queryOne<{ c: number }>(upcomingVisitsSql, upcomingVisitsParams);
+    const upcomingVisitsRow = await queryOne<{ c: number }>(
+      upcomingVisitsSql,
+      upcomingVisitsParams,
+    );
 
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -1743,7 +1769,9 @@ export const getDashboardDataFn = createServerFn({ method: "GET" })
     const activitiesParams = isEmp ? [wsId, userId, wsId, userId, userId] : [wsId];
     const activitiesRaw = await query<LeadActivity>(activitiesSql, activitiesParams);
 
-    const props = await query<Property>("SELECT id, name FROM properties WHERE workspace_id = ?", [wsId]);
+    const props = await query<Property>("SELECT id, name FROM properties WHERE workspace_id = ?", [
+      wsId,
+    ]);
     const leads = await query<Lead>("SELECT id, name FROM leads WHERE workspace_id = ?", [wsId]);
     const propMap = new Map(props.map((p) => [p.id, p.name]));
     const leadMap = new Map(leads.map((l) => [l.id, l.name]));
@@ -1761,7 +1789,13 @@ export const getDashboardDataFn = createServerFn({ method: "GET" })
     const todayScheduleTasks = openTasks.map((t) => ({
       id: t.id,
       title: t.title,
-      relatedType: t.lead_id ? "Lead" : t.customer_id ? "Customer" : t.property_id ? "Property" : "Task",
+      relatedType: t.lead_id
+        ? "Lead"
+        : t.customer_id
+          ? "Customer"
+          : t.property_id
+            ? "Property"
+            : "Task",
       relatedLabel: (t.lead_id && leadMap.get(t.lead_id)) || t.title,
       assignedTo: t.assigned_to || "Unassigned",
       dueAt: t.due_at,
@@ -1850,7 +1884,12 @@ export const searchCrmFn = createServerFn({ method: "GET" })
       [data.workspaceId, ...ef.params, q, q, q, q],
     );
 
-    const properties = await query<{ id: string; name: string; location: string | null; status: string }>(
+    const properties = await query<{
+      id: string;
+      name: string;
+      location: string | null;
+      status: string;
+    }>(
       `SELECT id, name, location, status FROM properties WHERE workspace_id = ?${ef.sql} AND (name LIKE ? OR location LIKE ? OR type LIKE ?) ORDER BY created_at DESC LIMIT 5`,
       [data.workspaceId, ...ef.params, q, q, q],
     );
@@ -1862,7 +1901,12 @@ export const searchCrmFn = createServerFn({ method: "GET" })
       [data.workspaceId, q, q],
     );
 
-    const payments = await query<{ id: string; reference: string; customer: string; amount: number }>(
+    const payments = await query<{
+      id: string;
+      reference: string;
+      customer: string;
+      amount: number;
+    }>(
       `SELECT p.id, COALESCE(p.reference, p.id) as reference, COALESCE(c.name, 'Customer') as customer, p.amount 
        FROM payments p LEFT JOIN customers c ON p.customer_id = c.id 
        WHERE p.workspace_id = ? AND (p.reference LIKE ? OR c.name LIKE ?) ORDER BY p.paid_at DESC LIMIT 5`,
@@ -1905,19 +1949,18 @@ export const markNotificationReadFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string }) => input)
   .handler(async ({ data, context }) => {
-    await execute(
-      "UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?",
-      [data.id, context.userId],
-    );
+    await execute("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?", [
+      data.id,
+      context.userId,
+    ]);
     return { ok: true };
   });
 
 export const markAllNotificationsReadFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .handler(async ({ context }) => {
-    await execute(
-      "UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0",
-      [context.userId],
-    );
+    await execute("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0", [
+      context.userId,
+    ]);
     return { ok: true };
   });

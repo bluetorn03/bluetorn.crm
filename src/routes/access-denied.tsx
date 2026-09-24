@@ -6,7 +6,10 @@ export const Route = createFileRoute("/access-denied")({
   head: () => ({
     meta: [
       { title: "Permission denied · BLUETORN CRM" },
-      { name: "description", content: "You do not have permission to view this area of the workspace." },
+      {
+        name: "description",
+        content: "You do not have permission to view this area of the workspace.",
+      },
       { property: "og:title", content: "Permission denied · BLUETORN CRM" },
       { property: "og:description", content: "You do not have permission to view this area." },
     ],

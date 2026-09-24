@@ -57,8 +57,14 @@ export function EditPropertyDialog({
     type: property.type ?? "Apartment",
     status: property.status ?? "Available",
     price: property.price !== undefined && property.price !== null ? String(property.price) : "",
-    areaSqft: property.area_sqft !== undefined && property.area_sqft !== null ? String(property.area_sqft) : "",
-    bedrooms: property.bedrooms !== undefined && property.bedrooms !== null ? String(property.bedrooms) : "",
+    areaSqft:
+      property.area_sqft !== undefined && property.area_sqft !== null
+        ? String(property.area_sqft)
+        : "",
+    bedrooms:
+      property.bedrooms !== undefined && property.bedrooms !== null
+        ? String(property.bedrooms)
+        : "",
     imageUrl: property.image_url ?? "",
     description: property.description ?? "",
     assigned_to: property.assigned_to ?? "unassigned",
@@ -71,9 +77,16 @@ export function EditPropertyDialog({
         location: property.location ?? "",
         type: property.type ?? "Apartment",
         status: property.status ?? "Available",
-        price: property.price !== undefined && property.price !== null ? String(property.price) : "",
-        areaSqft: property.area_sqft !== undefined && property.area_sqft !== null ? String(property.area_sqft) : "",
-        bedrooms: property.bedrooms !== undefined && property.bedrooms !== null ? String(property.bedrooms) : "",
+        price:
+          property.price !== undefined && property.price !== null ? String(property.price) : "",
+        areaSqft:
+          property.area_sqft !== undefined && property.area_sqft !== null
+            ? String(property.area_sqft)
+            : "",
+        bedrooms:
+          property.bedrooms !== undefined && property.bedrooms !== null
+            ? String(property.bedrooms)
+            : "",
         imageUrl: property.image_url ?? "",
         description: property.description ?? "",
         assigned_to: property.assigned_to ?? "unassigned",
@@ -160,10 +173,7 @@ export function EditPropertyDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="editPropType">Type</Label>
-                <Select
-                  value={form.type}
-                  onValueChange={(v) => setForm({ ...form, type: v })}
-                >
+                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
                   <SelectTrigger id="editPropType">
                     <SelectValue />
                   </SelectTrigger>
@@ -178,10 +188,7 @@ export function EditPropertyDialog({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="editPropStatus">Status</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(v) => setForm({ ...form, status: v })}
-                >
+                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
                   <SelectTrigger id="editPropStatus">
                     <SelectValue />
                   </SelectTrigger>

@@ -97,7 +97,8 @@ export function AssignLeadDialog({
               {lead.assigned_to ? "Reassign Lead" : "Assign Lead"}
             </DialogTitle>
             <DialogDescription>
-              Assign <strong className="text-foreground">{lead.name}</strong> to a team member in this workspace.
+              Assign <strong className="text-foreground">{lead.name}</strong> to a team member in
+              this workspace.
             </DialogDescription>
           </DialogHeader>
 

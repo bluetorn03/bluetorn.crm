@@ -57,7 +57,7 @@ export function parseDateTimeLocal(dateTimeLocalStr?: string | null): string | n
  */
 export function validateDueDateTime(
   dateTimeLocalStr?: string | null,
-  required = true
+  required = true,
 ): { isValid: boolean; error?: string } {
   if (!dateTimeLocalStr || !dateTimeLocalStr.trim()) {
     if (required) {

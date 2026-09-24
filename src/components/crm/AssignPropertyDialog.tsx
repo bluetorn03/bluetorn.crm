@@ -96,7 +96,8 @@ export function AssignPropertyDialog({
               {property.assigned_to ? "Reassign Property" : "Assign Property"}
             </DialogTitle>
             <DialogDescription>
-              Assign <strong className="text-foreground">{property.name}</strong> to an agent / employee in this workspace.
+              Assign <strong className="text-foreground">{property.name}</strong> to an agent /
+              employee in this workspace.
             </DialogDescription>
           </DialogHeader>
 

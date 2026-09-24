@@ -29,7 +29,10 @@ export const Route = createFileRoute("/admin/workspaces/$workspaceId")({
       { title: "Workspace detail · BLUETORN CRM" },
       { name: "description", content: "Workspace profile, seats, members and recent activity." },
       { property: "og:title", content: "Workspace detail · BLUETORN CRM" },
-      { property: "og:description", content: "Workspace profile, seats, members and recent activity." },
+      {
+        property: "og:description",
+        content: "Workspace profile, seats, members and recent activity.",
+      },
     ],
   }),
   component: AdminWorkspaceDetail,
@@ -70,8 +73,18 @@ function AdminWorkspaceDetail() {
   const createUser = useMutation({
     mutationFn: () => addUser({ data: { workspaceId, ...form } }),
     onSuccess: async (r) => {
-      toast.success(`User ${r.userCode} added`, { description: `Signs in as ${r.workspaceCode} / ${r.userCode}.` });
-      setForm({ userCode: "", fullName: "", role: "employee", email: "", phone: "", jobTitle: "", password: "" });
+      toast.success(`User ${r.userCode} added`, {
+        description: `Signs in as ${r.workspaceCode} / ${r.userCode}.`,
+      });
+      setForm({
+        userCode: "",
+        fullName: "",
+        role: "employee",
+        email: "",
+        phone: "",
+        jobTitle: "",
+        password: "",
+      });
       await refresh();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -114,14 +127,21 @@ function AdminWorkspaceDetail() {
 
   return (
     <div className="space-y-5">
-      <Link to="/admin/workspaces" className="text-muted-foreground inline-flex items-center gap-1.5 text-xs hover:underline">
+      <Link
+        to="/admin/workspaces"
+        className="text-muted-foreground inline-flex items-center gap-1.5 text-xs hover:underline"
+      >
         <ArrowLeft className="h-3.5 w-3.5" /> All workspaces
       </Link>
 
       <PageHeader
         title={workspace.name}
         description={`${workspace.code} · ${workspace.plan} plan · ${workspace.industry}`}
-        actions={<StatusBadge label={workspace.status.charAt(0).toUpperCase() + workspace.status.slice(1)} />}
+        actions={
+          <StatusBadge
+            label={workspace.status.charAt(0).toUpperCase() + workspace.status.slice(1)}
+          />
+        }
       />
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -136,20 +156,34 @@ function AdminWorkspaceDetail() {
           </dl>
         </SectionCard>
 
-        <SectionCard title="Members" description="Roles and access inside this workspace." className="lg:col-span-2" bodyClassName="p-0">
+        <SectionCard
+          title="Members"
+          description="Roles and access inside this workspace."
+          className="lg:col-span-2"
+          bodyClassName="p-0"
+        >
           {members.length === 0 ? (
             <div className="p-5">
-              <EmptyState icon={Users} title="No members yet" description="Add the first team member below." />
+              <EmptyState
+                icon={Users}
+                title="No members yet"
+                description="Add the first team member below."
+              />
             </div>
           ) : (
             <ul className="divide-border divide-y">
               {members.map((m) => (
-                <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
+                <li
+                  key={m.id}
+                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-5"
+                >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{m.fullName}</p>
                     <p className="text-muted-foreground truncate text-xs">
                       {m.userCode} · {roleLabel[m.role ?? ""] ?? "No role"}
-                      {m.lastLoginAt ? ` · seen ${relativeTime(m.lastLoginAt)}` : " · never signed in"}
+                      {m.lastLoginAt
+                        ? ` · seen ${relativeTime(m.lastLoginAt)}`
+                        : " · never signed in"}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
@@ -167,7 +201,9 @@ function AdminWorkspaceDetail() {
                       variant="ghost"
                       disabled={passwordMutation.isPending}
                       onClick={() => {
-                        const pwd = window.prompt(`New password for ${m.userCode} (min 8 characters)`);
+                        const pwd = window.prompt(
+                          `New password for ${m.userCode} (min 8 characters)`,
+                        );
                         if (pwd) passwordMutation.mutate({ userId: m.id, password: pwd });
                       }}
                     >
@@ -198,11 +234,20 @@ function AdminWorkspaceDetail() {
             />
           </Field>
           <Field label="Full name">
-            <Input value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} required />
+            <Input
+              value={form.fullName}
+              onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
+              required
+            />
           </Field>
           <Field label="Role">
-            <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v as typeof f.role }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={form.role}
+              onValueChange={(v) => setForm((f) => ({ ...f, role: v as typeof f.role }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="employee">Employee</SelectItem>
                 <SelectItem value="manager">Manager</SelectItem>
@@ -211,13 +256,23 @@ function AdminWorkspaceDetail() {
             </Select>
           </Field>
           <Field label="Job title">
-            <Input value={form.jobTitle} onChange={(e) => setForm((f) => ({ ...f, jobTitle: e.target.value }))} />
+            <Input
+              value={form.jobTitle}
+              onChange={(e) => setForm((f) => ({ ...f, jobTitle: e.target.value }))}
+            />
           </Field>
           <Field label="Email">
-            <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+            <Input
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+            />
           </Field>
           <Field label="Phone">
-            <Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+            <Input
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+            />
           </Field>
           <Field label="Temporary password">
             <Input
@@ -230,7 +285,11 @@ function AdminWorkspaceDetail() {
           </Field>
           <div className="flex items-end">
             <Button type="submit" disabled={createUser.isPending}>
-              {createUser.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plus className="mr-1.5 h-4 w-4" />}
+              {createUser.isPending ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-1.5 h-4 w-4" />
+              )}
               Add user
             </Button>
           </div>
@@ -243,12 +302,19 @@ function AdminWorkspaceDetail() {
         ) : (
           <ul className="divide-border divide-y">
             {activity.map((a) => (
-              <li key={a.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+              <li
+                key={a.id}
+                className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+              >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{a.action}</p>
-                  <p className="text-muted-foreground truncate text-xs">{a.entityType ?? "workspace"}</p>
+                  <p className="text-muted-foreground truncate text-xs">
+                    {a.entityType ?? "workspace"}
+                  </p>
                 </div>
-                <span className="text-muted-foreground shrink-0 text-xs">{relativeTime(a.createdAt)}</span>
+                <span className="text-muted-foreground shrink-0 text-xs">
+                  {relativeTime(a.createdAt)}
+                </span>
               </li>
             ))}
           </ul>

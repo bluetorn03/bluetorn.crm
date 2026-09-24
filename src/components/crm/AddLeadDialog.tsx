@@ -162,10 +162,7 @@ export function AddLeadDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="leadSource">Source *</Label>
-                <Select
-                  value={form.source}
-                  onValueChange={(v) => setForm({ ...form, source: v })}
-                >
+                <Select value={form.source} onValueChange={(v) => setForm({ ...form, source: v })}>
                   <SelectTrigger id="leadSource">
                     <SelectValue />
                   </SelectTrigger>

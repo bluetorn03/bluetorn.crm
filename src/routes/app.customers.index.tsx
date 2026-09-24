@@ -28,7 +28,10 @@ export const Route = createFileRoute("/app/customers/")({
   head: () => ({
     meta: [
       { title: "Customers · BLUETORN CRM" },
-      { name: "description", content: "Every customer, their activity, and who owns the relationship." },
+      {
+        name: "description",
+        content: "Every customer, their activity, and who owns the relationship.",
+      },
       { property: "og:title", content: "Customers · BLUETORN CRM" },
       { property: "og:description", content: "Every customer and relationship in one place." },
     ],
@@ -105,7 +108,12 @@ function CustomersPage() {
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1 sm:max-w-xs">
           <Search className="text-muted-foreground absolute top-2.5 left-3 h-4 w-4" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or phone" className="pl-9" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search name or phone"
+            className="pl-9"
+          />
         </div>
         <div className="border-border bg-card flex gap-1 rounded-lg border p-1">
           {views.map((v) => (
@@ -114,7 +122,9 @@ function CustomersPage() {
               onClick={() => setView(v)}
               className={
                 "rounded-md px-3 py-1.5 text-xs font-medium transition-colors " +
-                (view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")
+                (view === v
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground")
               }
             >
               {v}
@@ -128,8 +138,7 @@ function CustomersPage() {
           const rows = customers.filter(
             (c) =>
               (view === "All" || c.status === view) &&
-              (c.name.toLowerCase().includes(q.toLowerCase()) ||
-                (c.phone ?? "").includes(q)),
+              (c.name.toLowerCase().includes(q.toLowerCase()) || (c.phone ?? "").includes(q)),
           );
 
           if (rows.length === 0) {
@@ -155,13 +164,17 @@ function CustomersPage() {
                         className="min-w-0 flex-1 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium hover:text-primary transition-colors">{c.name}</p>
+                          <p className="truncate text-sm font-medium hover:text-primary transition-colors">
+                            {c.name}
+                          </p>
                           <p className="text-muted-foreground truncate text-xs">
                             {c.phone ?? "—"} · {c.type} · {c.city ?? "—"}
                           </p>
                         </div>
                         <p className="text-muted-foreground hidden truncate text-xs sm:block">
-                          {c.assigned_to ? memberMap.get(c.assigned_to) || "Assigned" : "Unassigned"}
+                          {c.assigned_to
+                            ? memberMap.get(c.assigned_to) || "Assigned"
+                            : "Unassigned"}
                         </p>
                         <p className="text-muted-foreground hidden truncate text-xs sm:block">
                           {relativeTime(c.updated_at)}
@@ -172,7 +185,11 @@ function CustomersPage() {
                       <div className="shrink-0 ml-2">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground"
+                            >
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -184,7 +201,8 @@ function CustomersPage() {
                             </DropdownMenuItem>
                             {canAssign && (
                               <DropdownMenuItem onClick={() => setAssigningCustomer(c)}>
-                                <UserCheck className="mr-2 h-4 w-4" /> {c.assigned_to ? "Reassign Customer" : "Assign Customer"}
+                                <UserCheck className="mr-2 h-4 w-4" />{" "}
+                                {c.assigned_to ? "Reassign Customer" : "Assign Customer"}
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem onClick={() => setEditingCustomer(c)}>
@@ -211,4 +229,3 @@ function CustomersPage() {
     </div>
   );
 }
-

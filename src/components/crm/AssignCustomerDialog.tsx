@@ -96,7 +96,8 @@ export function AssignCustomerDialog({
               {customer.assigned_to ? "Reassign Customer" : "Assign Customer"}
             </DialogTitle>
             <DialogDescription>
-              Assign <strong className="text-foreground">{customer.name}</strong> to a team member in this workspace.
+              Assign <strong className="text-foreground">{customer.name}</strong> to a team member
+              in this workspace.
             </DialogDescription>
           </DialogHeader>
 

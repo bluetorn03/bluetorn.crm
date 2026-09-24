@@ -136,9 +136,6 @@ export const changeSelfPasswordFn = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     const pwHash = await hashPassword(data.password);
-    await execute("UPDATE profiles SET password_hash = ? WHERE id = ?", [
-      pwHash,
-      context.userId,
-    ]);
+    await execute("UPDATE profiles SET password_hash = ? WHERE id = ?", [pwHash, context.userId]);
     return { ok: true };
   });

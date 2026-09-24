@@ -6,7 +6,13 @@ import { useSession } from "@/hooks/use-session";
 /**
  * Client-side session gate. Protects workspace and admin routes based on session state.
  */
-export function AuthGate({ requireSuperAdmin = false, children }: { requireSuperAdmin?: boolean; children: ReactNode }) {
+export function AuthGate({
+  requireSuperAdmin = false,
+  children,
+}: {
+  requireSuperAdmin?: boolean;
+  children: ReactNode;
+}) {
   const { status, isSuperAdmin } = useSession();
   const navigate = useNavigate();
 

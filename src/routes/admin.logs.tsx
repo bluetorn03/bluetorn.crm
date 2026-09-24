@@ -91,13 +91,31 @@ function AdminLogs() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="System Logs" description="Real-time platform events, security logs and integration health." />
+      <PageHeader
+        title="System Logs"
+        description="Real-time platform events, security logs and integration health."
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="System Status" value="Healthy" hint="All services operational" icon={CheckCircle} />
-        <MetricCard label="Database Latency" value="12ms" hint="Optimal connection pool" icon={Database} />
+        <MetricCard
+          label="System Status"
+          value="Healthy"
+          hint="All services operational"
+          icon={CheckCircle}
+        />
+        <MetricCard
+          label="Database Latency"
+          value="12ms"
+          hint="Optimal connection pool"
+          icon={Database}
+        />
         <MetricCard label="Error Rate" value="0.00%" hint="Last 24 hours" icon={Activity} />
-        <MetricCard label="Security Checks" value="100% Passed" hint="Zero unauthorized breaches" icon={ShieldCheck} />
+        <MetricCard
+          label="Security Checks"
+          value="100% Passed"
+          hint="Zero unauthorized breaches"
+          icon={ShieldCheck}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -138,10 +156,15 @@ function AdminLogs() {
         <SectionCard bodyClassName="p-0">
           <ul className="divide-border divide-y font-mono text-xs">
             {filtered.map((log) => (
-              <li key={log.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
+              <li
+                key={log.id}
+                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5"
+              >
                 <div className="flex items-center gap-3 min-w-0">
                   <StatusBadge label={log.level.toUpperCase()} tone={levelTones[log.level]} />
-                  <span className="text-muted-foreground shrink-0 font-semibold">{log.source}:</span>
+                  <span className="text-muted-foreground shrink-0 font-semibold">
+                    {log.source}:
+                  </span>
                   <span className="truncate text-foreground font-sans text-sm">{log.message}</span>
                 </div>
                 <span className="text-muted-foreground shrink-0 text-[11px] font-sans">
@@ -155,4 +178,3 @@ function AdminLogs() {
     </div>
   );
 }
-

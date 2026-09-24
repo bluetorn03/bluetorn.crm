@@ -1,13 +1,7 @@
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export function AiInsightCard({
-  lines,
-  className,
-}: {
-  lines: string[];
-  className?: string;
-}) {
+export function AiInsightCard({ lines, className }: { lines: string[]; className?: string }) {
   return (
     <section
       className={cn(

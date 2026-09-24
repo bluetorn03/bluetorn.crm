@@ -34,9 +34,7 @@ export function PermissionDenied({
 }: {
   description?: string;
 }) {
-  return (
-    <EmptyState icon={ShieldAlert} title="You don’t have access" description={description} />
-  );
+  return <EmptyState icon={ShieldAlert} title="You don’t have access" description={description} />;
 }
 
 /** Renders loading / error / empty / content for a TanStack Query result. */
@@ -46,7 +44,13 @@ export function DataState<T>({
   children,
   loadingLabel,
 }: {
-  query: { isPending: boolean; isError: boolean; error: unknown; data: T | undefined; refetch: () => void };
+  query: {
+    isPending: boolean;
+    isError: boolean;
+    error: unknown;
+    data: T | undefined;
+    refetch: () => void;
+  };
   empty?: { when: (data: T) => boolean; node: ReactNode };
   children: (data: T) => ReactNode;
   loadingLabel?: string;

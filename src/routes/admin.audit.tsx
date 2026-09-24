@@ -86,8 +86,7 @@ function AdminAudit() {
   const filtered = useMemo(() => {
     return sampleAudits.filter((a) => {
       const matchCat =
-        categoryFilter === "All" ||
-        a.action.toLowerCase().startsWith(categoryFilter.toLowerCase());
+        categoryFilter === "All" || a.action.toLowerCase().startsWith(categoryFilter.toLowerCase());
       const matchQ =
         a.actorLabel.toLowerCase().includes(q.toLowerCase()) ||
         a.action.toLowerCase().includes(q.toLowerCase()) ||
@@ -98,12 +97,30 @@ function AdminAudit() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Audit Trail" description="Who changed what, and when across all tenant workspaces." />
+      <PageHeader
+        title="Audit Trail"
+        description="Who changed what, and when across all tenant workspaces."
+      />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <MetricCard label="Audited Events" value={String(sampleAudits.length)} hint="Immutable system trail" icon={FileClock} />
-        <MetricCard label="Active Actors" value="3 Users" hint="Authenticated performers" icon={UserCheck} />
-        <MetricCard label="Security Compliance" value="Verified" hint="Zero un-audited operations" icon={ShieldAlert} />
+        <MetricCard
+          label="Audited Events"
+          value={String(sampleAudits.length)}
+          hint="Immutable system trail"
+          icon={FileClock}
+        />
+        <MetricCard
+          label="Active Actors"
+          value="3 Users"
+          hint="Authenticated performers"
+          icon={UserCheck}
+        />
+        <MetricCard
+          label="Security Compliance"
+          value="Verified"
+          hint="Zero un-audited operations"
+          icon={ShieldAlert}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -144,14 +161,18 @@ function AdminAudit() {
         <SectionCard bodyClassName="p-0">
           <ul className="divide-border divide-y text-sm">
             {filtered.map((a) => (
-              <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
+              <li
+                key={a.id}
+                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5"
+              >
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="font-semibold">{a.action}</p>
                     <StatusBadge label={a.workspaceCode} tone="neutral" />
                   </div>
                   <p className="text-muted-foreground text-xs mt-0.5">
-                    Performed by <span className="text-foreground font-medium">{a.actorLabel}</span> on {a.entityType} ({a.entityId})
+                    Performed by <span className="text-foreground font-medium">{a.actorLabel}</span>{" "}
+                    on {a.entityType} ({a.entityId})
                   </p>
                 </div>
                 <span className="text-muted-foreground text-xs">{relativeTime(a.createdAt)}</span>
@@ -163,4 +184,3 @@ function AdminAudit() {
     </div>
   );
 }
-

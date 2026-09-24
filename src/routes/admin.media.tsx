@@ -17,7 +17,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { listPromoMedia, createPromoMedia, updatePromoMedia, deletePromoMedia, qk } from "@/lib/crm-api";
+import {
+  listPromoMedia,
+  createPromoMedia,
+  updatePromoMedia,
+  deletePromoMedia,
+  qk,
+} from "@/lib/crm-api";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/media")({
@@ -116,7 +122,9 @@ function AdminMedia() {
           <form onSubmit={handleAddMedia}>
             <DialogHeader>
               <DialogTitle>Add Promotional Banner</DialogTitle>
-              <DialogDescription>Display announcements and features on login wall.</DialogDescription>
+              <DialogDescription>
+                Display announcements and features on login wall.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-1.5">

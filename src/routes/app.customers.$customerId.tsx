@@ -49,7 +49,10 @@ export const Route = createFileRoute("/app/customers/$customerId")({
   head: () => ({
     meta: [
       { title: "Customer · BLUETORN CRM" },
-      { name: "description", content: "Customer profile, relationship history, leads, and finances." },
+      {
+        name: "description",
+        content: "Customer profile, relationship history, leads, and finances.",
+      },
     ],
   }),
   component: CustomerDetailPage,
@@ -146,14 +149,18 @@ function CustomerDetailPage() {
     queryKey: ["customer-lead-activities", customerId, custLeads.map((l) => l.id).join(",")],
     queryFn: async () => {
       if (custLeads.length === 0) return [];
-      const results = await Promise.all(custLeads.map((l) => listLeadActivity(l.id).catch(() => [])));
+      const results = await Promise.all(
+        custLeads.map((l) => listLeadActivity(l.id).catch(() => [])),
+      );
       return results.flat();
     },
     enabled: !!customer && custLeads.length > 0,
   });
 
   if (customerQuery.isLoading) {
-    return <div className="p-8 text-center text-sm text-muted-foreground">Loading customer details…</div>;
+    return (
+      <div className="p-8 text-center text-sm text-muted-foreground">Loading customer details…</div>
+    );
   }
 
   if (!customer) {
@@ -176,7 +183,8 @@ function CustomerDetailPage() {
     (p) => p.customer_id === customer.id || custInvoices.some((i) => i.id === p.invoice_id),
   );
   const custTasks = allTasks.filter(
-    (t) => t.customer_id === customer.id || (t.lead_id && custLeads.some((l) => l.id === t.lead_id)),
+    (t) =>
+      t.customer_id === customer.id || (t.lead_id && custLeads.some((l) => l.id === t.lead_id)),
   );
 
   const linkedPropertyIds = new Set([
@@ -188,7 +196,8 @@ function CustomerDetailPage() {
   const totalReceivedPayments = custPayments
     .filter((p) => p.status === "Received")
     .reduce((sum, p) => sum + Number(p.amount), 0);
-  const lifetimeValue = totalReceivedPayments > 0 ? totalReceivedPayments : Number(customer.value || 0);
+  const lifetimeValue =
+    totalReceivedPayments > 0 ? totalReceivedPayments : Number(customer.value || 0);
 
   const timelineEvents = [
     {
@@ -250,7 +259,8 @@ function CustomerDetailPage() {
         <div className="flex items-center gap-2">
           {canAssign && (
             <Button variant="outline" size="sm" onClick={() => setAssignOpen(true)}>
-              <UserCheck className="mr-1.5 h-4 w-4 text-primary" /> {customer.assigned_to ? "Reassign Customer" : "Assign Customer"}
+              <UserCheck className="mr-1.5 h-4 w-4 text-primary" />{" "}
+              {customer.assigned_to ? "Reassign Customer" : "Assign Customer"}
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
@@ -276,7 +286,8 @@ function CustomerDetailPage() {
             <div className="min-w-0">
               <h1 className="truncate text-lg font-semibold sm:text-xl">{customer.name}</h1>
               <p className="text-muted-foreground truncate text-xs">
-                {customer.type} · {customer.city || "N/A"} · Assigned to: {assignedEmployee?.full_name || "Unassigned"}
+                {customer.type} · {customer.city || "N/A"} · Assigned to:{" "}
+                {assignedEmployee?.full_name || "Unassigned"}
               </p>
             </div>
           </div>
@@ -290,21 +301,25 @@ function CustomerDetailPage() {
               </a>
             </Button>
           )}
-          {customer.phone && (() => {
-            const waUrl = formatWhatsAppUrl(customer.phone, `Hello ${customer.name}, this is ${user.name} from ${workspace.name}.`);
-            return waUrl ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  window.open(waUrl, "_blank", "noopener,noreferrer");
-                  toast.info("Opening WhatsApp…");
-                }}
-              >
-                <MessageCircle className="mr-1.5 h-4 w-4 text-emerald-600" /> WhatsApp
-              </Button>
-            ) : null;
-          })()}
+          {customer.phone &&
+            (() => {
+              const waUrl = formatWhatsAppUrl(
+                customer.phone,
+                `Hello ${customer.name}, this is ${user.name} from ${workspace.name}.`,
+              );
+              return waUrl ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    window.open(waUrl, "_blank", "noopener,noreferrer");
+                    toast.info("Opening WhatsApp…");
+                  }}
+                >
+                  <MessageCircle className="mr-1.5 h-4 w-4 text-emerald-600" /> WhatsApp
+                </Button>
+              ) : null;
+            })()}
           {customer.email && (
             <Button
               size="sm"
@@ -335,16 +350,8 @@ function CustomerDetailPage() {
         </div>
       </div>
 
-      <AssignCustomerDialog
-        open={assignOpen}
-        onOpenChange={setAssignOpen}
-        customer={customer}
-      />
-      <EditCustomerDialog
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        customer={customer}
-      />
+      <AssignCustomerDialog open={assignOpen} onOpenChange={setAssignOpen} customer={customer} />
+      <EditCustomerDialog open={editOpen} onOpenChange={setEditOpen} customer={customer} />
       <DeleteCustomerDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
@@ -378,7 +385,10 @@ function CustomerDetailPage() {
                       ? "Assigned"
                       : "—",
                 ],
-                ["Customer Value / Budget", formatMoney(lifetimeValue, (customer.currency as CurrencyCode) || "INR")],
+                [
+                  "Customer Value / Budget",
+                  formatMoney(lifetimeValue, (customer.currency as CurrencyCode) || "INR"),
+                ],
                 ["Last activity", formatDate(customer.updated_at)],
               ].map(([k, v]) => (
                 <div key={k} className="min-w-0">
@@ -390,7 +400,10 @@ function CustomerDetailPage() {
             {tagsArray.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-1.5">
                 {tagsArray.map((t) => (
-                  <span key={t} className="bg-muted text-muted-foreground rounded-full px-2.5 py-0.5 text-xs">
+                  <span
+                    key={t}
+                    className="bg-muted text-muted-foreground rounded-full px-2.5 py-0.5 text-xs"
+                  >
                     {t}
                   </span>
                 ))}
@@ -406,9 +419,7 @@ function CustomerDetailPage() {
                       {initials(assignedEmployee.full_name)}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {assignedEmployee.full_name}
-                      </p>
+                      <p className="truncate text-sm font-medium">{assignedEmployee.full_name}</p>
                       <p className="text-muted-foreground truncate text-xs">
                         {assignedEmployee.email || "Workspace team member"}
                       </p>
@@ -447,7 +458,10 @@ function CustomerDetailPage() {
         </TabsContent>
 
         <TabsContent value="Timeline" className="mt-4">
-          <SectionCard title="Relationship timeline" description="Complete chronological audit trail from database records">
+          <SectionCard
+            title="Relationship timeline"
+            description="Complete chronological audit trail from database records"
+          >
             {timelineEvents.length === 0 ? (
               <p className="text-muted-foreground text-sm">No activity recorded yet.</p>
             ) : (
@@ -460,14 +474,22 @@ function CustomerDetailPage() {
                     <span className="bg-accent text-accent-foreground grid h-8 w-8 shrink-0 place-items-center rounded-full">
                       {evt.kind === "created" && <UserCheck className="h-3.5 w-3.5 text-primary" />}
                       {evt.kind === "lead" && <UserCheck className="h-3.5 w-3.5 text-blue-600" />}
-                      {evt.kind === "activity" && <Clock className="h-3.5 w-3.5 text-emerald-600" />}
-                      {evt.kind === "invoice" && <FileText className="h-3.5 w-3.5 text-amber-600" />}
-                      {evt.kind === "payment" && <CreditCard className="h-3.5 w-3.5 text-emerald-600" />}
+                      {evt.kind === "activity" && (
+                        <Clock className="h-3.5 w-3.5 text-emerald-600" />
+                      )}
+                      {evt.kind === "invoice" && (
+                        <FileText className="h-3.5 w-3.5 text-amber-600" />
+                      )}
+                      {evt.kind === "payment" && (
+                        <CreditCard className="h-3.5 w-3.5 text-emerald-600" />
+                      )}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium">{evt.title}</p>
-                        <span className="text-muted-foreground text-xs shrink-0">{formatDateTime(evt.at)}</span>
+                        <span className="text-muted-foreground text-xs shrink-0">
+                          {formatDateTime(evt.at)}
+                        </span>
                       </div>
                       {evt.description && (
                         <p className="text-muted-foreground mt-0.5 text-xs whitespace-pre-wrap">
@@ -485,15 +507,24 @@ function CustomerDetailPage() {
         <TabsContent value="Leads" className="mt-4">
           <SectionCard bodyClassName="p-0">
             {custLeads.length === 0 ? (
-              <p className="text-muted-foreground p-4 text-sm">No linked leads found for this customer.</p>
+              <p className="text-muted-foreground p-4 text-sm">
+                No linked leads found for this customer.
+              </p>
             ) : (
               <ul className="divide-border divide-y">
                 {custLeads.map((l) => (
                   <li key={l.id}>
-                    <Link to="/app/leads/$leadId" params={{ leadId: l.id }} className="hover:bg-accent/50 flex items-center gap-3 px-4 py-3">
+                    <Link
+                      to="/app/leads/$leadId"
+                      params={{ leadId: l.id }}
+                      className="hover:bg-accent/50 flex items-center gap-3 px-4 py-3"
+                    >
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{l.name}</p>
-                        <p className="text-muted-foreground text-xs">Source: {l.source} · Budget: {l.budget ? formatMoney(l.budget, (l.currency || "INR") as any) : "N/A"}</p>
+                        <p className="text-muted-foreground text-xs">
+                          Source: {l.source} · Budget:{" "}
+                          {l.budget ? formatMoney(l.budget, (l.currency || "INR") as any) : "N/A"}
+                        </p>
                       </div>
                       <StatusBadge label={l.status} />
                     </Link>
@@ -507,7 +538,9 @@ function CustomerDetailPage() {
         <TabsContent value="Properties" className="mt-4">
           <SectionCard bodyClassName="p-0">
             {custProperties.length === 0 ? (
-              <p className="text-muted-foreground p-4 text-sm">No properties linked to this customer's leads or invoices yet.</p>
+              <p className="text-muted-foreground p-4 text-sm">
+                No properties linked to this customer's leads or invoices yet.
+              </p>
             ) : (
               <ul className="divide-border divide-y">
                 {custProperties.map((p) => {
@@ -515,11 +548,18 @@ function CustomerDetailPage() {
                   const isInvoiced = custInvoices.some((i) => i.property_id === p.id);
                   return (
                     <li key={p.id}>
-                      <Link to="/app/properties/$propertyId" params={{ propertyId: p.id }} className="hover:bg-accent/50 flex items-center gap-3 px-4 py-3">
+                      <Link
+                        to="/app/properties/$propertyId"
+                        params={{ propertyId: p.id }}
+                        className="hover:bg-accent/50 flex items-center gap-3 px-4 py-3"
+                      >
                         <Building2 className="h-5 w-5 text-muted-foreground shrink-0" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium">{p.name}</p>
-                          <p className="text-muted-foreground text-xs">{p.location || "Location not set"} · {formatMoney(p.price, (p.currency || "INR") as any, true)}</p>
+                          <p className="text-muted-foreground text-xs">
+                            {p.location || "Location not set"} ·{" "}
+                            {formatMoney(p.price, (p.currency || "INR") as any, true)}
+                          </p>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {isInterested && (
@@ -546,14 +586,18 @@ function CustomerDetailPage() {
         <TabsContent value="Tasks" className="mt-4">
           <SectionCard bodyClassName="p-0">
             {custTasks.length === 0 ? (
-              <p className="text-muted-foreground p-4 text-sm">No tasks assigned to this customer.</p>
+              <p className="text-muted-foreground p-4 text-sm">
+                No tasks assigned to this customer.
+              </p>
             ) : (
               <ul className="divide-border divide-y">
                 {custTasks.map((t) => (
                   <li key={t.id} className="flex items-center gap-3 px-4 py-3">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{t.title}</p>
-                      <p className="text-muted-foreground text-xs">{t.priority} priority {t.due_at ? `· Due: ${formatDate(t.due_at)}` : ""}</p>
+                      <p className="text-muted-foreground text-xs">
+                        {t.priority} priority {t.due_at ? `· Due: ${formatDate(t.due_at)}` : ""}
+                      </p>
                     </div>
                     <StatusBadge label={t.status} />
                   </li>
@@ -569,9 +613,17 @@ function CustomerDetailPage() {
               <ul className="divide-border divide-y">
                 {custInvoices.map((i) => (
                   <li key={i.id}>
-                    <Link to="/app/finance/invoices/$invoiceId" params={{ invoiceId: i.id }} className="hover:bg-accent/50 flex items-center gap-3 px-4 py-3">
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{i.invoice_number}</span>
-                      <span className="text-muted-foreground text-xs">{formatMoney(i.total, (i.currency as CurrencyCode) || "INR")}</span>
+                    <Link
+                      to="/app/finance/invoices/$invoiceId"
+                      params={{ invoiceId: i.id }}
+                      className="hover:bg-accent/50 flex items-center gap-3 px-4 py-3"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                        {i.invoice_number}
+                      </span>
+                      <span className="text-muted-foreground text-xs">
+                        {formatMoney(i.total, (i.currency as CurrencyCode) || "INR")}
+                      </span>
                       <StatusBadge label={i.status} />
                     </Link>
                   </li>
@@ -583,7 +635,11 @@ function CustomerDetailPage() {
               icon={StickyNote}
               title="No invoices yet"
               description="Create the first invoice for this customer."
-              action={<Button onClick={() => navigate({ to: "/app/finance/invoices/new" })}>Create invoice</Button>}
+              action={
+                <Button onClick={() => navigate({ to: "/app/finance/invoices/new" })}>
+                  Create invoice
+                </Button>
+              }
             />
           )}
         </TabsContent>
@@ -594,15 +650,23 @@ function CustomerDetailPage() {
               <ul className="divide-border divide-y">
                 {custPayments.map((p) => (
                   <li key={p.id} className="flex items-center gap-3 px-4 py-3">
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{p.reference || p.id}</span>
-                    <span className="text-muted-foreground text-xs">{formatMoney(p.amount, (p.currency as CurrencyCode) || "INR")}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                      {p.reference || p.id}
+                    </span>
+                    <span className="text-muted-foreground text-xs">
+                      {formatMoney(p.amount, (p.currency as CurrencyCode) || "INR")}
+                    </span>
                     <StatusBadge label={p.status} />
                   </li>
                 ))}
               </ul>
             </SectionCard>
           ) : (
-            <EmptyState icon={StickyNote} title="No payments recorded" description="Payments appear here once an invoice is settled." />
+            <EmptyState
+              icon={StickyNote}
+              title="No payments recorded"
+              description="Payments appear here once an invoice is settled."
+            />
           )}
         </TabsContent>
 

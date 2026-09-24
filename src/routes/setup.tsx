@@ -16,7 +16,8 @@ export const Route = createFileRoute("/setup")({
       { title: "Platform setup · BLUETORN CRM" },
       {
         name: "description",
-        content: "Create the first Bluetorn platform Super Admin to start onboarding client workspaces.",
+        content:
+          "Create the first Bluetorn platform Super Admin to start onboarding client workspaces.",
       },
       { property: "og:title", content: "Platform setup · BLUETORN CRM" },
       {
@@ -35,7 +36,13 @@ function SetupPage() {
   const bootstrap = useServerFn(bootstrapPlatform);
   const [checking, setChecking] = useState(true);
   const [initialized, setInitialized] = useState(false);
-  const [form, setForm] = useState({ userCode: "", fullName: "", email: "", password: "", confirm: "" });
+  const [form, setForm] = useState({
+    userCode: "",
+    fullName: "",
+    email: "",
+    password: "",
+    confirm: "",
+  });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
@@ -90,11 +97,17 @@ function SetupPage() {
             <h1 className="mt-3 text-lg font-semibold">Platform is ready</h1>
             <p className="text-muted-foreground mt-1 text-sm">
               Sign in with workspace code{" "}
-              <span className="text-foreground font-medium">{PLATFORM_WORKSPACE_CODE}</span>, user ID{" "}
-              <span className="text-foreground font-medium">{form.userCode.trim().toLowerCase()}</span> and the
-              password you just set.
+              <span className="text-foreground font-medium">{PLATFORM_WORKSPACE_CODE}</span>, user
+              ID{" "}
+              <span className="text-foreground font-medium">
+                {form.userCode.trim().toLowerCase()}
+              </span>{" "}
+              and the password you just set.
             </p>
-            <Button className="mt-5 w-full gap-2" onClick={() => navigate({ to: "/", replace: true })}>
+            <Button
+              className="mt-5 w-full gap-2"
+              onClick={() => navigate({ to: "/", replace: true })}
+            >
               Go to sign in <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
@@ -105,16 +118,22 @@ function SetupPage() {
             <p className="text-muted-foreground mt-1 text-sm">
               This platform already has a Super Admin. Ask them to create your account.
             </p>
-            <Link to="/" className="text-primary mt-4 inline-block text-sm font-medium hover:underline">
+            <Link
+              to="/"
+              className="text-primary mt-4 inline-block text-sm font-medium hover:underline"
+            >
               Back to sign in
             </Link>
           </div>
         ) : (
           <>
             <div className="mt-8">
-              <h1 className="text-xl font-semibold tracking-tight">Create the platform Super Admin</h1>
+              <h1 className="text-xl font-semibold tracking-tight">
+                Create the platform Super Admin
+              </h1>
               <p className="text-muted-foreground mt-1 text-sm">
-                This one-time step creates the Bluetorn staff account that onboards client workspaces.
+                This one-time step creates the Bluetorn staff account that onboards client
+                workspaces.
               </p>
             </div>
 
@@ -127,7 +146,13 @@ function SetupPage() {
             <form onSubmit={submit} className="mt-6 space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="fullName">Full name</Label>
-                <Input id="fullName" value={form.fullName} onChange={set("fullName")} className="h-11" required />
+                <Input
+                  id="fullName"
+                  value={form.fullName}
+                  onChange={set("fullName")}
+                  className="h-11"
+                  required
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="userCode">User ID</Label>
@@ -141,12 +166,20 @@ function SetupPage() {
                   required
                 />
                 <p className="text-muted-foreground text-xs">
-                  You will sign in as {PLATFORM_WORKSPACE_CODE} · {form.userCode.trim().toLowerCase() || "admin"}
+                  You will sign in as {PLATFORM_WORKSPACE_CODE} ·{" "}
+                  {form.userCode.trim().toLowerCase() || "admin"}
                 </p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="email">Contact email</Label>
-                <Input id="email" type="email" value={form.email} onChange={set("email")} className="h-11" required />
+                <Input
+                  id="email"
+                  type="email"
+                  value={form.email}
+                  onChange={set("email")}
+                  className="h-11"
+                  required
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="password">Password</Label>

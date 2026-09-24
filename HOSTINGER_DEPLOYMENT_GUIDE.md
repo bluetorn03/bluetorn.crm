@@ -1,13 +1,15 @@
 # BLUETORN CRM Production Deployment Guide
+
 **Target Domain**: `https://realestate.bluetorn.com`  
 **Application**: BLUETORN CRM (Real Estate CRM & ERP)  
-**Target Environment**: Hostinger Business Web Hosting / Hostinger VPS  
+**Target Environment**: Hostinger Business Web Hosting / Hostinger VPS
 
 ---
 
 ## 1. Architecture
 
 BLUETORN CRM is a modern fullstack web application consisting of:
+
 - **Client Frontend**: React 19 Single-Page Application (SPA) compiled with Vite 8 and TanStack Router.
 - **Server / Backend**: Nitro (`preset: "node-server"`) executing inside a Node.js runtime (`node .output/server/index.mjs`).
 - **RPC Communication**: TanStack Start `createServerFn` Remote Procedure Calls communicating over HTTP `/_server/`.
@@ -15,6 +17,7 @@ BLUETORN CRM is a modern fullstack web application consisting of:
 - **Session & Auth**: HTTP-only, secure, signed session cookies (`bt_session`) validated against MySQL `profiles` and `user_roles`.
 
 ### Production Request Pipeline
+
 ```
 Internet User
    ↓
@@ -32,9 +35,11 @@ MySQL Production Database (Port 3306 / UTF-8 mb4)
 ## 2. Hostinger Requirements
 
 ### Supported Environments
+
 The application can be deployed on either of two Hostinger configurations:
 
 #### Option A: Hostinger Business Web Hosting (Existing Plan)
+
 - **Hostinger Plan**: Business Web Hosting (`hostinger_business_v5`)
 - **Node.js Feature**: Built-in Node.js Application Manager (Passenger/CloudLinux)
 - **Node.js Version**: **Node.js 20.x or 22.x**
@@ -42,6 +47,7 @@ The application can be deployed on either of two Hostinger configurations:
 - **Database**: Hostinger Cloud MySQL (included with hPanel)
 
 #### Option B: Hostinger VPS (Enterprise Standard)
+
 - **Hostinger Plan**: KVM 1, KVM 2, or higher
 - **OS**: Ubuntu 22.04 LTS or Ubuntu 24.04 LTS
 - **Memory**: Minimum 2 GB RAM (4 GB recommended)
@@ -65,22 +71,26 @@ The application can be deployed on either of two Hostinger configurations:
 Configure the DNS zone for `bluetorn.com` so that `realestate.bluetorn.com` points to your Hostinger server.
 
 ### Hostinger DNS Zone Configuration
+
 In **hPanel** → **DNS Zone Editor** for `bluetorn.com`:
 
-| Type | Name | Content / Value | TTL | Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| **A** | `realestate` | `YOUR_HOSTINGER_IP` (e.g., `145.79.58.184`) | 300 | Primary IPv4 record |
+| Type     | Name         | Content / Value                                                | TTL | Notes                |
+| :------- | :----------- | :------------------------------------------------------------- | :-- | :------------------- |
+| **A**    | `realestate` | `YOUR_HOSTINGER_IP` (e.g., `145.79.58.184`)                    | 300 | Primary IPv4 record  |
 | **AAAA** | `realestate` | `YOUR_HOSTINGER_IPV6` (e.g., `2a02:4780:61:2318:0:a04:f952:6`) | 300 | Optional IPv6 record |
 
-*(If managing DNS via Cloudflare, add an A record for `realestate` pointing to `YOUR_HOSTINGER_IP` with Proxy status enabled or DNS-only during initial SSL issuance).*
+_(If managing DNS via Cloudflare, add an A record for `realestate` pointing to `YOUR_HOSTINGER_IP` with Proxy status enabled or DNS-only during initial SSL issuance)._
 
 ### Verification Command
+
 Run from your local terminal or server:
+
 ```bash
 nslookup realestate.bluetorn.com
 # OR
 dig realestate.bluetorn.com +short
 ```
+
 Expected output: Returns `YOUR_HOSTINGER_IP`.
 
 ---
@@ -104,6 +114,7 @@ Expected output: Returns `YOUR_HOSTINGER_IP`.
 To set up the database schema from scratch:
 
 ### Method 1: Using phpMyAdmin (Web UI)
+
 1. In hPanel → **Databases**, find `YOUR_DB_NAME` and click **Enter phpMyAdmin**.
 2. Select your database in the left sidebar.
 3. Click the **Import** tab in the top navigation.
@@ -130,10 +141,12 @@ To set up the database schema from scratch:
    - `notifications`
 
 ### Method 2: Command Line (SSH / Terminal)
+
 ```bash
 mysql -u YOUR_DB_USER -p YOUR_DB_NAME < mysql_schema.sql
 ```
-*(Enter `YOUR_DB_PASSWORD` when prompted).*
+
+_(Enter `YOUR_DB_PASSWORD` when prompted)._
 
 ---
 
@@ -147,6 +160,7 @@ node scripts/migrate.mjs
 ```
 
 ### What `scripts/migrate.mjs` Does:
+
 1. Validates connectivity to `YOUR_DB_NAME`.
 2. Creates any missing tables using `CREATE TABLE IF NOT EXISTS`.
 3. Checks if `profiles.whatsapp_phone` exists; adds it if absent.
@@ -182,17 +196,17 @@ TZ=Asia/Kolkata
 
 ### Environment Variables Reference Table
 
-| Variable | Required | Production Value | Purpose |
-| :--- | :--- | :--- | :--- |
-| `NODE_ENV` | **Yes** | `production` | Enables production optimizations and `Secure` cookie flag |
-| `PORT` | No | `3000` | Port for Nitro server process |
-| `HOST` | No | `127.0.0.1` | Local interface binding |
-| `DB_HOST` | **Yes** | `localhost` or `srvXXXX.hstgr.io` | MySQL server host |
-| `DB_PORT` | **Yes** | `3306` | MySQL port |
-| `DB_NAME` | **Yes** | `YOUR_DB_NAME` | Name of CRM database |
-| `DB_USER` | **Yes** | `YOUR_DB_USER` | MySQL database username |
-| `DB_PASSWORD` | **Yes** | `YOUR_DB_PASSWORD` | Strong database password |
-| `TZ` | Recommended | `Asia/Kolkata` | Application timezone |
+| Variable      | Required    | Production Value                  | Purpose                                                   |
+| :------------ | :---------- | :-------------------------------- | :-------------------------------------------------------- |
+| `NODE_ENV`    | **Yes**     | `production`                      | Enables production optimizations and `Secure` cookie flag |
+| `PORT`        | No          | `3000`                            | Port for Nitro server process                             |
+| `HOST`        | No          | `127.0.0.1`                       | Local interface binding                                   |
+| `DB_HOST`     | **Yes**     | `localhost` or `srvXXXX.hstgr.io` | MySQL server host                                         |
+| `DB_PORT`     | **Yes**     | `3306`                            | MySQL port                                                |
+| `DB_NAME`     | **Yes**     | `YOUR_DB_NAME`                    | Name of CRM database                                      |
+| `DB_USER`     | **Yes**     | `YOUR_DB_USER`                    | MySQL database username                                   |
+| `DB_PASSWORD` | **Yes**     | `YOUR_DB_PASSWORD`                | Strong database password                                  |
+| `TZ`          | Recommended | `Asia/Kolkata`                    | Application timezone                                      |
 
 > [!WARNING]
 > Set file permissions on `.env` to `600` (`chmod 600 .env`) so that other server users cannot read database credentials.
@@ -202,10 +216,12 @@ TZ=Asia/Kolkata
 ## 9. Application Upload
 
 We provide pre-packaged archives in the repository root:
+
 - `app.zip` (standard ZIP archive)
 - `app.tar.gz` (POSIX tarball)
 
 ### Upload Method 1: Hostinger File Manager (hPanel)
+
 1. Go to **hPanel** → **Files** → **File Manager**.
 2. Open the directory for `realestate.bluetorn.com` (e.g. `/home/YOUR_USERNAME/domains/realestate.bluetorn.com/public_html`).
 3. Click **Upload** → Select `app.zip`.
@@ -213,6 +229,7 @@ We provide pre-packaged archives in the repository root:
 5. Delete `app.zip` after extraction.
 
 ### Upload Method 2: SCP / SFTP (SSH Terminal)
+
 ```bash
 # Upload via SCP
 scp app.zip YOUR_USERNAME@YOUR_HOSTINGER_IP:/home/YOUR_USERNAME/domains/realestate.bluetorn.com/public_html/
@@ -229,6 +246,7 @@ rm app.zip
 ## 10. Node.js Setup
 
 ### On Hostinger Business Web Hosting:
+
 1. In hPanel, navigate to **Advanced** → **Node.js**.
 2. Configure settings:
    - **Node.js Version**: `22.x` (or `20.x LTS`)
@@ -238,6 +256,7 @@ rm app.zip
    - **Framework**: `nitro`
 
 ### On Hostinger VPS (Ubuntu):
+
 ```bash
 # Install Node.js 22 LTS via NodeSource
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
@@ -266,6 +285,7 @@ npm run build
 ```
 
 Verify that the `.output` directory was created:
+
 ```bash
 ls -la .output/server/index.mjs
 ls -la .output/public/
@@ -276,14 +296,18 @@ ls -la .output/public/
 ## 12. Start (Development / Verification)
 
 To test the built application directly:
+
 ```bash
 # Start server manually
 node .output/server/index.mjs
 ```
+
 Expected output:
+
 ```
 Listening on http://127.0.0.1:3000
 ```
+
 Press `Ctrl + C` to stop once verified.
 
 ---
@@ -293,12 +317,15 @@ Press `Ctrl + C` to stop once verified.
 For continuous production uptime, auto-restart on crashes, and startup on system boot:
 
 ### 1. Install PM2
+
 ```bash
 sudo npm install -g pm2
 ```
 
 ### 2. Create `ecosystem.config.cjs`
+
 In the application root:
+
 ```javascript
 module.exports = {
   apps: [
@@ -323,6 +350,7 @@ module.exports = {
 ```
 
 ### 3. Start & Save PM2 Service
+
 ```bash
 # Start the CRM
 pm2 start ecosystem.config.cjs
@@ -338,6 +366,7 @@ sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u $USER --hp $HOME
 ```
 
 ### Useful PM2 Commands
+
 ```bash
 pm2 logs bluetorn-crm        # View live logs
 pm2 reload bluetorn-crm      # Zero-downtime reload
@@ -352,6 +381,7 @@ pm2 stop bluetorn-crm        # Stop process
 When using a VPS, configure Nginx to terminate SSL and reverse proxy requests to the internal Node/Nitro server on port 3000.
 
 Create `/etc/nginx/sites-available/realestate.bluetorn.com`:
+
 ```nginx
 server {
     listen 80;
@@ -406,6 +436,7 @@ server {
 ```
 
 Enable the configuration:
+
 ```bash
 sudo ln -s /etc/nginx/sites-available/realestate.bluetorn.com /etc/nginx/sites-enabled/
 sudo nginx -t
@@ -417,16 +448,19 @@ sudo systemctl reload nginx
 ## 15. SSL / HTTPS Setup
 
 ### On Hostinger Business Hosting:
+
 1. In hPanel, go to **Security** → **SSL**.
 2. Find `realestate.bluetorn.com`.
 3. Click **Install SSL** (Hostinger provides free lifetime Let's Encrypt certificates).
 4. Enable **Force HTTPS** toggle in hPanel.
 
 ### On Hostinger VPS (Certbot):
+
 ```bash
 sudo apt-get install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d realestate.bluetorn.com
 ```
+
 Certbot automatically installs certificate renewal cron jobs (`sudo certbot renew --dry-run`).
 
 ---
@@ -484,12 +518,14 @@ Run through this post-deployment checklist to confirm end-to-end operation:
 ## 18. Backup Procedure
 
 ### Database Backup (Daily Automated / Pre-Deployment)
+
 ```bash
 # Dump MySQL database with timestamps
 mysqldump -u YOUR_DB_USER -p YOUR_DB_NAME --single-transaction --routines --triggers > "backup_$(date +%Y%m%d_%H%M%S).sql"
 ```
 
 ### Application Files Backup
+
 ```bash
 tar -czf "app_files_backup_$(date +%Y%m%d_%H%M%S).tar.gz" \
   --exclude="node_modules" \
@@ -504,6 +540,7 @@ tar -czf "app_files_backup_$(date +%Y%m%d_%H%M%S).tar.gz" \
 If a deployment encounters issues:
 
 ### 1. Rollback Application Code
+
 ```bash
 # Extract previous backup
 tar -xzf app_files_backup_PREVIOUS.tar.gz -C /home/YOUR_USERNAME/domains/realestate.bluetorn.com/public_html
@@ -515,6 +552,7 @@ pm2 reload bluetorn-crm  # or restart Node app in hPanel
 ```
 
 ### 2. Rollback Database (If schema migration failed)
+
 ```bash
 mysql -u YOUR_DB_USER -p YOUR_DB_NAME < backup_PREVIOUS.sql
 ```
@@ -524,21 +562,26 @@ mysql -u YOUR_DB_USER -p YOUR_DB_NAME < backup_PREVIOUS.sql
 ## 20. Troubleshooting
 
 ### 502 Bad Gateway
+
 - **Cause**: Node.js / Nitro process is not running or crashed.
 - **Fix**: Check PM2 status (`pm2 status`) or view logs (`pm2 logs bluetorn-crm`). Check for missing `.env` variables or port conflicts.
 
 ### Database Access Denied (`ER_ACCESS_DENIED_ERROR`)
+
 - **Cause**: Incorrect `DB_USER` or `DB_PASSWORD` in `.env`.
 - **Fix**: Verify credentials in Hostinger hPanel → Databases. Update `.env` and restart the process.
 
 ### Direct Refresh Returns 404
+
 - **Cause**: Web server is attempting to serve a file directly instead of proxying to Nitro.
 - **Fix**: In Nginx, verify `location / { proxy_pass http://127.0.0.1:3000; ... }`. In Hostinger Business hosting, verify application startup file is set to `server/index.mjs`.
 
 ### Session Disappears on Page Refresh
+
 - **Cause**: `NODE_ENV` is set to `production`, but the site is being accessed over insecure HTTP (`http://` instead of `https://`). The browser rejects the `Secure` cookie.
 - **Fix**: Access the site exclusively via `https://realestate.bluetorn.com` and ensure SSL certificate is active.
 
 ### Duplicate Column Error During Migration
+
 - **Cause**: Running legacy raw migration scripts on an updated schema.
 - **Fix**: Run `node scripts/migrate.mjs` which performs existence checks (`SHOW COLUMNS LIKE ...`) before attempting any table modifications.

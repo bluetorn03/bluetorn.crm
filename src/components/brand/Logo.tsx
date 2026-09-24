@@ -31,9 +31,7 @@ export function Logo({
         <div className={cn("font-semibold tracking-tight", text)}>
           BLUETORN <span className="text-muted-foreground font-medium">CRM</span>
         </div>
-        {showTagline && (
-          <p className="text-muted-foreground text-xs">Work faster. Sell smarter.</p>
-        )}
+        {showTagline && <p className="text-muted-foreground text-xs">Work faster. Sell smarter.</p>}
       </div>
     </div>
   );

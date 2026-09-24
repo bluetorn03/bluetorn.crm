@@ -27,7 +27,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { listLeads, listMembers, updateLead, logLeadActivity, leadStatuses, qk, type Lead } from "@/lib/crm-api";
+import {
+  listLeads,
+  listMembers,
+  updateLead,
+  logLeadActivity,
+  leadStatuses,
+  qk,
+  type Lead,
+} from "@/lib/crm-api";
 import { useSession } from "@/hooks/use-session";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { AddLeadDialog } from "@/components/crm/AddLeadDialog";
@@ -41,7 +49,10 @@ export const Route = createFileRoute("/app/leads/")({
   head: () => ({
     meta: [
       { title: "Leads · BLUETORN CRM" },
-      { name: "description", content: "Every lead with source, campaign, owner and next follow-up." },
+      {
+        name: "description",
+        content: "Every lead with source, campaign, owner and next follow-up.",
+      },
       { property: "og:title", content: "Leads · BLUETORN CRM" },
       { property: "og:description", content: "Track leads from ads, WhatsApp and your website." },
     ],
@@ -108,21 +119,56 @@ function LeadsPage() {
         {(() => {
           const allLeads = leadsQuery.data ?? [];
           const countBySource = (srcKeys: string[]) =>
-            allLeads.filter((l) => srcKeys.some((k) => l.source.toLowerCase().includes(k.toLowerCase()))).length;
+            allLeads.filter((l) =>
+              srcKeys.some((k) => l.source.toLowerCase().includes(k.toLowerCase())),
+            ).length;
 
           const cards = [
-            { name: "Meta Ads", campaign: "Facebook & Meta campaigns", src: ["Meta Ads", "Facebook"], count: countBySource(["Meta Ads", "Facebook"]) },
-            { name: "Google Ads", campaign: "Search & Display ads", src: ["Google Ads"], count: countBySource(["Google Ads"]) },
-            { name: "Website forms", campaign: "Contact & enquiry forms", src: ["Website"], count: countBySource(["Website"]) },
-            { name: "Landing pages", campaign: "Campaign landing pages", src: ["Landing Page"], count: countBySource(["Landing Page"]) },
-            { name: "WhatsApp", campaign: "Click-to-chat & API", src: ["WhatsApp"], count: countBySource(["WhatsApp"]) },
-            { name: "Instagram Ads", campaign: "Reels & Story ads", src: ["Instagram"], count: countBySource(["Instagram"]) },
+            {
+              name: "Meta Ads",
+              campaign: "Facebook & Meta campaigns",
+              src: ["Meta Ads", "Facebook"],
+              count: countBySource(["Meta Ads", "Facebook"]),
+            },
+            {
+              name: "Google Ads",
+              campaign: "Search & Display ads",
+              src: ["Google Ads"],
+              count: countBySource(["Google Ads"]),
+            },
+            {
+              name: "Website forms",
+              campaign: "Contact & enquiry forms",
+              src: ["Website"],
+              count: countBySource(["Website"]),
+            },
+            {
+              name: "Landing pages",
+              campaign: "Campaign landing pages",
+              src: ["Landing Page"],
+              count: countBySource(["Landing Page"]),
+            },
+            {
+              name: "WhatsApp",
+              campaign: "Click-to-chat & API",
+              src: ["WhatsApp"],
+              count: countBySource(["WhatsApp"]),
+            },
+            {
+              name: "Instagram Ads",
+              campaign: "Reels & Story ads",
+              src: ["Instagram"],
+              count: countBySource(["Instagram"]),
+            },
           ];
 
           return (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {cards.map((c) => (
-                <div key={c.name} className="border-border bg-background flex items-center gap-3 rounded-lg border p-3">
+                <div
+                  key={c.name}
+                  className="border-border bg-background flex items-center gap-3 rounded-lg border p-3"
+                >
                   <span className="bg-accent text-accent-foreground grid h-8 w-8 shrink-0 place-items-center rounded-lg">
                     <Zap className="h-4 w-4" />
                   </span>
@@ -144,7 +190,12 @@ function LeadsPage() {
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1 sm:max-w-xs">
           <Search className="text-muted-foreground absolute top-2.5 left-3 h-4 w-4" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search leads by name..." className="pl-9" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search leads by name..."
+            className="pl-9"
+          />
         </div>
         <div className="flex flex-wrap gap-1">
           {["All", ...leadStatuses].map((s) => (
@@ -153,7 +204,9 @@ function LeadsPage() {
               onClick={() => setStatus(s)}
               className={
                 "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer " +
-                (status === s ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground")
+                (status === s
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "border-border text-muted-foreground hover:text-foreground")
               }
             >
               {s}
@@ -200,19 +253,29 @@ function LeadsPage() {
                               {l.name}
                             </p>
                             <p className="text-muted-foreground truncate text-xs mt-0.5">
-                              {l.requirement || "No requirement specified"} · {formatMoney(l.budget, (l.currency ?? workspace.currency) as any, true)}
+                              {l.requirement || "No requirement specified"} ·{" "}
+                              {formatMoney(
+                                l.budget,
+                                (l.currency ?? workspace.currency) as any,
+                                true,
+                              )}
                             </p>
                             <div className="mt-2 flex flex-wrap items-center gap-1.5">
                               <StatusBadge label={l.source} tone="info" />
                               {l.campaign && <StatusBadge label={l.campaign} tone="neutral" />}
-                              {l.external_id && <StatusBadge label={l.external_id} tone="neutral" />}
+                              {l.external_id && (
+                                <StatusBadge label={l.external_id} tone="neutral" />
+                              )}
                               {l.created_by && memberMap.get(l.created_by) && (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:text-blue-300">
                                   By: {memberMap.get(l.created_by)}
                                 </span>
                               )}
                               <span className="inline-flex items-center gap-1 rounded-full bg-muted border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-                                Assigned: {l.assigned_to ? memberMap.get(l.assigned_to) || "Assigned" : "Unassigned"}
+                                Assigned:{" "}
+                                {l.assigned_to
+                                  ? memberMap.get(l.assigned_to) || "Assigned"
+                                  : "Unassigned"}
                               </span>
                             </div>
                           </div>
@@ -220,7 +283,8 @@ function LeadsPage() {
                           <div className="shrink-0 text-right">
                             <StatusBadge label={l.status} />
                             <p className="text-muted-foreground mt-1.5 text-[11px]">
-                              Score: <span className="font-semibold text-foreground">{l.score}</span>
+                              Score:{" "}
+                              <span className="font-semibold text-foreground">{l.score}</span>
                             </p>
                             <p className="text-muted-foreground text-[11px] mt-0.5">
                               {l.next_follow_up
@@ -235,7 +299,11 @@ function LeadsPage() {
                       <div className="shrink-0 ml-2">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground"
+                            >
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -247,7 +315,8 @@ function LeadsPage() {
                             </DropdownMenuItem>
                             {canAssign && (
                               <DropdownMenuItem onClick={() => setAssigningLead(l)}>
-                                <UserCheck className="mr-2 h-4 w-4" /> {l.assigned_to ? "Reassign Lead" : "Assign Lead"}
+                                <UserCheck className="mr-2 h-4 w-4" />{" "}
+                                {l.assigned_to ? "Reassign Lead" : "Assign Lead"}
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem onClick={() => setEditingLead(l)}>

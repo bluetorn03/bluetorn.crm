@@ -51,39 +51,41 @@ function AdminHome() {
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {isPending
-          ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[124px] rounded-xl" />)
-          : (
-            <>
-              <MetricCard
-                label="Workspaces"
-                value={String(data?.workspaces ?? 0)}
-                hint={`${data?.activeWorkspaces ?? 0} active`}
-                icon={Building}
-                to="/admin/workspaces"
-              />
-              <MetricCard
-                label="Users"
-                value={String(data?.users ?? 0)}
-                hint={`${data?.activeUsers ?? 0} enabled`}
-                icon={Users}
-                to="/admin/users"
-              />
-              <MetricCard
-                label="Suspended / trial"
-                value={String((data?.workspaces ?? 0) - (data?.activeWorkspaces ?? 0))}
-                hint="Needs review"
-                icon={ShieldCheck}
-              />
-              <MetricCard
-                label="Recent events"
-                value={String(data?.recentActivity.length ?? 0)}
-                hint="Last audit entries"
-                icon={FileClock}
-                to="/admin/audit"
-              />
-            </>
-          )}
+        {isPending ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-[124px] rounded-xl" />
+          ))
+        ) : (
+          <>
+            <MetricCard
+              label="Workspaces"
+              value={String(data?.workspaces ?? 0)}
+              hint={`${data?.activeWorkspaces ?? 0} active`}
+              icon={Building}
+              to="/admin/workspaces"
+            />
+            <MetricCard
+              label="Users"
+              value={String(data?.users ?? 0)}
+              hint={`${data?.activeUsers ?? 0} enabled`}
+              icon={Users}
+              to="/admin/users"
+            />
+            <MetricCard
+              label="Suspended / trial"
+              value={String((data?.workspaces ?? 0) - (data?.activeWorkspaces ?? 0))}
+              hint="Needs review"
+              icon={ShieldCheck}
+            />
+            <MetricCard
+              label="Recent events"
+              value={String(data?.recentActivity.length ?? 0)}
+              hint="Last audit entries"
+              icon={FileClock}
+              to="/admin/audit"
+            />
+          </>
+        )}
       </div>
 
       <SectionCard title="Latest platform activity" description="Straight from the audit trail.">
@@ -102,14 +104,19 @@ function AdminHome() {
         ) : (
           <ul className="divide-border divide-y">
             {data!.recentActivity.map((a) => (
-              <li key={a.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+              <li
+                key={a.id}
+                className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+              >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{a.action}</p>
                   <p className="text-muted-foreground truncate text-xs">
                     {a.actorLabel ?? "System"} · {a.entityType ?? "platform"}
                   </p>
                 </div>
-                <span className="text-muted-foreground shrink-0 text-xs">{relativeTime(a.createdAt)}</span>
+                <span className="text-muted-foreground shrink-0 text-xs">
+                  {relativeTime(a.createdAt)}
+                </span>
               </li>
             ))}
           </ul>

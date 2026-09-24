@@ -50,8 +50,9 @@ export function DeleteLeadDialog({
           </div>
           <DialogTitle className="text-center">Delete Lead</DialogTitle>
           <DialogDescription className="text-center">
-            Are you sure you want to delete <strong className="text-foreground">{lead.name}</strong>?
-            This will permanently remove this lead and its associated timeline activity. This action cannot be undone.
+            Are you sure you want to delete <strong className="text-foreground">{lead.name}</strong>
+            ? This will permanently remove this lead and its associated timeline activity. This
+            action cannot be undone.
           </DialogDescription>
         </DialogHeader>
 

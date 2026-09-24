@@ -43,7 +43,6 @@ export type NavItem = {
   children?: { label: string; to: string }[];
 };
 
-
 export type NavGroup = { label: string; items: NavItem[] };
 
 export function Shell({
@@ -81,7 +80,9 @@ export function Shell({
 
   const isActive = (item: NavItem) => {
     if (!item.to) return false;
-    return item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(item.to + "/");
+    return item.exact
+      ? pathname === item.to
+      : pathname === item.to || pathname.startsWith(item.to + "/");
   };
 
   const childActive = (item: NavItem) =>
@@ -144,7 +145,6 @@ export function Shell({
               );
             })}
           </ul>
-
         </div>
       ))}
       <div className="mt-auto px-3 pt-4">
@@ -231,7 +231,6 @@ export function Shell({
                   navigate({ to: "/", replace: true });
                 }}
               />
-
             </div>
           </div>
         </header>
@@ -306,7 +305,13 @@ function WorkspaceChip() {
   );
 }
 
-function ProfileMenu({ variant, onSignOut }: { variant: "client" | "admin"; onSignOut: () => void }) {
+function ProfileMenu({
+  variant,
+  onSignOut,
+}: {
+  variant: "client" | "admin";
+  onSignOut: () => void;
+}) {
   const { user, role, isSuperAdmin, workspace } = useSession();
   return (
     <DropdownMenu>

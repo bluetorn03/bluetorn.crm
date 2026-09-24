@@ -6,9 +6,15 @@ export const Route = createFileRoute("/session-expired")({
   head: () => ({
     meta: [
       { title: "Session expired · BLUETORN CRM" },
-      { name: "description", content: "Your BLUETORN CRM session has expired. Sign in again to continue." },
+      {
+        name: "description",
+        content: "Your BLUETORN CRM session has expired. Sign in again to continue.",
+      },
       { property: "og:title", content: "Session expired · BLUETORN CRM" },
-      { property: "og:description", content: "Your session has expired. Sign in again to continue." },
+      {
+        property: "og:description",
+        content: "Your session has expired. Sign in again to continue.",
+      },
     ],
   }),
   component: SessionExpired,

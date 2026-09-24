@@ -138,13 +138,27 @@ export const leadSources = [
 
 export const customerTypes = ["Buyer", "Seller", "Investor", "Tenant"] as const;
 export const customerStatuses = ["Prospect", "Active", "Archived"] as const;
-export const propertyTypes = ["Apartment", "Villa", "Plot", "Commercial", "Office", "Warehouse"] as const;
+export const propertyTypes = [
+  "Apartment",
+  "Villa",
+  "Plot",
+  "Commercial",
+  "Office",
+  "Warehouse",
+] as const;
 export const propertyStatuses = ["Available", "Reserved", "Booked", "Sold", "Inactive"] as const;
 export const taskPriorities = ["Low", "Medium", "High"] as const;
 export const taskStatuses = ["Open", "In Progress", "Completed", "Cancelled"] as const;
 export const eventTypes = ["Meeting", "Site Visit", "Call", "Follow-up", "Other"] as const;
 export const eventStatuses = ["Scheduled", "Completed", "Cancelled", "No Show"] as const;
-export const invoiceStatuses = ["Draft", "Sent", "Partially Paid", "Paid", "Overdue", "Cancelled"] as const;
+export const invoiceStatuses = [
+  "Draft",
+  "Sent",
+  "Partially Paid",
+  "Paid",
+  "Overdue",
+  "Cancelled",
+] as const;
 export const paymentMethods = ["Bank Transfer", "UPI", "Cash", "Cheque", "Card", "Other"] as const;
 export const paymentStatuses = ["Received", "Pending", "Failed", "Refunded"] as const;
 
@@ -195,10 +209,7 @@ export async function createCustomer(
   return createCustomerFn({ data: input });
 }
 
-export async function updateCustomer(
-  id: string,
-  patch: Partial<Customer>,
-): Promise<Customer> {
+export async function updateCustomer(id: string, patch: Partial<Customer>): Promise<Customer> {
   return updateCustomerFn({ data: { id, patch } });
 }
 
@@ -222,10 +233,7 @@ export async function createProperty(
   return createPropertyFn({ data: input });
 }
 
-export async function updateProperty(
-  id: string,
-  patch: Partial<Property>,
-): Promise<Property> {
+export async function updateProperty(id: string, patch: Partial<Property>): Promise<Property> {
   return updatePropertyFn({ data: { id, patch } });
 }
 
@@ -249,10 +257,7 @@ export async function createLead(
   return createLeadFn({ data: input });
 }
 
-export async function updateLead(
-  id: string,
-  patch: Partial<Lead>,
-): Promise<Lead> {
+export async function updateLead(id: string, patch: Partial<Lead>): Promise<Lead> {
   return updateLeadFn({ data: { id, patch } });
 }
 
@@ -292,10 +297,7 @@ export async function createTask(
   return createTaskFn({ data: input });
 }
 
-export async function updateTask(
-  id: string,
-  patch: Partial<Task>,
-): Promise<Task> {
+export async function updateTask(id: string, patch: Partial<Task>): Promise<Task> {
   return updateTaskFn({ data: { id, patch } });
 }
 
@@ -380,10 +382,7 @@ export async function createPayment(
   return createPaymentFn({ data: input });
 }
 
-export async function updatePayment(
-  id: string,
-  patch: Partial<Payment>,
-): Promise<Payment> {
+export async function updatePayment(id: string, patch: Partial<Payment>): Promise<Payment> {
   return updatePaymentFn({ data: { id, patch } });
 }
 
@@ -411,10 +410,7 @@ export async function createPlan(
   return createPlanFn({ data: input });
 }
 
-export async function updatePlan(
-  id: string,
-  patch: Partial<Plan>,
-): Promise<Plan> {
+export async function updatePlan(id: string, patch: Partial<Plan>): Promise<Plan> {
   return updatePlanFn({ data: { id, patch } });
 }
 
@@ -462,9 +458,7 @@ export async function listAuditLogs(
   return listAuditLogsFn({ data: params });
 }
 
-export async function recordAudit(
-  input: Partial<AuditLog> & { action: string },
-): Promise<void> {
+export async function recordAudit(input: Partial<AuditLog> & { action: string }): Promise<void> {
   await recordAuditFn({ data: input });
 }
 
@@ -483,10 +477,7 @@ export async function getDashboardData(
 
 /* --------------------------------- search ---------------------------------- */
 
-export async function searchCrm(
-  workspaceId: string,
-  query: string,
-): Promise<SearchResult> {
+export async function searchCrm(workspaceId: string, query: string): Promise<SearchResult> {
   return searchCrmFn({ data: { workspaceId, query } });
 }
 

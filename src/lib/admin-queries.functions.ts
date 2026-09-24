@@ -47,9 +47,7 @@ export const adminListWorkspaces = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<AdminWorkspaceRow[]> => {
     await assertSuperAdmin(context.userId);
 
-    const workspaces = await query<Workspace>(
-      "SELECT * FROM workspaces ORDER BY created_at DESC",
-    );
+    const workspaces = await query<Workspace>("SELECT * FROM workspaces ORDER BY created_at DESC");
 
     const seatRows = await query<{ workspace_id: string; cnt: number }>(
       "SELECT workspace_id, COUNT(*) as cnt FROM profiles WHERE workspace_id IS NOT NULL GROUP BY workspace_id",
@@ -85,9 +83,7 @@ export const adminPlatformStats = createServerFn({ method: "GET" })
       queryOne<{ cnt: number }>("SELECT COUNT(*) as cnt FROM workspaces WHERE status = 'active'"),
       queryOne<{ cnt: number }>("SELECT COUNT(*) as cnt FROM profiles"),
       queryOne<{ cnt: number }>("SELECT COUNT(*) as cnt FROM profiles WHERE is_active = 1"),
-      query<AuditLog>(
-        "SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 8",
-      ),
+      query<AuditLog>("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 8"),
     ]);
 
     return {
@@ -119,9 +115,7 @@ export const adminListUsers = createServerFn({ method: "GET" })
         [data.workspaceId],
       );
     } else {
-      profiles = await query<Profile>(
-        "SELECT * FROM profiles ORDER BY created_at DESC",
-      );
+      profiles = await query<Profile>("SELECT * FROM profiles ORDER BY created_at DESC");
     }
 
     const roles = await query<UserRole>("SELECT * FROM user_roles");
@@ -160,21 +154,16 @@ export const adminGetWorkspace = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     await assertSuperAdmin(context.userId);
 
-    const workspace = await queryOne<Workspace>(
-      "SELECT * FROM workspaces WHERE id = ?",
-      [data.workspaceId],
-    );
+    const workspace = await queryOne<Workspace>("SELECT * FROM workspaces WHERE id = ?", [
+      data.workspaceId,
+    ]);
     if (!workspace) throw new Error("Workspace not found.");
 
     const [profiles, roles, audits] = await Promise.all([
-      query<Profile>(
-        "SELECT * FROM profiles WHERE workspace_id = ? ORDER BY created_at",
-        [workspace.id],
-      ),
-      query<UserRole>(
-        "SELECT * FROM user_roles WHERE workspace_id = ?",
-        [workspace.id],
-      ),
+      query<Profile>("SELECT * FROM profiles WHERE workspace_id = ? ORDER BY created_at", [
+        workspace.id,
+      ]),
+      query<UserRole>("SELECT * FROM user_roles WHERE workspace_id = ?", [workspace.id]),
       query<AuditLog>(
         "SELECT * FROM audit_logs WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 10",
         [workspace.id],

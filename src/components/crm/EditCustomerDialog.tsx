@@ -72,7 +72,8 @@ export function EditCustomerDialog({
         type: customer.type ?? "Buyer",
         status: customer.status ?? "Prospect",
         city: customer.city ?? "",
-        value: customer.value !== undefined && customer.value !== null ? String(customer.value) : "0",
+        value:
+          customer.value !== undefined && customer.value !== null ? String(customer.value) : "0",
         assigned_to: customer.assigned_to ?? "unassigned",
         notes: customer.notes ?? "",
       });
@@ -169,10 +170,7 @@ export function EditCustomerDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="editCustType">Type</Label>
-                <Select
-                  value={form.type}
-                  onValueChange={(v) => setForm({ ...form, type: v })}
-                >
+                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
                   <SelectTrigger id="editCustType">
                     <SelectValue />
                   </SelectTrigger>
@@ -187,10 +185,7 @@ export function EditCustomerDialog({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="editCustStatus">Status</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(v) => setForm({ ...form, status: v })}
-                >
+                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
                   <SelectTrigger id="editCustStatus">
                     <SelectValue />
                   </SelectTrigger>

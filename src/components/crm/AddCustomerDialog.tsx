@@ -140,10 +140,7 @@ export function AddCustomerDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="custType">Type</Label>
-                <Select
-                  value={form.type}
-                  onValueChange={(v) => setForm({ ...form, type: v })}
-                >
+                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
                   <SelectTrigger id="custType">
                     <SelectValue />
                   </SelectTrigger>
@@ -158,10 +155,7 @@ export function AddCustomerDialog({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="custStatus">Status</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(v) => setForm({ ...form, status: v })}
-                >
+                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
                   <SelectTrigger id="custStatus">
                     <SelectValue />
                   </SelectTrigger>

@@ -87,7 +87,11 @@ function InvoiceDetailContent() {
                 <div className="flex items-center gap-2">
                   <StatusBadge label={inv.status} />
                   {inv.status === "Draft" && (
-                    <Button size="sm" variant="outline" onClick={() => statusMutation.mutate("Sent")}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => statusMutation.mutate("Sent")}
+                    >
                       Mark as Sent
                     </Button>
                   )}
@@ -120,7 +124,9 @@ function InvoiceDetailContent() {
                         <tr key={item.id}>
                           <td className="px-4 py-2.5 sm:px-5">{item.description}</td>
                           <td className="px-4 py-2.5 text-right">{item.quantity}</td>
-                          <td className="px-4 py-2.5 text-right">{formatMoney(item.unit_amount, currency)}</td>
+                          <td className="px-4 py-2.5 text-right">
+                            {formatMoney(item.unit_amount, currency)}
+                          </td>
                           <td className="px-4 py-2.5 text-right font-medium sm:px-5">
                             {formatMoney(item.amount, currency)}
                           </td>

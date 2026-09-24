@@ -35,7 +35,10 @@ export const Route = createFileRoute("/app/finance/invoices/new")({
       { title: "New invoice · BLUETORN CRM" },
       { name: "description", content: "Build an invoice with line items, tax and payment terms." },
       { property: "og:title", content: "New invoice · BLUETORN CRM" },
-      { property: "og:description", content: "Build an invoice with line items, tax and payment terms." },
+      {
+        property: "og:description",
+        content: "Build an invoice with line items, tax and payment terms.",
+      },
     ],
   }),
   component: NewInvoicePage,
@@ -184,7 +187,12 @@ function NewInvoiceContent() {
             </div>
 
             <div className="space-y-1.5">
-              <DateTimeField label="Due Date" value={dueDate} onChange={setDueDate} withTime={false} />
+              <DateTimeField
+                label="Due Date"
+                value={dueDate}
+                onChange={setDueDate}
+                withTime={false}
+              />
             </div>
           </div>
         </SectionCard>
@@ -211,7 +219,9 @@ function NewInvoiceContent() {
                     type="number"
                     min="1"
                     value={line.quantity}
-                    onChange={(e) => handleLineChange(idx, "quantity", parseInt(e.target.value, 10) || 1)}
+                    onChange={(e) =>
+                      handleLineChange(idx, "quantity", parseInt(e.target.value, 10) || 1)
+                    }
                     required
                   />
                 </div>
@@ -248,7 +258,13 @@ function NewInvoiceContent() {
               </div>
             ))}
 
-            <Button type="button" variant="outline" size="sm" onClick={handleAddLine} className="mt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleAddLine}
+              className="mt-2"
+            >
               <Plus className="mr-1.5 h-4 w-4" /> Add Line Item
             </Button>
           </div>

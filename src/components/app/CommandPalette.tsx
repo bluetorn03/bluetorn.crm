@@ -1,15 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Building2,
-  CheckSquare,
-  CreditCard,
-  FileText,
-  Plus,
-  Users,
-  UserRound,
-} from "lucide-react";
+import { Building2, CheckSquare, CreditCard, FileText, Plus, Users, UserRound } from "lucide-react";
 import {
   CommandDialog,
   CommandEmpty,
@@ -169,11 +161,7 @@ export function CommandPalette({
         {res.tasks.length > 0 && (
           <CommandGroup heading="Tasks">
             {res.tasks.map((t) => (
-              <CommandItem
-                key={t.id}
-                value={`${t.title} task`}
-                onSelect={() => go("/app/tasks")}
-              >
+              <CommandItem key={t.id} value={`${t.title} task`} onSelect={() => go("/app/tasks")}>
                 <CheckSquare className="mr-2 h-4 w-4" />
                 {t.title}
               </CommandItem>

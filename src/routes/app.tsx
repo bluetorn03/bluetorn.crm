@@ -25,7 +25,12 @@ const groups: NavGroup[] = [
     items: [
       { label: "Home", to: "/app", icon: Home, exact: true },
       { label: "Customers", to: "/app/customers", icon: Users },
-      { label: "Leads", to: "/app/leads", icon: Sparkles, children: [{ label: "Pipeline", to: "/app/leads/pipeline" }] },
+      {
+        label: "Leads",
+        to: "/app/leads",
+        icon: Sparkles,
+        children: [{ label: "Pipeline", to: "/app/leads/pipeline" }],
+      },
       { label: "Properties", to: "/app/properties", icon: Building2 },
     ],
   },

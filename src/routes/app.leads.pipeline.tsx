@@ -1,14 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowRight,
-  CalendarClock,
-  ChevronRight,
-  ListFilter,
-  Plus,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRight, CalendarClock, ChevronRight, ListFilter, Plus, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SectionCard } from "@/components/common/SectionCard";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -53,7 +46,15 @@ function PipelinePage() {
   });
 
   const moveStageMutation = useMutation({
-    mutationFn: async ({ leadId, currentStage, newStage }: { leadId: string; currentStage: string; newStage: string }) => {
+    mutationFn: async ({
+      leadId,
+      currentStage,
+      newStage,
+    }: {
+      leadId: string;
+      currentStage: string;
+      newStage: string;
+    }) => {
       await updateLead(leadId, { status: newStage });
       await logLeadActivity({
         workspace_id: workspace.id,
@@ -105,7 +106,10 @@ function PipelinePage() {
           return (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
               {columns.map((col) => {
-                const totalValue = col.items.reduce((sum, item) => sum + (Number(item.budget) || 0), 0);
+                const totalValue = col.items.reduce(
+                  (sum, item) => sum + (Number(item.budget) || 0),
+                  0,
+                );
                 return (
                   <SectionCard
                     key={col.stage}
@@ -115,7 +119,11 @@ function PipelinePage() {
                   >
                     {col.items.length === 0 ? (
                       <div className="p-4 text-center">
-                        <EmptyState icon={Sparkles} title="Empty" description="No deals in this stage." />
+                        <EmptyState
+                          icon={Sparkles}
+                          title="Empty"
+                          description="No deals in this stage."
+                        />
                       </div>
                     ) : (
                       <ul className="space-y-2">
@@ -124,7 +132,11 @@ function PipelinePage() {
                             key={l.id}
                             className="bg-card border-border rounded-lg border p-3 shadow-xs hover:border-primary/50 transition-colors"
                           >
-                            <Link to="/app/leads/$leadId" params={{ leadId: l.id }} className="block">
+                            <Link
+                              to="/app/leads/$leadId"
+                              params={{ leadId: l.id }}
+                              className="block"
+                            >
                               <div className="flex items-start justify-between gap-2">
                                 <p className="font-semibold text-sm hover:text-primary transition-colors truncate">
                                   {l.name}
@@ -140,7 +152,11 @@ function PipelinePage() {
 
                               <div className="mt-2 flex items-center justify-between">
                                 <p className="text-xs font-bold text-foreground">
-                                  {formatMoney(l.budget, (l.currency ?? workspace.currency) as any, true)}
+                                  {formatMoney(
+                                    l.budget,
+                                    (l.currency ?? workspace.currency) as any,
+                                    true,
+                                  )}
                                 </p>
                                 <StatusBadge label={l.source} tone="neutral" />
                               </div>
@@ -184,7 +200,12 @@ function PipelinePage() {
                                 </DropdownMenuContent>
                               </DropdownMenu>
 
-                              <Button asChild variant="ghost" size="sm" className="h-6 px-2 text-[11px]">
+                              <Button
+                                asChild
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-[11px]"
+                              >
                                 <Link to="/app/leads/$leadId" params={{ leadId: l.id }}>
                                   Details
                                 </Link>
