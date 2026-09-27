@@ -248,10 +248,19 @@ function SidebarNavItem({
   isActive: (item: NavItem) => boolean;
   childActive: (item: NavItem) => boolean;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const hasChildren = Boolean(item.children && item.children.length > 0);
+
+  // isRouteOpen: true whenever the current URL lives inside a child route.
+  // Derived fresh from pathname on every render — always in sync with the router.
+  const isRouteOpen = hasChildren && childActive(item);
+
+  // isHoverOpen: set by mouse events only.
+  const [isHoverOpen, setIsHoverOpen] = useState(false);
+
+  // showOpen: the submenu is visible if either hover OR route demands it.
+  const showOpen = isHoverOpen || isRouteOpen;
+
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isCurrent = item.to
     ? isActive(item) || childActive(item)
     : childActive(item);
@@ -268,17 +277,23 @@ function SidebarNavItem({
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
-    setIsOpen(true);
+    setIsHoverOpen(true);
   };
 
   const handleMouseLeave = () => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
+    // Only close the hover flag; if isRouteOpen is true the dropdown stays visible.
     timeoutRef.current = setTimeout(() => {
-      setIsOpen(false);
+      setIsHoverOpen(false);
     }, 150);
   };
+
+  // Reset hover state on route change so stale hover doesn't persist to the next page.
+  useEffect(() => {
+    setIsHoverOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     return () => {
@@ -299,16 +314,22 @@ function SidebarNavItem({
           type="button"
           onClick={(e) => {
             e.preventDefault();
-            setIsOpen((open) => !open);
+            // If route is keeping it open, a click explicitly closes (toggles).
+            // If route is not active, toggle hover state.
+            if (isRouteOpen) {
+              setIsHoverOpen((h) => !h);
+            } else {
+              setIsHoverOpen((h) => !h);
+            }
           }}
           className={cn(rowClass, "cursor-pointer")}
-          aria-expanded={isOpen}
+          aria-expanded={showOpen}
         >
           <item.icon className="h-4 w-4 shrink-0" />
           <span className="truncate">{item.label}</span>
           <ChevronDown
             className="ml-auto h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 transition-transform duration-200"
-            style={{ transform: isOpen ? "rotate(-180deg)" : "rotate(0deg)" }}
+            style={{ transform: showOpen ? "rotate(-180deg)" : "rotate(0deg)" }}
             aria-hidden
           />
         </button>
@@ -316,11 +337,11 @@ function SidebarNavItem({
         <div
           className="grid transition-[grid-template-rows,opacity] duration-200 ease-in-out"
           style={{
-            gridTemplateRows: isOpen ? "1fr" : "0fr",
-            opacity: isOpen ? 1 : 0,
-            pointerEvents: isOpen ? "auto" : "none",
+            gridTemplateRows: showOpen ? "1fr" : "0fr",
+            opacity: showOpen ? 1 : 0,
+            pointerEvents: showOpen ? "auto" : "none",
           }}
-          aria-hidden={!isOpen}
+          aria-hidden={!showOpen}
         >
           <div className="overflow-hidden">
             <ul className="border-sidebar-border mt-1 ml-6 space-y-0.5 border-l pl-3">
