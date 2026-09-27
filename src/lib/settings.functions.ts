@@ -10,6 +10,20 @@ export type WorkspaceSettingsData = {
   contact_email: string | null;
   contact_phone: string | null;
   address: string | null;
+  logo_url: string | null;
+  gstin: string | null;
+  pan: string | null;
+  state: string | null;
+  state_code: string | null;
+  website: string | null;
+  bank_name: string | null;
+  bank_account_no: string | null;
+  bank_account_name: string | null;
+  bank_ifsc: string | null;
+  invoice_prefix: string;
+  default_payment_terms_days: number;
+  default_invoice_notes: string | null;
+  default_invoice_terms: string | null;
 };
 
 export type WorkspaceMemberItem = {
@@ -29,7 +43,10 @@ export const getWorkspaceSettingsFn = createServerFn({ method: "GET" })
   .validator((input: { workspaceId: string }) => input)
   .handler(async ({ data, context }): Promise<WorkspaceSettingsData | null> => {
     const ws = await queryOne<Workspace>(
-      "SELECT name, legal_name, contact_email, contact_phone, address FROM workspaces WHERE id = ? LIMIT 1",
+      `SELECT name, legal_name, contact_email, contact_phone, address, logo_url,
+              gstin, pan, state, state_code, website, bank_name, bank_account_no, bank_account_name, bank_ifsc,
+              invoice_prefix, default_payment_terms_days, default_invoice_notes, default_invoice_terms
+       FROM workspaces WHERE id = ? LIMIT 1`,
       [data.workspaceId],
     );
     if (!ws) return null;
@@ -39,6 +56,20 @@ export const getWorkspaceSettingsFn = createServerFn({ method: "GET" })
       contact_email: ws.contact_email,
       contact_phone: ws.contact_phone,
       address: ws.address,
+      logo_url: ws.logo_url,
+      gstin: (ws as any).gstin ?? null,
+      pan: (ws as any).pan ?? null,
+      state: (ws as any).state ?? null,
+      state_code: (ws as any).state_code ?? null,
+      website: (ws as any).website ?? null,
+      bank_name: (ws as any).bank_name ?? null,
+      bank_account_no: (ws as any).bank_account_no ?? null,
+      bank_account_name: (ws as any).bank_account_name ?? null,
+      bank_ifsc: (ws as any).bank_ifsc ?? null,
+      invoice_prefix: (ws as any).invoice_prefix ?? "INV",
+      default_payment_terms_days: Number((ws as any).default_payment_terms_days ?? 14),
+      default_invoice_notes: (ws as any).default_invoice_notes ?? null,
+      default_invoice_terms: (ws as any).default_invoice_terms ?? null,
     };
   });
 
@@ -53,22 +84,145 @@ export const updateWorkspaceSettingsFn = createServerFn({ method: "POST" })
         contactEmail?: string | null;
         contactPhone?: string | null;
         address?: string | null;
+        logoUrl?: string | null;
+        gstin?: string | null;
+        pan?: string | null;
+        state?: string | null;
+        stateCode?: string | null;
+        website?: string | null;
+        bankName?: string | null;
+        bankAccountNo?: string | null;
+        bankAccountName?: string | null;
+        bankIfsc?: string | null;
+        invoicePrefix?: string;
+        defaultPaymentTermsDays?: number;
+        defaultInvoiceNotes?: string | null;
+        defaultInvoiceTerms?: string | null;
       };
     }) => input,
   )
   .handler(async ({ data, context }) => {
+    // Only workspace Owner or Super Admin can edit workspace company profile
+    if (context.role !== "owner" && context.role !== "super_admin") {
+      throw new Error("FORBIDDEN: Only workspace Owner can update workspace settings.");
+    }
+    if (context.role !== "super_admin" && context.workspaceId !== data.workspaceId) {
+      throw new Error("FORBIDDEN: Cross-workspace update denied.");
+    }
+
     const p = data.patch;
     await execute(
-      "UPDATE workspaces SET name = ?, legal_name = ?, contact_email = ?, contact_phone = ?, address = ? WHERE id = ?",
+      `UPDATE workspaces SET 
+        name = ?, legal_name = ?, contact_email = ?, contact_phone = ?, address = ?, logo_url = ?,
+        gstin = ?, pan = ?, state = ?, state_code = ?, website = ?, bank_name = ?,
+        bank_account_no = ?, bank_account_name = ?, bank_ifsc = ?, invoice_prefix = ?,
+        default_payment_terms_days = ?, default_invoice_notes = ?, default_invoice_terms = ?
+       WHERE id = ?`,
       [
         p.name.trim(),
         p.legalName?.trim() || null,
         p.contactEmail?.trim() || null,
         p.contactPhone?.trim() || null,
         p.address?.trim() || null,
+        p.logoUrl?.trim() || null,
+        p.gstin?.trim() || null,
+        p.pan?.trim() || null,
+        p.state?.trim() || null,
+        p.stateCode?.trim() || null,
+        p.website?.trim() || null,
+        p.bankName?.trim() || null,
+        p.bankAccountNo?.trim() || null,
+        p.bankAccountName?.trim() || null,
+        p.bankIfsc?.trim() || null,
+        p.invoicePrefix?.trim() || "INV",
+        p.defaultPaymentTermsDays ?? 14,
+        p.defaultInvoiceNotes?.trim() || null,
+        p.defaultInvoiceTerms?.trim() || null,
         data.workspaceId,
       ],
     );
+
+    // Audit log
+    await execute(
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        (await import("./db")).uuid(),
+        data.workspaceId,
+        context.userId,
+        context.role,
+        "workspace.profile_update",
+        "workspace",
+        data.workspaceId,
+        JSON.stringify({ name: p.name, gstin: p.gstin }),
+      ],
+    );
+
+    return { ok: true };
+  });
+
+export const getUserPermissionsFn = createServerFn({ method: "GET" })
+  .middleware([requireMySqlAuth])
+  .validator((input: { workspaceId: string; userId: string }) => input)
+  .handler(async ({ data, context }): Promise<string[]> => {
+    if (context.role !== "owner" && context.role !== "super_admin" && context.userId !== data.userId) {
+      throw new Error("FORBIDDEN: Permission denied.");
+    }
+    const rows = await query<{ permission: string }>(
+      "SELECT permission FROM user_permissions WHERE workspace_id = ? AND user_id = ?",
+      [data.workspaceId, data.userId],
+    );
+    return rows.map((r) => r.permission);
+  });
+
+export const setUserPermissionsFn = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .validator((input: { workspaceId: string; userId: string; permissions: string[] }) => input)
+  .handler(async ({ data, context }) => {
+    // Only Owner or Super Admin can manage employee permissions
+    if (context.role !== "owner" && context.role !== "super_admin") {
+      throw new Error("FORBIDDEN: Only workspace Owner can configure employee permissions.");
+    }
+    if (context.role !== "super_admin" && context.workspaceId !== data.workspaceId) {
+      throw new Error("FORBIDDEN: Cross-workspace permission update denied.");
+    }
+
+    const { transaction, uuid } = await import("./db");
+
+    await transaction(async (conn) => {
+      // 1. Delete existing permissions for this user
+      await conn.execute("DELETE FROM user_permissions WHERE workspace_id = ? AND user_id = ?", [
+        data.workspaceId,
+        data.userId,
+      ]);
+
+      // 2. Insert new granted permissions
+      for (const perm of data.permissions) {
+        if (perm?.trim()) {
+          await conn.execute(
+            "INSERT INTO user_permissions (id, workspace_id, user_id, permission) VALUES (?, ?, ?, ?)",
+            [uuid(), data.workspaceId, data.userId, perm.trim()],
+          );
+        }
+      }
+
+      // 3. Log audit event
+      await conn.execute(
+        `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          uuid(),
+          data.workspaceId,
+          context.userId,
+          context.role,
+          "finance.permission_change",
+          "user_permissions",
+          data.userId,
+          JSON.stringify({ permissions: data.permissions }),
+        ],
+      );
+    });
+
     return { ok: true };
   });
 

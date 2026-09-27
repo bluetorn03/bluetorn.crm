@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { ArrowLeft, Building2, FileText, Loader2, Plus, Trash2, User } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SectionCard } from "@/components/common/SectionCard";
 import { DataState } from "@/components/common/DataState";
@@ -10,6 +11,7 @@ import { PermissionGate } from "@/components/app/PermissionGate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -19,12 +21,14 @@ import {
 } from "@/components/ui/select";
 import {
   listCustomers,
+  listLeads,
+  listProperties,
   nextInvoiceNumber,
   saveInvoice,
-  invoiceTotals,
   qk,
   type InvoiceLineInput,
 } from "@/lib/crm-api";
+import { getWorkspaceMembersFn } from "@/lib/settings.functions";
 import { useSession } from "@/hooks/use-session";
 import { formatMoney } from "@/lib/format";
 import { toast } from "sonner";
@@ -33,11 +37,11 @@ export const Route = createFileRoute("/app/finance/invoices/new")({
   head: () => ({
     meta: [
       { title: "New invoice · BLUETORN CRM" },
-      { name: "description", content: "Build an invoice with line items, tax and payment terms." },
+      { name: "description", content: "Build a GST-ready tax invoice with line items and workspace branding." },
       { property: "og:title", content: "New invoice · BLUETORN CRM" },
       {
         property: "og:description",
-        content: "Build an invoice with line items, tax and payment terms.",
+        content: "Build a GST-ready tax invoice with line items and workspace branding.",
       },
     ],
   }),
@@ -46,20 +50,60 @@ export const Route = createFileRoute("/app/finance/invoices/new")({
 
 function NewInvoicePage() {
   return (
-    <PermissionGate requires="manage.finance">
+    <PermissionGate requires={["finance.invoices.create", "manage.finance"]}>
       <NewInvoiceContent />
     </PermissionGate>
   );
+}
+
+const INVOICE_TYPES = [
+  "Tax Invoice",
+  "Proforma Invoice",
+  "Bill of Supply",
+  "Receipt Voucher",
+];
+
+const TAX_RATES = [0, 5, 12, 18, 28];
+const UNITS = ["unit", "sq ft", "service", "month", "lot", "hour", "day"];
+
+interface FormLine {
+  description: string;
+  hsn_sac: string;
+  quantity: number;
+  unit: string;
+  rate: number;
+  discount: number;
+  tax_rate: number;
 }
 
 function NewInvoiceContent() {
   const { workspace, user } = useSession();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const getMembers = useServerFn(getWorkspaceMembersFn);
 
+  // Queries
   const customersQuery = useQuery({
     queryKey: qk.customers(workspace.id),
     queryFn: () => listCustomers(workspace.id),
+    enabled: !!workspace.id,
+  });
+
+  const leadsQuery = useQuery({
+    queryKey: ["leads", workspace.id],
+    queryFn: () => listLeads(workspace.id),
+    enabled: !!workspace.id,
+  });
+
+  const propertiesQuery = useQuery({
+    queryKey: ["properties", workspace.id],
+    queryFn: () => listProperties(workspace.id),
+    enabled: !!workspace.id,
+  });
+
+  const membersQuery = useQuery({
+    queryKey: ["workspace-members", workspace.id],
+    queryFn: () => getMembers({ data: { workspaceId: workspace.id } }),
     enabled: !!workspace.id,
   });
 
@@ -69,121 +113,393 @@ function NewInvoiceContent() {
     enabled: !!workspace.id,
   });
 
+  // State
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [invoiceType, setInvoiceType] = useState("Tax Invoice");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [selectedLeadId, setSelectedLeadId] = useState("");
+  const [selectedPropertyId, setSelectedPropertyId] = useState("");
+  const [assignedTo, setAssignedTo] = useState(user.id);
+  const [issueDate, setIssueDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState<string | null>(
-    new Date(Date.now() + 14 * 86400000).toISOString(),
+    new Date(Date.now() + (Number(workspace.defaultPaymentTermsDays) || 14) * 86400000).toISOString(),
   );
-  const [taxRate, setTaxRate] = useState(18);
-  const [lines, setLines] = useState<InvoiceLineInput[]>([
-    { description: "Brokerage & Facilitation Services", quantity: 1, unit_amount: 100000 },
+  const [placeOfSupply, setPlaceOfSupply] = useState(workspace.state ?? "");
+  const [notes, setNotes] = useState(workspace.defaultInvoiceNotes ?? "Thank you for your business.");
+  const [terms, setTerms] = useState(
+    workspace.defaultInvoiceTerms ?? "Payment due within stipulated terms. All disputes subject to local jurisdiction.",
+  );
+
+  // Line items state
+  const [lines, setLines] = useState<FormLine[]>([
+    {
+      description: "Real Estate Brokerage & Consulting Services",
+      hsn_sac: "997212",
+      quantity: 1,
+      unit: "service",
+      rate: 100000,
+      discount: 0,
+      tax_rate: 18,
+    },
   ]);
 
-  const { subtotal, taxAmount, total } = useMemo(
-    () => invoiceTotals(lines, taxRate),
-    [lines, taxRate],
-  );
+  // Sync auto-generated invoice number when loaded
+  useEffect(() => {
+    if (invNumberQuery.data?.invoiceNumber && !invoiceNumber) {
+      setInvoiceNumber(invNumberQuery.data.invoiceNumber);
+    }
+  }, [invNumberQuery.data, invoiceNumber]);
 
+  // Selected customer object
+  const selectedCustomer = useMemo(() => {
+    if (!customersQuery.data || !selectedCustomerId) return null;
+    return customersQuery.data.find((c) => c.id === selectedCustomerId) ?? null;
+  }, [customersQuery.data, selectedCustomerId]);
+
+  // When customer changes, auto-populate place of supply if customer has city/state
+  useEffect(() => {
+    if (selectedCustomer?.city && !placeOfSupply) {
+      setPlaceOfSupply(selectedCustomer.city);
+    }
+  }, [selectedCustomer, placeOfSupply]);
+
+  // Calculations
+  const calculated = useMemo(() => {
+    let subtotal = 0;
+    let totalDiscount = 0;
+    let taxableAmount = 0;
+    let totalTax = 0;
+
+    const lineCalculations = lines.map((l) => {
+      const gross = Math.max(0, Number(l.quantity) * Number(l.rate));
+      const disc = Math.min(gross, Math.max(0, Number(l.discount)));
+      const taxable = Math.max(0, gross - disc);
+      const tax = (taxable * Number(l.tax_rate)) / 100;
+      const lineTotal = taxable + tax;
+
+      subtotal += gross;
+      totalDiscount += disc;
+      taxableAmount += taxable;
+      totalTax += tax;
+
+      return { gross, disc, taxable, tax, lineTotal };
+    });
+
+    // Check if intra-state or inter-state
+    const isInterState =
+      workspace.state &&
+      placeOfSupply &&
+      workspace.state.trim().toLowerCase() !== placeOfSupply.trim().toLowerCase();
+
+    let cgst = 0;
+    let sgst = 0;
+    let igst = 0;
+
+    if (isInterState) {
+      igst = totalTax;
+    } else {
+      cgst = totalTax / 2;
+      sgst = totalTax / 2;
+    }
+
+    const grandTotal = taxableAmount + totalTax;
+
+    return {
+      subtotal,
+      totalDiscount,
+      taxableAmount,
+      totalTax,
+      cgst,
+      sgst,
+      igst,
+      grandTotal,
+      isInterState,
+      lineCalculations,
+    };
+  }, [lines, workspace.state, placeOfSupply]);
+
+  // Mutation
   const saveMutation = useMutation({
-    mutationFn: () =>
-      saveInvoice({
+    mutationFn: async (status: "Draft" | "Issued") => {
+      if (!selectedCustomerId) {
+        throw new Error("Please select a customer.");
+      }
+      if (lines.length === 0) {
+        throw new Error("Please add at least one line item.");
+      }
+      if (lines.some((l) => !l.description.trim() || Number(l.rate) < 0)) {
+        throw new Error("All line items must have a valid description and non-negative rate.");
+      }
+
+      const lineInputs: InvoiceLineInput[] = lines.map((l, idx) => ({
+        description: l.description.trim(),
+        hsn_sac: l.hsn_sac.trim() || null,
+        quantity: Number(l.quantity) || 1,
+        unit: l.unit.trim() || "unit",
+        unit_amount: Number(l.rate) || 0,
+        rate: Number(l.rate) || 0,
+        discount: Number(l.discount) || 0,
+        tax_rate: Number(l.tax_rate) || 0,
+        position: idx,
+      }));
+
+      return saveInvoice({
         workspaceId: workspace.id,
-        userId: user.id,
         invoice: {
-          invoice_number: invNumberQuery.data ?? `INV-${Date.now()}`,
-          customer_id: selectedCustomerId || null,
-          issue_date: new Date().toISOString().slice(0, 10),
+          invoice_number: invoiceNumber.trim() || (invNumberQuery.data?.invoiceNumber ?? `INV-${Date.now()}`),
+          invoice_type: invoiceType,
+          customer_id: selectedCustomerId,
+          lead_id: selectedLeadId || null,
+          property_id: selectedPropertyId || null,
+          assigned_to: assignedTo || null,
+          status,
+          issue_date: issueDate,
           due_date: dueDate,
-          tax_rate: taxRate,
-          status: "Draft",
-          currency: workspace.currency,
+          currency: workspace.currency ?? "INR",
+          tax_rate: lines[0]?.tax_rate ?? 18,
+          place_of_supply: placeOfSupply.trim() || null,
+          notes: notes.trim() || null,
+          terms: terms.trim() || null,
         },
-        lines,
-      }),
-    onSuccess: () => {
+        lines: lineInputs,
+      });
+    },
+    onSuccess: (savedInvoice) => {
       queryClient.invalidateQueries({ queryKey: qk.invoices(workspace.id) });
-      toast.success(`Invoice ${invNumberQuery.data} created successfully.`);
-      navigate({ to: "/app/finance/invoices" });
+      queryClient.invalidateQueries({ queryKey: ["dashboard", workspace.id] });
+      toast.success(
+        `Invoice ${savedInvoice.invoice_number} saved as ${savedInvoice.status} successfully.`,
+      );
+      navigate({ to: `/app/finance/invoices/${savedInvoice.id}` });
     },
     onError: (err: Error) => {
-      toast.error(err.message || "Failed to create invoice.");
+      toast.error(err.message || "Failed to save invoice.");
     },
   });
 
   const handleAddLine = () => {
-    setLines([...lines, { description: "", quantity: 1, unit_amount: 0 }]);
+    setLines([
+      ...lines,
+      {
+        description: "",
+        hsn_sac: "997212",
+        quantity: 1,
+        unit: "unit",
+        rate: 0,
+        discount: 0,
+        tax_rate: 18,
+      },
+    ]);
   };
 
-  const handleRemoveLine = (index: number) => {
+  const handleRemoveLine = (idx: number) => {
     if (lines.length === 1) {
       toast.error("An invoice must have at least one line item.");
       return;
     }
-    setLines(lines.filter((_, i) => i !== index));
+    setLines(lines.filter((_, i) => i !== idx));
   };
 
-  const handleLineChange = (index: number, key: keyof InvoiceLineInput, val: string | number) => {
-    setLines(
-      lines.map((l, i) => {
-        if (i !== index) return l;
-        return { ...l, [key]: val };
-      }),
-    );
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (lines.some((l) => !l.description.trim() || l.unit_amount <= 0)) {
-      toast.error("Please fill in valid descriptions and rates for all line items.");
-      return;
-    }
-    saveMutation.mutate();
+  const updateLine = (idx: number, patch: Partial<FormLine>) => {
+    setLines(lines.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
   };
 
   const currency = (workspace.currency ?? "INR") as any;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <Button asChild variant="ghost" size="sm" className="-ml-2">
         <Link to="/app/finance/invoices">
-          <ArrowLeft className="mr-1.5 h-4 w-4" /> Invoices
+          <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to Invoices
         </Link>
       </Button>
 
       <PageHeader
-        title="New invoice"
-        description="Build an invoice with line items, tax and payment terms."
+        title="Create New Invoice"
+        description="Draft or issue a compliant invoice with live workspace billing identity and line item taxes."
       />
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <SectionCard title="Invoice Header">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label>Invoice Number</Label>
-              <Input
-                value={invNumberQuery.data ?? "Generating…"}
-                disabled
-                className="bg-muted font-semibold"
-              />
-            </div>
+      <div className="space-y-6">
+        {/* Supplier & Customer Header Card */}
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Supplier Info */}
+          <SectionCard
+            title="Supplier (Seller)"
+            description="Loaded from your workspace business profile."
+            className="h-full"
+          >
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center gap-3">
+                {workspace.logoUrl ? (
+                  <img
+                    src={workspace.logoUrl}
+                    alt={workspace.name}
+                    className="h-10 w-auto max-w-[100px] object-contain rounded border p-0.5 bg-background"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                    <Building2 className="h-5 w-5" />
+                  </div>
+                )}
+                <div>
+                  <p className="font-semibold text-foreground text-base">
+                    {workspace.legalName || workspace.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{workspace.code}</p>
+                </div>
+              </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="customerSelect">Customer</Label>
-              <DataState query={customersQuery} loadingLabel="Loading…">
-                {(customers) => (
-                  <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                    <SelectTrigger id="customerSelect">
-                      <SelectValue placeholder="Select Customer" />
+              <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-border">
+                <div>
+                  <span className="text-muted-foreground">GSTIN: </span>
+                  <span className="font-medium text-foreground">{workspace.gstin || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">PAN: </span>
+                  <span className="font-medium text-foreground">{workspace.pan || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">State: </span>
+                  <span className="font-medium text-foreground">{workspace.state || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">State Code: </span>
+                  <span className="font-medium text-foreground">{workspace.stateCode || "—"}</span>
+                </div>
+              </div>
+
+              {workspace.address && (
+                <p className="text-xs text-muted-foreground pt-1">
+                  {workspace.address}
+                </p>
+              )}
+            </div>
+          </SectionCard>
+
+          {/* Customer Selection */}
+          <SectionCard
+            title="Customer (Buyer)"
+            description="Select customer from your real database."
+            className="h-full"
+          >
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="customerSelect">Select Customer *</Label>
+                <DataState query={customersQuery} loadingLabel="Loading customers…">
+                  {(customers) => (
+                    <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                      <SelectTrigger id="customerSelect" className="h-10">
+                        <SelectValue placeholder="Choose customer from database…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customers.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name} {c.city ? `· ${c.city}` : ""} ({c.type})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </DataState>
+              </div>
+
+              {selectedCustomer && (
+                <div className="rounded-lg bg-muted/40 p-3 text-xs space-y-1.5 border border-border">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Contact:</span>
+                    <span className="font-medium text-foreground">
+                      {selectedCustomer.phone || selectedCustomer.email || "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">City / Region:</span>
+                    <span className="font-medium text-foreground">{selectedCustomer.city || "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Status / Type:</span>
+                    <span className="font-medium text-foreground capitalize">
+                      {selectedCustomer.status} · {selectedCustomer.type}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Linked CRM Entities */}
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
+                <div className="space-y-1">
+                  <Label className="text-xs">Linked Lead (Optional)</Label>
+                  <Select value={selectedLeadId} onValueChange={setSelectedLeadId}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="None" />
                     </SelectTrigger>
                     <SelectContent>
-                      {customers.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name} ({c.type})
+                      <SelectItem value="">None</SelectItem>
+                      {(leadsQuery.data ?? []).map((l) => (
+                        <SelectItem key={l.id} value={l.id}>
+                          {l.name} ({l.status})
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                )}
-              </DataState>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs">Linked Property (Optional)</Label>
+                  <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="None" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {(propertiesQuery.data ?? []).map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} ({p.type})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </SectionCard>
+        </div>
+
+        {/* Invoice Metadata */}
+        <SectionCard title="Invoice Details" description="Document numbering, dates, and statutory tax jurisdiction.">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1.5">
+              <Label>Invoice Number *</Label>
+              <Input
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                placeholder={invNumberQuery.data?.invoiceNumber ?? "Generating…"}
+                className="font-mono font-semibold"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Invoice Type</Label>
+              <Select value={invoiceType} onValueChange={setInvoiceType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {INVOICE_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Invoice Date</Label>
+              <Input
+                type="date"
+                value={issueDate}
+                onChange={(e) => setIssueDate(e.target.value)}
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -194,69 +510,191 @@ function NewInvoiceContent() {
                 withTime={false}
               />
             </div>
+
+            <div className="space-y-1.5">
+              <Label>Place of Supply (State)</Label>
+              <Input
+                value={placeOfSupply}
+                onChange={(e) => setPlaceOfSupply(e.target.value)}
+                placeholder="e.g. Maharashtra"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Assigned To</Label>
+              <Select value={assignedTo} onValueChange={setAssignedTo}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(membersQuery.data ?? []).map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.full_name} ({m.user_code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Currency</Label>
+              <Input value={workspace.currency ?? "INR"} disabled className="bg-muted font-mono" />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Tax Treatment</Label>
+              <div className="h-9 px-3 rounded-md bg-muted/60 border border-border flex items-center text-xs font-medium">
+                {calculated.isInterState ? "Inter-state (IGST applied)" : "Intra-state (CGST + SGST split 50/50)"}
+              </div>
+            </div>
           </div>
         </SectionCard>
 
-        <SectionCard title="Line Items">
-          <div className="space-y-3">
-            {lines.map((line, idx) => (
-              <div
-                key={idx}
-                className="flex flex-wrap items-end gap-3 border-border border-b pb-3 last:border-b-0 last:pb-0"
-              >
-                <div className="min-w-[200px] flex-1 space-y-1.5">
-                  <Label>Description</Label>
-                  <Input
-                    placeholder="e.g. Booking Advance"
-                    value={line.description}
-                    onChange={(e) => handleLineChange(idx, "description", e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="w-24 space-y-1.5">
-                  <Label>Qty</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={line.quantity}
-                    onChange={(e) =>
-                      handleLineChange(idx, "quantity", parseInt(e.target.value, 10) || 1)
-                    }
-                    required
-                  />
-                </div>
-                <div className="w-36 space-y-1.5">
-                  <Label>Rate ({workspace.currency})</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={line.unit_amount}
-                    onChange={(e) =>
-                      handleLineChange(idx, "unit_amount", parseFloat(e.target.value) || 0)
-                    }
-                    required
-                  />
-                </div>
-                <div className="w-36 space-y-1.5">
-                  <Label>Amount</Label>
-                  <Input
-                    value={formatMoney(line.quantity * line.unit_amount, currency)}
-                    disabled
-                    className="bg-muted font-medium"
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-destructive shrink-0"
-                  onClick={() => handleRemoveLine(idx)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
+        {/* Line Items Table */}
+        <SectionCard
+          title="Line Items & Services"
+          description="Detailed breakdown with HSN/SAC codes, quantities, rates, and tax rates."
+        >
+          <div className="space-y-4">
+            <div className="hidden lg:grid grid-cols-[minmax(200px,2fr)_100px_80px_100px_110px_90px_90px_110px_40px] gap-2 px-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <span>Description</span>
+              <span>HSN/SAC</span>
+              <span>Qty</span>
+              <span>Unit</span>
+              <span>Rate ({workspace.currency})</span>
+              <span>Disc</span>
+              <span>GST %</span>
+              <span className="text-right">Line Total</span>
+              <span></span>
+            </div>
+
+            <div className="space-y-3">
+              {lines.map((line, idx) => {
+                const lineCalc = calculated.lineCalculations[idx];
+                return (
+                  <div
+                    key={idx}
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(200px,2fr)_100px_80px_100px_110px_90px_90px_110px_40px] gap-2 items-center p-3 sm:p-2 rounded-lg border border-border bg-card"
+                  >
+                    <div className="sm:col-span-2 lg:col-span-1 space-y-1">
+                      <Label className="lg:hidden text-xs">Description</Label>
+                      <Input
+                        placeholder="e.g. Brokerage fee for property booking"
+                        value={line.description}
+                        onChange={(e) => updateLine(idx, { description: e.target.value })}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="lg:hidden text-xs">HSN/SAC</Label>
+                      <Input
+                        placeholder="997212"
+                        value={line.hsn_sac}
+                        onChange={(e) => updateLine(idx, { hsn_sac: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="lg:hidden text-xs">Qty</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={line.quantity}
+                        onChange={(e) =>
+                          updateLine(idx, { quantity: Math.max(1, parseInt(e.target.value, 10) || 1) })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="lg:hidden text-xs">Unit</Label>
+                      <Select
+                        value={line.unit}
+                        onValueChange={(val) => updateLine(idx, { unit: val })}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {UNITS.map((u) => (
+                            <SelectItem key={u} value={u}>
+                              {u}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="lg:hidden text-xs">Rate</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={line.rate}
+                        onChange={(e) =>
+                          updateLine(idx, { rate: parseFloat(e.target.value) || 0 })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="lg:hidden text-xs">Discount</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={line.discount}
+                        onChange={(e) =>
+                          updateLine(idx, { discount: parseFloat(e.target.value) || 0 })
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="lg:hidden text-xs">GST %</Label>
+                      <Select
+                        value={String(line.tax_rate)}
+                        onValueChange={(val) => updateLine(idx, { tax_rate: Number(val) })}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TAX_RATES.map((r) => (
+                            <SelectItem key={r} value={String(r)}>
+                              {r}%
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1 text-right sm:col-span-2 lg:col-span-1">
+                      <Label className="lg:hidden text-xs block text-left">Line Total</Label>
+                      <p className="font-semibold text-foreground text-sm py-2">
+                        {formatMoney(lineCalc?.lineTotal ?? 0, currency)}
+                      </p>
+                    </div>
+
+                    <div className="flex justify-end lg:justify-center">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive h-8 w-8 hover:bg-destructive/10"
+                        onClick={() => handleRemoveLine(idx)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
             <Button
               type="button"
@@ -265,49 +703,111 @@ function NewInvoiceContent() {
               onClick={handleAddLine}
               className="mt-2"
             >
-              <Plus className="mr-1.5 h-4 w-4" /> Add Line Item
+              <Plus className="mr-1.5 h-4 w-4" /> Add Item Line
             </Button>
           </div>
         </SectionCard>
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          <SectionCard className="lg:col-span-2" title="Taxes">
-            <div className="space-y-1.5 sm:max-w-xs">
-              <Label htmlFor="taxRate">GST Rate (%)</Label>
-              <Input
-                id="taxRate"
-                type="number"
-                min="0"
-                max="100"
-                value={taxRate}
-                onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
-              />
-            </div>
-          </SectionCard>
+        {/* Notes, Terms & Summary */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            <SectionCard title="Invoice Notes & Terms" description="Will be printed at the bottom of the invoice document.">
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-xs">Invoice Notes</Label>
+                  <Textarea
+                    rows={2}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Thank you for your business."
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Terms & Conditions</Label>
+                  <Textarea
+                    rows={3}
+                    value={terms}
+                    onChange={(e) => setTerms(e.target.value)}
+                    placeholder="Payment due within stipulated terms."
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+            </SectionCard>
+          </div>
 
-          <SectionCard title="Summary">
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Subtotal</dt>
-                <dd className="font-medium">{formatMoney(subtotal, currency)}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">GST ({taxRate}%)</dt>
-                <dd className="font-medium">{formatMoney(taxAmount, currency)}</dd>
-              </div>
-              <div className="border-border flex justify-between border-t pt-2 text-base font-semibold">
-                <dt>Grand Total</dt>
-                <dd className="text-primary">{formatMoney(total, currency)}</dd>
-              </div>
-            </dl>
+          <div>
+            <SectionCard title="Financial Summary" description="Real-time tax and total breakdown.">
+              <dl className="space-y-2.5 text-sm">
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Gross Subtotal</dt>
+                  <dd className="font-medium text-foreground">{formatMoney(calculated.subtotal, currency)}</dd>
+                </div>
+                {calculated.totalDiscount > 0 && (
+                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                    <dt>Total Discount</dt>
+                    <dd className="font-medium">- {formatMoney(calculated.totalDiscount, currency)}</dd>
+                  </div>
+                )}
+                <div className="flex justify-between pt-1 border-t border-border">
+                  <dt className="text-muted-foreground">Taxable Amount</dt>
+                  <dd className="font-medium text-foreground">{formatMoney(calculated.taxableAmount, currency)}</dd>
+                </div>
 
-            <Button type="submit" className="mt-5 w-full" disabled={saveMutation.isPending}>
-              {saveMutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              Create Invoice
-            </Button>
-          </SectionCard>
+                {calculated.isInterState ? (
+                  <div className="flex justify-between text-xs">
+                    <dt className="text-muted-foreground">IGST (Inter-state)</dt>
+                    <dd className="font-medium text-foreground">{formatMoney(calculated.igst, currency)}</dd>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-xs">
+                      <dt className="text-muted-foreground">CGST (Intra-state)</dt>
+                      <dd className="font-medium text-foreground">{formatMoney(calculated.cgst, currency)}</dd>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <dt className="text-muted-foreground">SGST (Intra-state)</dt>
+                      <dd className="font-medium text-foreground">{formatMoney(calculated.sgst, currency)}</dd>
+                    </div>
+                  </>
+                )}
+
+                <div className="border-border flex justify-between border-t pt-3 text-base font-bold">
+                  <dt>Grand Total</dt>
+                  <dd className="text-primary text-lg">{formatMoney(calculated.grandTotal, currency)}</dd>
+                </div>
+              </dl>
+
+              <div className="mt-6 space-y-2.5">
+                <Button
+                  type="button"
+                  className="w-full font-semibold"
+                  disabled={saveMutation.isPending}
+                  onClick={() => saveMutation.mutate("Issued")}
+                >
+                  {saveMutation.isPending ? (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileText className="mr-1.5 h-4 w-4" />
+                  )}
+                  Issue Invoice
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={saveMutation.isPending}
+                  onClick={() => saveMutation.mutate("Draft")}
+                >
+                  Save as Draft
+                </Button>
+              </div>
+            </SectionCard>
+          </div>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

@@ -26,6 +26,19 @@ CREATE TABLE IF NOT EXISTS `workspaces` (
   `contact_email` VARCHAR(255) DEFAULT NULL,
   `contact_phone` VARCHAR(64) DEFAULT NULL,
   `address` TEXT DEFAULT NULL,
+  `gstin` VARCHAR(32) DEFAULT NULL,
+  `pan` VARCHAR(32) DEFAULT NULL,
+  `state` VARCHAR(64) DEFAULT NULL,
+  `state_code` VARCHAR(8) DEFAULT NULL,
+  `website` VARCHAR(255) DEFAULT NULL,
+  `bank_name` VARCHAR(128) DEFAULT NULL,
+  `bank_account_no` VARCHAR(64) DEFAULT NULL,
+  `bank_account_name` VARCHAR(128) DEFAULT NULL,
+  `bank_ifsc` VARCHAR(32) DEFAULT NULL,
+  `invoice_prefix` VARCHAR(32) NOT NULL DEFAULT 'INV',
+  `default_payment_terms_days` INT NOT NULL DEFAULT 14,
+  `default_invoice_notes` TEXT DEFAULT NULL,
+  `default_invoice_terms` TEXT DEFAULT NULL,
   `seat_limit` INT NOT NULL DEFAULT 10,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -69,6 +82,22 @@ CREATE TABLE IF NOT EXISTS `user_roles` (
   UNIQUE KEY `uk_user_role` (`user_id`, `workspace_id`, `role`),
   CONSTRAINT `fk_roles_user` FOREIGN KEY (`user_id`) REFERENCES `profiles` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_roles_workspace` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------------
+-- 3b. USER PERMISSIONS (GRANULAR RBAC)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `user_permissions` (
+  `id` VARCHAR(36) NOT NULL,
+  `workspace_id` VARCHAR(36) NOT NULL,
+  `user_id` VARCHAR(36) NOT NULL,
+  `permission` VARCHAR(64) NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_permission` (`workspace_id`, `user_id`, `permission`),
+  KEY `idx_user_perm_lookup` (`workspace_id`, `user_id`),
+  CONSTRAINT `fk_user_permissions_ws` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_user_permissions_user` FOREIGN KEY (`user_id`) REFERENCES `profiles` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
@@ -238,24 +267,46 @@ CREATE TABLE IF NOT EXISTS `invoices` (
   `id` VARCHAR(36) NOT NULL,
   `workspace_id` VARCHAR(36) NOT NULL,
   `invoice_number` VARCHAR(64) NOT NULL,
+  `financial_year` VARCHAR(16) DEFAULT NULL,
+  `invoice_type` VARCHAR(32) NOT NULL DEFAULT 'Tax Invoice',
   `customer_id` VARCHAR(36) DEFAULT NULL,
+  `lead_id` VARCHAR(36) DEFAULT NULL,
   `property_id` VARCHAR(36) DEFAULT NULL,
+  `assigned_to` VARCHAR(36) DEFAULT NULL,
+  `updated_by` VARCHAR(36) DEFAULT NULL,
   `status` VARCHAR(32) NOT NULL DEFAULT 'Draft',
   `issue_date` DATE NOT NULL,
   `due_date` DATE DEFAULT NULL,
   `currency` VARCHAR(10) NOT NULL DEFAULT 'INR',
   `tax_rate` DECIMAL(6,3) NOT NULL DEFAULT 0.000,
   `subtotal` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `discount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `taxable_amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `cgst` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `sgst` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `igst` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `cess` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `tax_amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `total` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `place_of_supply` VARCHAR(64) DEFAULT NULL,
   `notes` TEXT DEFAULT NULL,
+  `terms` TEXT DEFAULT NULL,
+  `cancellation_reason` TEXT DEFAULT NULL,
+  `cancelled_at` DATETIME DEFAULT NULL,
+  `cancelled_by` VARCHAR(36) DEFAULT NULL,
   `created_by` VARCHAR(36) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_invoices_ws_number` (`workspace_id`, `invoice_number`),
+  KEY `idx_invoices_ws_status` (`workspace_id`, `status`),
+  KEY `idx_invoices_customer` (`customer_id`),
+  KEY `idx_invoices_assigned` (`assigned_to`),
   CONSTRAINT `fk_invoices_ws` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_invoices_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_invoices_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_invoices_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_invoices_assigned` FOREIGN KEY (`assigned_to`) REFERENCES `profiles` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_invoices_updated_by` FOREIGN KEY (`updated_by`) REFERENCES `profiles` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
@@ -266,8 +317,16 @@ CREATE TABLE IF NOT EXISTS `invoice_items` (
   `workspace_id` VARCHAR(36) NOT NULL,
   `invoice_id` VARCHAR(36) NOT NULL,
   `description` VARCHAR(255) NOT NULL,
+  `hsn_sac` VARCHAR(32) DEFAULT NULL,
   `quantity` DECIMAL(12,2) NOT NULL DEFAULT 1.00,
+  `unit` VARCHAR(32) NOT NULL DEFAULT 'Units',
+  `rate` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `unit_amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `discount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `tax_rate` DECIMAL(6,3) NOT NULL DEFAULT 0.000,
+  `tax_type` VARCHAR(32) NOT NULL DEFAULT 'GST',
+  `tax_amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `line_total` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `position` INT NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
@@ -283,6 +342,8 @@ CREATE TABLE IF NOT EXISTS `payments` (
   `workspace_id` VARCHAR(36) NOT NULL,
   `invoice_id` VARCHAR(36) DEFAULT NULL,
   `customer_id` VARCHAR(36) DEFAULT NULL,
+  `assigned_to` VARCHAR(36) DEFAULT NULL,
+  `updated_by` VARCHAR(36) DEFAULT NULL,
   `amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `currency` VARCHAR(10) NOT NULL DEFAULT 'INR',
   `method` VARCHAR(64) NOT NULL DEFAULT 'Bank Transfer',
@@ -290,13 +351,20 @@ CREATE TABLE IF NOT EXISTS `payments` (
   `paid_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `reference` VARCHAR(128) DEFAULT NULL,
   `notes` TEXT DEFAULT NULL,
+  `reversal_reason` TEXT DEFAULT NULL,
+  `reversed_at` DATETIME DEFAULT NULL,
+  `reversed_by` VARCHAR(36) DEFAULT NULL,
   `created_by` VARCHAR(36) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_payments_ws` (`workspace_id`),
+  KEY `idx_payments_invoice` (`invoice_id`),
+  KEY `idx_payments_assigned` (`assigned_to`),
   CONSTRAINT `fk_payments_ws` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_payments_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `invoices` (`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_payments_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `invoices` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_payments_assigned` FOREIGN KEY (`assigned_to`) REFERENCES `profiles` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_payments_updated_by` FOREIGN KEY (`updated_by`) REFERENCES `profiles` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------

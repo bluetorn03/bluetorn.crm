@@ -112,7 +112,7 @@ function HomePage() {
           icon={MapPin}
           to="/app/calendar"
         />
-        {can("view.finance") ? (
+        {can("finance.view") ? (
           <>
             <MetricCard
               label="Revenue (MTD)"
@@ -130,7 +130,7 @@ function HomePage() {
           </>
         ) : (
           <div className="border-border bg-card text-muted-foreground rounded-xl border border-dashed p-5 text-sm sm:col-span-2 xl:col-span-1">
-            Finance figures are hidden for the Employee role.
+            Finance metrics are hidden by default. Access can be granted by the workspace Owner in Settings.
           </div>
         )}
       </div>
@@ -252,7 +252,7 @@ function HomePage() {
         </SectionCard>
 
         <div className="space-y-4">
-          {can("view.finance") && (
+          {can("finance.view") && (
             <SectionCard title="Pending finance items" bodyClassName="p-0">
               {overdue.length === 0 ? (
                 <p className="text-muted-foreground p-4 text-sm">No pending or overdue invoices.</p>

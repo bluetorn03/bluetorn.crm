@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { KeyRound, Loader2, Plus, ShieldCheck, UserCheck, UserX } from "lucide-react";
+import { Building2, FileText, KeyRound, Landmark, Loader2, Plus, ShieldCheck, UserCheck, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SectionCard } from "@/components/common/SectionCard";
@@ -10,6 +10,8 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -32,6 +34,8 @@ import {
   getWorkspaceSettingsFn,
   updateWorkspaceSettingsFn,
   getWorkspaceMembersFn,
+  getUserPermissionsFn,
+  setUserPermissionsFn,
   updateSelfProfileFn,
   changeSelfPasswordFn,
   type WorkspaceMemberItem,
@@ -108,7 +112,21 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
     legalName: "",
     contactEmail: "",
     contactPhone: "",
+    website: "",
+    logoUrl: "",
     address: "",
+    gstin: "",
+    pan: "",
+    state: "",
+    stateCode: "",
+    bankName: "",
+    bankAccountNo: "",
+    bankAccountName: "",
+    bankIfsc: "",
+    invoicePrefix: "INV",
+    defaultPaymentTermsDays: 14,
+    defaultInvoiceNotes: "",
+    defaultInvoiceTerms: "",
   });
   const [loaded, setLoaded] = useState(false);
 
@@ -123,7 +141,21 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
           legalName: data.legal_name ?? "",
           contactEmail: data.contact_email ?? "",
           contactPhone: data.contact_phone ?? "",
+          website: data.website ?? "",
+          logoUrl: data.logo_url ?? "",
           address: data.address ?? "",
+          gstin: data.gstin ?? "",
+          pan: data.pan ?? "",
+          state: data.state ?? "",
+          stateCode: data.state_code ?? "",
+          bankName: data.bank_name ?? "",
+          bankAccountNo: data.bank_account_no ?? "",
+          bankAccountName: data.bank_account_name ?? "",
+          bankIfsc: data.bank_ifsc ?? "",
+          invoicePrefix: data.invoice_prefix ?? "INV",
+          defaultPaymentTermsDays: data.default_payment_terms_days ?? 14,
+          defaultInvoiceNotes: data.default_invoice_notes ?? "",
+          defaultInvoiceTerms: data.default_invoice_terms ?? "",
         });
         setLoaded(true);
       }
@@ -141,82 +173,251 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
             legalName: form.legalName.trim() || null,
             contactEmail: form.contactEmail.trim() || null,
             contactPhone: form.contactPhone.trim() || null,
+            website: form.website.trim() || null,
+            logoUrl: form.logoUrl.trim() || null,
             address: form.address.trim() || null,
+            gstin: form.gstin.trim() || null,
+            pan: form.pan.trim() || null,
+            state: form.state.trim() || null,
+            stateCode: form.stateCode.trim() || null,
+            bankName: form.bankName.trim() || null,
+            bankAccountNo: form.bankAccountNo.trim() || null,
+            bankAccountName: form.bankAccountName.trim() || null,
+            bankIfsc: form.bankIfsc.trim() || null,
+            invoicePrefix: form.invoicePrefix.trim() || "INV",
+            defaultPaymentTermsDays: Number(form.defaultPaymentTermsDays) || 14,
+            defaultInvoiceNotes: form.defaultInvoiceNotes.trim() || null,
+            defaultInvoiceTerms: form.defaultInvoiceTerms.trim() || null,
           },
         },
       });
     },
     onSuccess: async () => {
-      toast.success("Workspace updated");
+      toast.success("Workspace company profile and billing settings updated");
       await onSaved();
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-      <SectionCard
-        title="Workspace profile"
-        description="Shown across invoices, documents and shared links."
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            label="Display name"
-            value={form.name}
-            onChange={(v) => setForm({ ...form, name: v })}
-            disabled={!canEdit}
-          />
-          <Field
-            label="Legal name"
-            value={form.legalName}
-            onChange={(v) => setForm({ ...form, legalName: v })}
-            disabled={!canEdit}
-          />
-          <Field
-            label="Contact email"
-            value={form.contactEmail}
-            onChange={(v) => setForm({ ...form, contactEmail: v })}
-            disabled={!canEdit}
-          />
-          <Field
-            label="Contact phone"
-            value={form.contactPhone}
-            onChange={(v) => setForm({ ...form, contactPhone: v })}
-            disabled={!canEdit}
-          />
-          <div className="sm:col-span-2">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="space-y-6">
+        {/* Company Identity */}
+        <SectionCard
+          title="Company & Billing Profile"
+          description="Your business identity. Automatically loaded into invoices, previews, and PDF documents."
+        >
+          <div className="space-y-4">
+            {form.logoUrl && (
+              <div className="flex items-center gap-4 p-3 bg-muted/30 rounded-lg border border-border">
+                <img
+                  src={form.logoUrl}
+                  alt="Company Logo"
+                  className="h-12 w-auto max-w-[120px] object-contain rounded bg-background p-1 border"
+                  onError={(e) => ((e.target as HTMLElement).style.display = "none")}
+                />
+                <div>
+                  <p className="text-xs font-medium text-foreground">Current Company Logo Preview</p>
+                  <p className="text-[11px] text-muted-foreground">Will appear on header of all invoices and receipts</p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Workspace Display Name *"
+                value={form.name}
+                onChange={(v) => setForm({ ...form, name: v })}
+                disabled={!canEdit}
+              />
+              <Field
+                label="Legal Registered Business Name"
+                value={form.legalName}
+                onChange={(v) => setForm({ ...form, legalName: v })}
+                disabled={!canEdit}
+              />
+              <div className="sm:col-span-2">
+                <Field
+                  label="Company Logo URL (HTTPS link)"
+                  value={form.logoUrl}
+                  onChange={(v) => setForm({ ...form, logoUrl: v })}
+                  disabled={!canEdit}
+                />
+              </div>
+              <Field
+                label="Contact Email"
+                value={form.contactEmail}
+                onChange={(v) => setForm({ ...form, contactEmail: v })}
+                disabled={!canEdit}
+              />
+              <Field
+                label="Contact Phone"
+                value={form.contactPhone}
+                onChange={(v) => setForm({ ...form, contactPhone: v })}
+                disabled={!canEdit}
+              />
+              <div className="sm:col-span-2">
+                <Field
+                  label="Website URL"
+                  value={form.website}
+                  onChange={(v) => setForm({ ...form, website: v })}
+                  disabled={!canEdit}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <div>
+                  <Label className="text-xs">Registered Business Address</Label>
+                  <Textarea
+                    rows={2}
+                    value={form.address}
+                    onChange={(e) => setForm({ ...form, address: e.target.value })}
+                    disabled={!canEdit}
+                    className="mt-1"
+                    placeholder="Street, City, Pincode"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* GST & Statutory Profile */}
+        <SectionCard
+          title="Tax & GST Registration"
+          description="GSTIN, PAN and state jurisdiction used for GST calculation and tax invoice compliance."
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
             <Field
-              label="Address"
-              value={form.address}
-              onChange={(v) => setForm({ ...form, address: v })}
+              label="GSTIN (15 characters)"
+              value={form.gstin}
+              onChange={(v) => setForm({ ...form, gstin: v.toUpperCase() })}
+              disabled={!canEdit}
+            />
+            <Field
+              label="PAN (10 characters)"
+              value={form.pan}
+              onChange={(v) => setForm({ ...form, pan: v.toUpperCase() })}
+              disabled={!canEdit}
+            />
+            <Field
+              label="State / Province"
+              value={form.state}
+              onChange={(v) => setForm({ ...form, state: v })}
+              disabled={!canEdit}
+            />
+            <Field
+              label="State Code (e.g. 27 for Maharashtra)"
+              value={form.stateCode}
+              onChange={(v) => setForm({ ...form, stateCode: v })}
               disabled={!canEdit}
             />
           </div>
-        </div>
-        {canEdit ? (
-          <div className="mt-4 flex justify-end">
-            <Button size="sm" disabled={!loaded || save.isPending} onClick={() => save.mutate()}>
-              {save.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Save changes
-            </Button>
-          </div>
-        ) : (
-          <p className="text-muted-foreground mt-4 text-xs">
-            Only the workspace Owner can edit these details.
-          </p>
-        )}
-      </SectionCard>
+        </SectionCard>
 
-      <SectionCard title="Plan & region" description="Managed by Bluetorn.">
-        <dl className="space-y-3 text-sm">
-          <Row label="Workspace code" value={workspace.code} />
-          <Row label="Plan" value={workspace.plan} />
-          <Row label="Status" value={workspace.status} />
-          <Row label="Industry" value={workspace.industry} />
-          <Row label="Currency" value={workspace.currency} />
-          <Row label="Timezone" value={workspace.timezone} />
-          <Row label="Seat limit" value={String(workspace.seatLimit)} />
-        </dl>
-      </SectionCard>
+        {/* Bank & Settlement Details */}
+        <SectionCard
+          title="Bank & Settlement Details"
+          description="Account details displayed on invoices for client direct wire/NEFT/RTGS payments."
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Bank Name"
+              value={form.bankName}
+              onChange={(v) => setForm({ ...form, bankName: v })}
+              disabled={!canEdit}
+            />
+            <Field
+              label="Account Holder Name"
+              value={form.bankAccountName}
+              onChange={(v) => setForm({ ...form, bankAccountName: v })}
+              disabled={!canEdit}
+            />
+            <Field
+              label="Account Number"
+              value={form.bankAccountNo}
+              onChange={(v) => setForm({ ...form, bankAccountNo: v })}
+              disabled={!canEdit}
+            />
+            <Field
+              label="IFSC Code"
+              value={form.bankIfsc}
+              onChange={(v) => setForm({ ...form, bankIfsc: v.toUpperCase() })}
+              disabled={!canEdit}
+            />
+          </div>
+        </SectionCard>
+
+        {/* Invoicing Preferences */}
+        <SectionCard
+          title="Invoice & Payment Defaults"
+          description="Default terms, notes and numbering prefix applied when creating new invoices."
+        >
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Invoice Prefix (e.g. INV)"
+                value={form.invoicePrefix}
+                onChange={(v) => setForm({ ...form, invoicePrefix: v.toUpperCase() })}
+                disabled={!canEdit}
+              />
+              <Field
+                label="Default Payment Terms (Days)"
+                type="number"
+                value={String(form.defaultPaymentTermsDays)}
+                onChange={(v) => setForm({ ...form, defaultPaymentTermsDays: Number(v) || 0 })}
+                disabled={!canEdit}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Default Invoice Notes</Label>
+              <Textarea
+                rows={2}
+                value={form.defaultInvoiceNotes}
+                onChange={(e) => setForm({ ...form, defaultInvoiceNotes: e.target.value })}
+                disabled={!canEdit}
+                className="mt-1"
+                placeholder="Thank you for your business."
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Default Terms & Conditions</Label>
+              <Textarea
+                rows={2}
+                value={form.defaultInvoiceTerms}
+                onChange={(e) => setForm({ ...form, defaultInvoiceTerms: e.target.value })}
+                disabled={!canEdit}
+                className="mt-1"
+                placeholder="1. Payment is due within the stipulated days. 2. Please quote invoice number during wire transfer."
+              />
+            </div>
+          </div>
+          {canEdit ? (
+            <div className="mt-5 flex justify-end">
+              <Button size="sm" disabled={!loaded || save.isPending} onClick={() => save.mutate()}>
+                {save.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Save workspace profile
+              </Button>
+            </div>
+          ) : (
+            <p className="text-muted-foreground mt-4 text-xs">
+              Only the workspace Owner can edit these details.
+            </p>
+          )}
+        </SectionCard>
+      </div>
+
+      <div className="space-y-4">
+        <SectionCard title="Plan & region" description="Managed by Bluetorn.">
+          <dl className="space-y-3 text-sm">
+            <Row label="Workspace code" value={workspace.code} />
+            <Row label="Plan" value={workspace.plan} />
+            <Row label="Status" value={workspace.status} />
+            <Row label="Industry" value={workspace.industry} />
+            <Row label="Currency" value={workspace.currency} />
+            <Row label="Timezone" value={workspace.timezone} />
+            <Row label="Seat limit" value={String(workspace.seatLimit)} />
+          </dl>
+        </SectionCard>
+      </div>
     </div>
   );
 }
@@ -238,6 +439,7 @@ function TeamTab({
   const resetPassword = useServerFn(setUserPassword);
   const [addOpen, setAddOpen] = useState(false);
   const [resetFor, setResetFor] = useState<MemberRow | null>(null);
+  const [permissionsFor, setPermissionsFor] = useState<MemberRow | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [form, setForm] = useState({
     userCode: "",
@@ -420,6 +622,10 @@ function TeamTab({
 
               {canManage && !isOwner && !isSelf && (
                 <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setPermissionsFor(m)}>
+                    <ShieldCheck className="mr-1.5 h-3.5 w-3.5 text-primary" /> Permissions
+                  </Button>
+
                   <Button size="sm" variant="outline" onClick={() => setResetFor(m)}>
                     <KeyRound className="mr-1.5 h-3.5 w-3.5" /> Reset password
                   </Button>
@@ -484,7 +690,168 @@ function TeamTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Permissions Dialog */}
+      {permissionsFor && (
+        <PermissionsDialog
+          member={permissionsFor}
+          workspaceId={workspaceId}
+          onClose={() => setPermissionsFor(null)}
+        />
+      )}
     </SectionCard>
+  );
+}
+
+const FINANCE_PERMISSIONS: { id: string; label: string; description: string }[] = [
+  { id: "finance.view", label: "View Finance", description: "Access the Finance section, overview metrics, invoices, and payments" },
+  { id: "finance.invoices.create", label: "Create Invoice", description: "Draft new customer invoices with line items and taxes" },
+  { id: "finance.invoices.edit", label: "Edit Invoice", description: "Edit existing invoices and line item calculations" },
+  { id: "finance.invoices.issue", label: "Issue / Send Invoice", description: "Finalize and mark invoices as issued/sent to clients" },
+  { id: "finance.invoices.cancel", label: "Cancel / Void Invoice", description: "Cancel or void issued invoices with cancellation reason" },
+  { id: "finance.payments.record", label: "Record Payment", description: "Record received client payments and update invoice balance" },
+  { id: "finance.payments.edit", label: "Edit Payment", description: "Update reference, notes or details of recorded payments" },
+  { id: "finance.payments.reverse", label: "Reverse / Refund Payment", description: "Reverse or refund recorded payments with audit reason" },
+  { id: "finance.print", label: "Print Invoice", description: "Print formatted GST tax invoices" },
+  { id: "finance.download", label: "Download PDF", description: "Export invoices and payment receipts as PDF documents" },
+  { id: "finance.share", label: "Share Documents", description: "Generate client share links" },
+  { id: "finance.export", label: "Export Financial Data", description: "Export financial records to CSV/Excel reports" },
+  { id: "finance.reports.view", label: "View Finance Reports", description: "View live workspace revenue, receivables, and tax reports" },
+];
+
+function PermissionsDialog({
+  member,
+  workspaceId,
+  onClose,
+}: {
+  member: MemberRow;
+  workspaceId: string;
+  onClose: () => void;
+}) {
+  const getPermissions = useServerFn(getUserPermissionsFn);
+  const setPermissions = useServerFn(setUserPermissionsFn);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useQuery({
+    queryKey: ["user-permissions", workspaceId, member.id],
+    queryFn: async () => {
+      const data = await getPermissions({ data: { workspaceId, userId: member.id } });
+      setSelected(data || []);
+      setLoaded(true);
+      return data;
+    },
+  });
+
+  const save = useMutation({
+    mutationFn: async () => {
+      await setPermissions({
+        data: {
+          workspaceId,
+          userId: member.id,
+          permissions: selected,
+        },
+      });
+    },
+    onSuccess: () => {
+      toast.success(`Finance permissions updated for ${member.full_name}`);
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggle = (permId: string) => {
+    setSelected((prev) => {
+      if (prev.includes(permId)) {
+        return prev.filter((p) => p !== permId);
+      } else {
+        const next = [...prev, permId];
+        if (!next.includes("finance.view")) {
+          next.push("finance.view");
+        }
+        return next;
+      }
+    });
+  };
+
+  const grantAll = () => {
+    setSelected(FINANCE_PERMISSIONS.map((p) => p.id));
+  };
+
+  const revokeAll = () => {
+    setSelected([]);
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            Finance Permissions · {member.full_name}
+          </DialogTitle>
+          <DialogDescription>
+            Configure granular finance access for user <code className="bg-muted px-1 rounded">{member.user_code}</code> ({member.role}).
+            By default, employees have Finance disabled. All permissions are enforced server-side.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex items-center justify-between py-2 border-b border-border">
+          <div className="text-xs text-muted-foreground">
+            {selected.length} of {FINANCE_PERMISSIONS.length} permissions granted
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={grantAll}>
+              Grant All Finance
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive" onClick={revokeAll}>
+              Revoke All
+            </Button>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto space-y-3 py-3 pr-1 flex-1">
+          {!loaded ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            FINANCE_PERMISSIONS.map((p) => {
+              const isChecked = selected.includes(p.id);
+              return (
+                <label
+                  key={p.id}
+                  className={`flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
+                    isChecked
+                      ? "border-primary/40 bg-primary/5"
+                      : "border-border hover:bg-muted/40"
+                  }`}
+                >
+                  <Checkbox
+                    checked={isChecked}
+                    onCheckedChange={() => toggle(p.id)}
+                    className="mt-0.5"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground">{p.label}</p>
+                    <p className="text-xs text-muted-foreground">{p.description}</p>
+                  </div>
+                </label>
+              );
+            })
+          )}
+        </div>
+
+        <DialogFooter className="border-t border-border pt-3">
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={!loaded || save.isPending} onClick={() => save.mutate()}>
+            {save.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Save Permissions
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

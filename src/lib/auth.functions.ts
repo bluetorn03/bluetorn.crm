@@ -218,6 +218,15 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
     ]);
   }
 
+  // Load permissions for current user in their workspace
+  const userPermRows = profile.workspace_id
+    ? await query<{ permission: string }>(
+        "SELECT permission FROM user_permissions WHERE workspace_id = ? AND user_id = ?",
+        [profile.workspace_id, profile.id],
+      )
+    : [];
+  const permissions = userPermRows.map((r) => r.permission);
+
   // Load all workspaces for super admin
   let allWorkspaces: Workspace[] = [];
   if (role.role === "super_admin") {
@@ -240,10 +249,12 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
       isActive: Boolean(profile.is_active),
     },
     role: role.role,
+    permissions,
     workspaces: allWorkspaces.map((w) => ({
       id: w.id,
       code: w.code,
       name: w.name,
+      legalName: w.legal_name,
       industry: w.industry,
       plan: w.plan,
       status: w.status,
@@ -252,6 +263,22 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
       dateFormat: w.date_format,
       timeFormat: w.time_format,
       logoUrl: w.logo_url,
+      contactEmail: w.contact_email,
+      contactPhone: w.contact_phone,
+      address: w.address,
+      gstin: w.gstin ?? null,
+      pan: w.pan ?? null,
+      state: w.state ?? null,
+      stateCode: w.state_code ?? null,
+      website: w.website ?? null,
+      bankName: w.bank_name ?? null,
+      bankAccountNo: w.bank_account_no ?? null,
+      bankAccountName: w.bank_account_name ?? null,
+      bankIfsc: w.bank_ifsc ?? null,
+      invoicePrefix: w.invoice_prefix ?? "INV",
+      defaultPaymentTermsDays: w.default_payment_terms_days ?? 14,
+      defaultInvoiceNotes: w.default_invoice_notes ?? null,
+      defaultInvoiceTerms: w.default_invoice_terms ?? null,
       seatLimit: w.seat_limit,
     })),
     primaryWorkspaceId: profile.workspace_id,
@@ -293,3 +320,38 @@ export const requireMySqlAuth = createMiddleware({ type: "function" }).server(as
     },
   });
 });
+
+/**
+ * Server-side authorization check.
+ * - Owner and Super Admin have full access.
+ * - Employees and Managers require explicit granular permission in `user_permissions`.
+ * - Validates workspace isolation.
+ */
+export async function assertPermission(
+  context: { userId: string; workspaceId: string | null; role: string },
+  permission: string,
+  targetWorkspaceId?: string,
+): Promise<void> {
+  const wsId = targetWorkspaceId || context.workspaceId;
+  if (!wsId) throw new Error("FORBIDDEN: No workspace context.");
+
+  // Workspace isolation: user must belong to the workspace unless super_admin
+  if (context.role !== "super_admin" && context.workspaceId !== wsId) {
+    throw new Error("FORBIDDEN: Cross-workspace access denied.");
+  }
+
+  // Super admin and Owner have full access
+  if (context.role === "super_admin" || context.role === "owner") {
+    return;
+  }
+
+  // Check granular permission in database
+  const row = await queryOne<{ id: string }>(
+    "SELECT id FROM user_permissions WHERE workspace_id = ? AND user_id = ? AND permission = ? LIMIT 1",
+    [wsId, context.userId, permission],
+  );
+
+  if (!row) {
+    throw new Error(`FORBIDDEN: You do not have '${permission}' permission.`);
+  }
+}

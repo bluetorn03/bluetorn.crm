@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireMySqlAuth } from "./auth.functions";
+import { requireMySqlAuth, assertPermission } from "./auth.functions";
 import { query, queryOne, execute, transaction, uuid } from "./db";
 import { getDefaultQuickAddDueDateTime } from "./date-utils";
 import { calculateLeadScore } from "./lead-scoring";
@@ -21,15 +21,66 @@ import type {
 
 export type Member = { id: string; full_name: string; email: string | null; is_active: boolean };
 
-export type InvoiceLineInput = { description: string; quantity: number; unit_amount: number };
+export type InvoiceLineInput = {
+  id?: string;
+  description: string;
+  hsn_sac?: string | null;
+  quantity: number;
+  unit?: string;
+  rate?: number;
+  unit_amount: number;
+  discount?: number;
+  tax_rate?: number;
+  tax_type?: string;
+  tax_amount?: number;
+  line_total?: number;
+};
 
 export function invoiceTotals(lines: InvoiceLineInput[], taxRate: number) {
-  const subtotal = lines.reduce(
-    (sum, l) => sum + Number(l.quantity || 0) * Number(l.unit_amount || 0),
-    0,
-  );
-  const taxAmount = Math.round(subtotal * (Number(taxRate) || 0)) / 100;
-  return { subtotal, taxAmount, total: subtotal + taxAmount };
+  return computeInvoiceTotals(lines, taxRate);
+}
+
+export function computeInvoiceTotals(lines: InvoiceLineInput[], defaultTaxRate = 18) {
+  let subtotal = 0;
+  let totalDiscount = 0;
+  let totalTax = 0;
+
+  for (const line of lines) {
+    const qty = Number(line.quantity) || 1;
+    const rate = Number(line.rate ?? line.unit_amount ?? 0);
+    const disc = Number(line.discount) || 0;
+    const lineTaxRate = Number(line.tax_rate ?? defaultTaxRate ?? 0);
+
+    const gross = qty * rate;
+    const taxable = Math.max(0, gross - disc);
+    const taxAmt = Math.round(taxable * lineTaxRate) / 100;
+
+    subtotal += gross;
+    totalDiscount += disc;
+    totalTax += taxAmt;
+  }
+
+  const taxableAmount = Math.max(0, subtotal - totalDiscount);
+  const total = taxableAmount + totalTax;
+
+  // Intra-state split
+  const cgst = Math.round((totalTax / 2) * 100) / 100;
+  const sgst = Math.round((totalTax - cgst) * 100) / 100;
+  const igst = 0;
+  const cess = 0;
+
+  return {
+    subtotal: Math.round(subtotal * 100) / 100,
+    discount: Math.round(totalDiscount * 100) / 100,
+    taxableAmount: Math.round(taxableAmount * 100) / 100,
+    cgst,
+    sgst,
+    igst,
+    cess,
+    taxAmount: Math.round(totalTax * 100) / 100,
+    total: Math.round(total * 100) / 100,
+    effectiveTaxRate: defaultTaxRate,
+  };
 }
 
 /* -------------------------------- members --------------------------------- */
@@ -1149,17 +1200,35 @@ export const deleteEventFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await execute("DELETE FROM calendar_events WHERE id = ?", [data.id]);
     return { ok: true };
-  });
-
-/* --------------------------------- finance -------------------------------- */
+  });/* --------------------------------- finance -------------------------------- */
 
 export const listInvoicesFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .validator((input: { workspaceId: string }) => input)
-  .handler(async ({ data }): Promise<Invoice[]> => {
+  .handler(async ({ data, context }): Promise<Invoice[]> => {
+    const wsId = getTargetWorkspaceId(data.workspaceId, context);
+    await assertPermission(context, "view.finance", wsId);
+
     return query<Invoice>(
-      "SELECT * FROM invoices WHERE workspace_id = ? ORDER BY created_at DESC",
-      [data.workspaceId],
+      `SELECT i.*, 
+              c.name as customer_name, c.email as customer_email, c.phone as customer_phone, c.city as customer_city,
+              l.name as lead_name,
+              p.name as property_name,
+              cb.full_name as created_by_name,
+              cb.full_name as creator_name,
+              at.full_name as assigned_to_name,
+              at.full_name as assignee_name,
+              ub.full_name as updated_by_name
+       FROM invoices i
+       LEFT JOIN customers c ON i.customer_id = c.id
+       LEFT JOIN leads l ON i.lead_id = l.id
+       LEFT JOIN properties p ON i.property_id = p.id
+       LEFT JOIN profiles cb ON i.created_by = cb.id
+       LEFT JOIN profiles at ON i.assigned_to = at.id
+       LEFT JOIN profiles ub ON i.updated_by = ub.id
+       WHERE i.workspace_id = ?
+       ORDER BY i.issue_date DESC, i.created_at DESC`,
+      [wsId],
     );
   });
 
@@ -1169,36 +1238,109 @@ export const getInvoiceFn = createServerFn({ method: "GET" })
   .handler(
     async ({
       data,
-    }): Promise<{ invoice: Invoice; items: InvoiceItem[]; payments: Payment[] } | null> => {
-      const invoice = await queryOne<Invoice>("SELECT * FROM invoices WHERE id = ?", [data.id]);
+      context,
+    }): Promise<{
+      invoice: Invoice;
+      items: InvoiceItem[];
+      payments: Payment[];
+      activities: AuditLog[];
+    } | null> => {
+      const invoice = await queryOne<Invoice>(
+        `SELECT i.*, 
+                c.name as customer_name, c.email as customer_email, c.phone as customer_phone, c.city as customer_city,
+                l.name as lead_name,
+                p.name as property_name,
+                cb.full_name as created_by_name,
+                cb.full_name as creator_name,
+                at.full_name as assigned_to_name,
+                at.full_name as assignee_name,
+                ub.full_name as updated_by_name,
+                cl.full_name as cancelled_by_name
+         FROM invoices i
+         LEFT JOIN customers c ON i.customer_id = c.id
+         LEFT JOIN leads l ON i.lead_id = l.id
+         LEFT JOIN properties p ON i.property_id = p.id
+         LEFT JOIN profiles cb ON i.created_by = cb.id
+         LEFT JOIN profiles at ON i.assigned_to = at.id
+         LEFT JOIN profiles ub ON i.updated_by = ub.id
+         LEFT JOIN profiles cl ON i.cancelled_by = cl.id
+         WHERE i.id = ? LIMIT 1`,
+        [data.id],
+      );
       if (!invoice) return null;
+
+      await assertPermission(context, "view.finance", invoice.workspace_id);
+
       const items = await query<InvoiceItem>(
-        "SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY position",
+        "SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY position ASC",
         [data.id],
       );
+
       const payments = await query<Payment>(
-        "SELECT * FROM payments WHERE invoice_id = ? ORDER BY paid_at DESC",
+        `SELECT p.*,
+                cb.full_name as created_by_name,
+                cb.full_name as creator_name,
+                at.full_name as assigned_to_name,
+                at.full_name as assignee_name,
+                rb.full_name as reversed_by_name
+         FROM payments p
+         LEFT JOIN profiles cb ON p.created_by = cb.id
+         LEFT JOIN profiles at ON p.assigned_to = at.id
+         LEFT JOIN profiles rb ON p.reversed_by = rb.id
+         WHERE p.invoice_id = ?
+         ORDER BY p.paid_at DESC`,
         [data.id],
       );
-      return { invoice, items, payments };
+
+      const activities = await query<AuditLog>(
+        `SELECT * FROM audit_logs 
+         WHERE workspace_id = ? AND entity_type = 'invoice' AND entity_id = ? 
+         ORDER BY created_at DESC LIMIT 20`,
+        [invoice.workspace_id, data.id],
+      );
+
+      return { invoice, items, payments, activities };
     },
   );
 
 export const nextInvoiceNumberFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .validator((input: { workspaceId: string }) => input)
-  .handler(async ({ data }): Promise<string> => {
-    const rows = await query<{ invoice_number: string }>(
-      "SELECT invoice_number FROM invoices WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 50",
-      [data.workspaceId],
+  .handler(async ({ data, context }): Promise<{ invoiceNumber: string; prefix: string; financialYear: string }> => {
+    const wsId = getTargetWorkspaceId(data.workspaceId, context);
+    await assertPermission(context, "create.invoice", wsId);
+
+    const ws = await queryOne<{ invoice_prefix: string }>(
+      "SELECT invoice_prefix FROM workspaces WHERE id = ? LIMIT 1",
+      [wsId],
     );
-    const year = new Date().getFullYear();
-    let max = 0;
+    const prefix = ws?.invoice_prefix?.trim() || "INV";
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const fyStart = currentMonth >= 4 ? currentYear : currentYear - 1;
+    const fyEnd = (fyStart + 1) % 100;
+    const financialYear = `${fyStart}-${String(fyEnd).padStart(2, "0")}`;
+
+    const rows = await query<{ invoice_number: string }>(
+      "SELECT invoice_number FROM invoices WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 100",
+      [wsId],
+    );
+
+    let maxSeq = 0;
     for (const r of rows) {
-      const m = /(\d+)\s*$/.exec(r.invoice_number ?? "");
-      if (m?.[1]) max = Math.max(max, Number(m[1]));
+      const num = r.invoice_number ?? "";
+      const m = /(\d+)\s*$/.exec(num);
+      if (m?.[1]) {
+        maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+      }
     }
-    return `INV-${year}-${String(max + 1).padStart(4, "0")}`;
+
+    const nextSeq = String(maxSeq + 1).padStart(4, "0");
+    const invoiceNumber = `${prefix}-${currentYear}-${nextSeq}`;
+
+    return { invoiceNumber, prefix, financialYear };
   });
 
 export const saveInvoiceFn = createServerFn({ method: "POST" })
@@ -1207,95 +1349,201 @@ export const saveInvoiceFn = createServerFn({ method: "POST" })
     (input: {
       id?: string;
       workspaceId: string;
-      userId: string;
       invoice: {
         invoice_number: string;
+        financial_year?: string | null;
+        invoice_type?: string;
         customer_id?: string | null;
+        lead_id?: string | null;
         property_id?: string | null;
+        assigned_to?: string | null;
         status?: string;
         issue_date: string;
         due_date?: string | null;
         currency?: string;
         tax_rate?: number;
+        place_of_supply?: string | null;
         notes?: string | null;
+        terms?: string | null;
       };
       lines: InvoiceLineInput[];
     }) => input,
   )
-  .handler(async ({ data }): Promise<Invoice> => {
-    const { subtotal, taxAmount, total } = invoiceTotals(
-      data.lines,
-      Number(data.invoice.tax_rate ?? 0),
-    );
+  .handler(async ({ data, context }): Promise<Invoice> => {
+    const wsId = getTargetWorkspaceId(data.workspaceId, context);
+    const isNew = !data.id;
+    await assertPermission(context, isNew ? "create.invoice" : "edit.invoice", wsId);
+
+    const calc = computeInvoiceTotals(data.lines, data.invoice.tax_rate ?? 18);
 
     return transaction(async (conn) => {
       let invoiceId: string;
 
       if (data.id) {
         invoiceId = data.id;
+        const [existingRows] = await conn.execute(
+          "SELECT id, status, workspace_id FROM invoices WHERE id = ? LIMIT 1",
+          [invoiceId],
+        );
+        const existing = (existingRows as any[])[0];
+        if (!existing) throw new Error("Invoice not found.");
+        if (existing.workspace_id !== wsId) throw new Error("Unauthorized invoice access.");
+        if (existing.status === "Cancelled") {
+          throw new Error("Cannot edit a cancelled invoice.");
+        }
+
         await conn.execute(
-          `UPDATE invoices SET invoice_number=?, customer_id=?, property_id=?, status=?, issue_date=?, due_date=?, currency=?, tax_rate=?, subtotal=?, tax_amount=?, total=?, notes=? WHERE id=?`,
+          `UPDATE invoices SET 
+            invoice_number = ?, financial_year = ?, invoice_type = ?,
+            customer_id = ?, lead_id = ?, property_id = ?, assigned_to = ?, updated_by = ?,
+            status = ?, issue_date = ?, due_date = ?, currency = ?,
+            tax_rate = ?, subtotal = ?, discount = ?, taxable_amount = ?,
+            cgst = ?, sgst = ?, igst = ?, cess = ?, tax_amount = ?, total = ?,
+            place_of_supply = ?, notes = ?, terms = ?
+           WHERE id = ?`,
           [
             data.invoice.invoice_number,
-            data.invoice.customer_id ?? null,
-            data.invoice.property_id ?? null,
-            data.invoice.status ?? "Draft",
+            data.invoice.financial_year || null,
+            data.invoice.invoice_type || "Tax Invoice",
+            data.invoice.customer_id || null,
+            data.invoice.lead_id || null,
+            data.invoice.property_id || null,
+            data.invoice.assigned_to || null,
+            context.userId,
+            data.invoice.status || existing.status,
             data.invoice.issue_date,
-            data.invoice.due_date ?? null,
-            data.invoice.currency ?? "INR",
-            data.invoice.tax_rate ?? 0,
-            subtotal,
-            taxAmount,
-            total,
-            data.invoice.notes ?? null,
+            data.invoice.due_date || null,
+            data.invoice.currency || "INR",
+            calc.effectiveTaxRate,
+            calc.subtotal,
+            calc.discount,
+            calc.taxableAmount,
+            calc.cgst,
+            calc.sgst,
+            calc.igst,
+            calc.cess,
+            calc.taxAmount,
+            calc.total,
+            data.invoice.place_of_supply || null,
+            data.invoice.notes || null,
+            data.invoice.terms || null,
             invoiceId,
           ],
         );
+
         await conn.execute("DELETE FROM invoice_items WHERE invoice_id = ?", [invoiceId]);
+
+        await conn.execute(
+          `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            uuid(),
+            wsId,
+            context.userId,
+            context.role,
+            "invoice.update",
+            "invoice",
+            invoiceId,
+            JSON.stringify({ invoice_number: data.invoice.invoice_number, total: calc.total }),
+          ],
+        );
       } else {
         invoiceId = uuid();
         await conn.execute(
-          `INSERT INTO invoices (id, workspace_id, invoice_number, customer_id, property_id, status, issue_date, due_date, currency, tax_rate, subtotal, tax_amount, total, notes, created_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO invoices (
+            id, workspace_id, invoice_number, financial_year, invoice_type,
+            customer_id, lead_id, property_id, created_by, assigned_to, updated_by,
+            status, issue_date, due_date, currency,
+            tax_rate, subtotal, discount, taxable_amount,
+            cgst, sgst, igst, cess, tax_amount, total,
+            place_of_supply, notes, terms
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             invoiceId,
-            data.workspaceId,
+            wsId,
             data.invoice.invoice_number,
-            data.invoice.customer_id ?? null,
-            data.invoice.property_id ?? null,
-            data.invoice.status ?? "Draft",
+            data.invoice.financial_year || null,
+            data.invoice.invoice_type || "Tax Invoice",
+            data.invoice.customer_id || null,
+            data.invoice.lead_id || null,
+            data.invoice.property_id || null,
+            context.userId,
+            data.invoice.assigned_to || null,
+            context.userId,
+            data.invoice.status || "Draft",
             data.invoice.issue_date,
-            data.invoice.due_date ?? null,
-            data.invoice.currency ?? "INR",
-            data.invoice.tax_rate ?? 0,
-            subtotal,
-            taxAmount,
-            total,
-            data.invoice.notes ?? null,
-            data.userId,
+            data.invoice.due_date || null,
+            data.invoice.currency || "INR",
+            calc.effectiveTaxRate,
+            calc.subtotal,
+            calc.discount,
+            calc.taxableAmount,
+            calc.cgst,
+            calc.sgst,
+            calc.igst,
+            calc.cess,
+            calc.taxAmount,
+            calc.total,
+            data.invoice.place_of_supply || null,
+            data.invoice.notes || null,
+            data.invoice.terms || null,
+          ],
+        );
+
+        await conn.execute(
+          `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            uuid(),
+            wsId,
+            context.userId,
+            context.role,
+            "invoice.create",
+            "invoice",
+            invoiceId,
+            JSON.stringify({ invoice_number: data.invoice.invoice_number, total: calc.total }),
           ],
         );
       }
 
       for (let i = 0; i < data.lines.length; i++) {
         const l = data.lines[i]!;
+        const qty = Number(l.quantity) || 1;
+        const rate = Number(l.rate ?? l.unit_amount ?? 0);
+        const disc = Number(l.discount) || 0;
+        const lineTaxRate = Number(l.tax_rate ?? data.invoice.tax_rate ?? 0);
+        const lineTaxable = Math.max(0, qty * rate - disc);
+        const lineTaxAmt = Math.round(lineTaxable * lineTaxRate) / 100;
+        const lineTotal = lineTaxable + lineTaxAmt;
+
         await conn.execute(
-          `INSERT INTO invoice_items (id, workspace_id, invoice_id, description, quantity, unit_amount, amount, position)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO invoice_items (
+            id, workspace_id, invoice_id, description, hsn_sac,
+            quantity, unit, rate, unit_amount, discount,
+            tax_rate, tax_type, tax_amount, line_total, amount, position
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             uuid(),
-            data.workspaceId,
+            wsId,
             invoiceId,
             l.description,
-            l.quantity,
-            l.unit_amount,
-            Number(l.quantity || 0) * Number(l.unit_amount || 0),
+            l.hsn_sac || null,
+            qty,
+            l.unit || "Units",
+            rate,
+            rate,
+            disc,
+            lineTaxRate,
+            l.tax_type || "GST",
+            lineTaxAmt,
+            lineTotal,
+            lineTotal,
             i,
           ],
         );
       }
 
-      const [rows] = await conn.execute("SELECT * FROM invoices WHERE id = ?", [invoiceId]);
+      const [rows] = await conn.execute("SELECT * FROM invoices WHERE id = ? LIMIT 1", [invoiceId]);
       return (rows as Invoice[])[0]!;
     });
   });
@@ -1303,60 +1551,242 @@ export const saveInvoiceFn = createServerFn({ method: "POST" })
 export const updateInvoiceStatusFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string; status: string }) => input)
-  .handler(async ({ data }): Promise<Invoice> => {
-    await execute("UPDATE invoices SET status = ? WHERE id = ?", [data.status, data.id]);
+  .handler(async ({ data, context }): Promise<Invoice> => {
+    const invoice = await queryOne<Invoice>("SELECT * FROM invoices WHERE id = ? LIMIT 1", [data.id]);
+    if (!invoice) throw new Error("Invoice not found.");
+
+    if (data.status === "Sent") {
+      await assertPermission(context, "issue.invoice", invoice.workspace_id);
+    } else if (data.status === "Cancelled") {
+      await assertPermission(context, "cancel.invoice", invoice.workspace_id);
+    } else {
+      await assertPermission(context, "edit.invoice", invoice.workspace_id);
+    }
+
+    await execute(
+      "UPDATE invoices SET status = ?, updated_by = ? WHERE id = ?",
+      [data.status, context.userId, data.id],
+    );
+
+    await execute(
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        uuid(),
+        invoice.workspace_id,
+        context.userId,
+        context.role,
+        data.status === "Sent" ? "invoice.issue" : "invoice.status_change",
+        "invoice",
+        data.id,
+        JSON.stringify({ from: invoice.status, to: data.status }),
+      ],
+    );
+
+    return (await queryOne<Invoice>("SELECT * FROM invoices WHERE id = ?", [data.id]))!;
+  });
+
+export const cancelInvoiceFn = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .validator((input: { id: string; reason: string }) => input)
+  .handler(async ({ data, context }): Promise<Invoice> => {
+    if (!data.reason?.trim()) {
+      throw new Error("A cancellation reason is required.");
+    }
+    const invoice = await queryOne<Invoice>("SELECT * FROM invoices WHERE id = ? LIMIT 1", [data.id]);
+    if (!invoice) throw new Error("Invoice not found.");
+
+    await assertPermission(context, "cancel.invoice", invoice.workspace_id);
+
+    if (invoice.status === "Cancelled") {
+      throw new Error("Invoice is already cancelled.");
+    }
+
+    await execute(
+      `UPDATE invoices SET 
+        status = 'Cancelled', cancellation_reason = ?, cancelled_at = NOW(), cancelled_by = ?, updated_by = ?
+       WHERE id = ?`,
+      [data.reason.trim(), context.userId, context.userId, data.id],
+    );
+
+    await execute(
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        uuid(),
+        invoice.workspace_id,
+        context.userId,
+        context.role,
+        "invoice.cancel",
+        "invoice",
+        data.id,
+        JSON.stringify({ reason: data.reason }),
+      ],
+    );
+
     return (await queryOne<Invoice>("SELECT * FROM invoices WHERE id = ?", [data.id]))!;
   });
 
 export const deleteInvoiceFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string }) => input)
-  .handler(async ({ data }) => {
-    await execute("DELETE FROM invoices WHERE id = ?", [data.id]);
+  .handler(async ({ data, context }) => {
+    const invoice = await queryOne<Invoice>("SELECT * FROM invoices WHERE id = ? LIMIT 1", [data.id]);
+    if (!invoice) throw new Error("Invoice not found.");
+
+    await assertPermission(context, "cancel.invoice", invoice.workspace_id);
+
+    // Strictly enforce: ONLY Draft invoices may be deleted
+    if (invoice.status !== "Draft") {
+      throw new Error(
+        `Financial safety policy: Only Draft invoices may be permanently deleted. Invoice '${invoice.invoice_number}' has status '${invoice.status}'. Please use Cancel/Void instead.`,
+      );
+    }
+
+    await transaction(async (conn) => {
+      await conn.execute("DELETE FROM invoice_items WHERE invoice_id = ?", [data.id]);
+      await conn.execute("DELETE FROM invoices WHERE id = ?", [data.id]);
+
+      await conn.execute(
+        `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          uuid(),
+          invoice.workspace_id,
+          context.userId,
+          context.role,
+          "invoice.delete",
+          "invoice",
+          data.id,
+          JSON.stringify({ invoice_number: invoice.invoice_number }),
+        ],
+      );
+    });
+
     return { ok: true };
   });
 
 export const listPaymentsFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .validator((input: { workspaceId: string }) => input)
-  .handler(async ({ data }): Promise<Payment[]> => {
-    return query<Payment>("SELECT * FROM payments WHERE workspace_id = ? ORDER BY paid_at DESC", [
-      data.workspaceId,
-    ]);
+  .handler(async ({ data, context }): Promise<Payment[]> => {
+    const wsId = getTargetWorkspaceId(data.workspaceId, context);
+    await assertPermission(context, "view.finance", wsId);
+
+    return query<Payment>(
+      `SELECT p.*,
+              i.invoice_number,
+              c.name as customer_name,
+              cb.full_name as created_by_name,
+              cb.full_name as creator_name,
+              at.full_name as assigned_to_name,
+              at.full_name as assignee_name,
+              rb.full_name as reversed_by_name
+       FROM payments p
+       LEFT JOIN invoices i ON p.invoice_id = i.id
+       LEFT JOIN customers c ON p.customer_id = c.id
+       LEFT JOIN profiles cb ON p.created_by = cb.id
+       LEFT JOIN profiles at ON p.assigned_to = at.id
+       LEFT JOIN profiles rb ON p.reversed_by = rb.id
+       WHERE p.workspace_id = ?
+       ORDER BY p.paid_at DESC`,
+      [wsId],
+    );
   });
 
 export const createPaymentFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
-  .validator((input: Partial<Payment> & { workspace_id: string; amount: number }) => input)
-  .handler(async ({ data }): Promise<Payment> => {
+  .validator(
+    (input: {
+      workspace_id: string;
+      invoice_id?: string | null;
+      customer_id?: string | null;
+      assigned_to?: string | null;
+      amount: number;
+      currency?: string;
+      method: string;
+      status?: string;
+      paid_at?: string;
+      reference?: string | null;
+      notes?: string | null;
+    }) => input,
+  )
+  .handler(async ({ data, context }): Promise<Payment> => {
+    const wsId = getTargetWorkspaceId(data.workspace_id, context);
+    await assertPermission(context, "record.payment", wsId);
+
+    const amount = Number(data.amount);
+    if (!amount || amount <= 0) {
+      throw new Error("Payment amount must be greater than zero.");
+    }
+
     const id = uuid();
-    await execute(
-      `INSERT INTO payments (id, workspace_id, invoice_id, customer_id, amount, currency, method, status, paid_at, reference, notes, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        data.workspace_id,
-        data.invoice_id ?? null,
-        data.customer_id ?? null,
-        data.amount,
-        data.currency ?? "INR",
-        data.method ?? "Bank Transfer",
-        data.status ?? "Received",
-        data.paid_at ?? new Date().toISOString().slice(0, 19).replace("T", " "),
-        data.reference ?? null,
-        data.notes ?? null,
-        data.created_by ?? null,
-      ],
-    );
-    const payment = (await queryOne<Payment>("SELECT * FROM payments WHERE id = ?", [id]))!;
-    if (payment.invoice_id) await reconcileInvoiceInternal(payment.invoice_id);
-    return payment;
+    const paidAt = data.paid_at || new Date().toISOString().slice(0, 19).replace("T", " ");
+
+    return transaction(async (conn) => {
+      await conn.execute(
+        `INSERT INTO payments (
+          id, workspace_id, invoice_id, customer_id, assigned_to,
+          amount, currency, method, status, paid_at, reference, notes, created_by, updated_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          wsId,
+          data.invoice_id || null,
+          data.customer_id || null,
+          data.assigned_to || null,
+          amount,
+          data.currency || "INR",
+          data.method || "Bank Transfer",
+          data.status || "Received",
+          paidAt,
+          data.reference?.trim() || null,
+          data.notes?.trim() || null,
+          context.userId,
+          context.userId,
+        ],
+      );
+
+      await conn.execute(
+        `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          uuid(),
+          wsId,
+          context.userId,
+          context.role,
+          "payment.create",
+          "payment",
+          id,
+          JSON.stringify({ amount, method: data.method, invoice_id: data.invoice_id }),
+        ],
+      );
+
+      if (data.invoice_id) {
+        await reconcileInvoiceWithConn(conn, data.invoice_id);
+      }
+
+      const [rows] = await conn.execute(
+        `SELECT p.*, i.invoice_number, c.name as customer_name 
+         FROM payments p 
+         LEFT JOIN invoices i ON p.invoice_id = i.id 
+         LEFT JOIN customers c ON p.customer_id = c.id 
+         WHERE p.id = ? LIMIT 1`,
+        [id],
+      );
+      return (rows as Payment[])[0]!;
+    });
   });
 
 export const updatePaymentFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string; patch: Partial<Payment> }) => input)
-  .handler(async ({ data }): Promise<Payment> => {
+  .handler(async ({ data, context }): Promise<Payment> => {
+    const existing = await queryOne<Payment>("SELECT * FROM payments WHERE id = ? LIMIT 1", [data.id]);
+    if (!existing) throw new Error("Payment not found.");
+
+    await assertPermission(context, "edit.payment", existing.workspace_id);
+
     const sets: string[] = [];
     const vals: unknown[] = [];
     for (const [key, val] of Object.entries(data.patch)) {
@@ -1365,43 +1795,128 @@ export const updatePaymentFn = createServerFn({ method: "POST" })
       vals.push(val);
     }
     if (sets.length > 0) {
+      sets.push("`updated_by` = ?");
+      vals.push(context.userId);
       vals.push(data.id);
       await execute(`UPDATE payments SET ${sets.join(", ")} WHERE id = ?`, vals);
     }
-    const payment = (await queryOne<Payment>("SELECT * FROM payments WHERE id = ?", [data.id]))!;
-    if (payment.invoice_id) await reconcileInvoiceInternal(payment.invoice_id);
-    return payment;
+
+    if (existing.invoice_id) {
+      await reconcileInvoiceInternal(existing.invoice_id);
+    }
+
+    return (await queryOne<Payment>("SELECT * FROM payments WHERE id = ?", [data.id]))!;
+  });
+
+export const reversePaymentFn = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .validator((input: { id: string; reason: string }) => input)
+  .handler(async ({ data, context }): Promise<Payment> => {
+    if (!data.reason?.trim()) {
+      throw new Error("Reversal reason is required.");
+    }
+    const payment = await queryOne<Payment>("SELECT * FROM payments WHERE id = ? LIMIT 1", [data.id]);
+    if (!payment) throw new Error("Payment not found.");
+
+    await assertPermission(context, "reverse.payment", payment.workspace_id);
+
+    if (payment.status === "Reversed") {
+      throw new Error("Payment is already reversed.");
+    }
+
+    return transaction(async (conn) => {
+      await conn.execute(
+        `UPDATE payments SET 
+          status = 'Reversed', reversal_reason = ?, reversed_at = NOW(), reversed_by = ?, updated_by = ?
+         WHERE id = ?`,
+        [data.reason.trim(), context.userId, context.userId, data.id],
+      );
+
+      await conn.execute(
+        `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          uuid(),
+          payment.workspace_id,
+          context.userId,
+          context.role,
+          "payment.reverse",
+          "payment",
+          data.id,
+          JSON.stringify({ reason: data.reason, amount: payment.amount }),
+        ],
+      );
+
+      if (payment.invoice_id) {
+        await reconcileInvoiceWithConn(conn, payment.invoice_id);
+      }
+
+      const [rows] = await conn.execute("SELECT * FROM payments WHERE id = ?", [data.id]);
+      return (rows as Payment[])[0]!;
+    });
   });
 
 export const deletePaymentFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string }) => input)
-  .handler(async ({ data }) => {
-    const existing = await queryOne<Payment>("SELECT * FROM payments WHERE id = ?", [data.id]);
+  .handler(async ({ data, context }) => {
+    const existing = await queryOne<Payment>("SELECT * FROM payments WHERE id = ? LIMIT 1", [data.id]);
+    if (!existing) throw new Error("Payment not found.");
+
+    await assertPermission(context, "reverse.payment", existing.workspace_id);
+
+    if (existing.status === "Received") {
+      throw new Error(
+        "Financial safety policy: Received payments cannot be hard-deleted. Please use Reverse Payment instead to keep financial records audited.",
+      );
+    }
+
     await execute("DELETE FROM payments WHERE id = ?", [data.id]);
-    if (existing?.invoice_id) await reconcileInvoiceInternal(existing.invoice_id);
+    if (existing.invoice_id) await reconcileInvoiceInternal(existing.invoice_id);
     return { ok: true };
   });
 
-async function reconcileInvoiceInternal(invoiceId: string) {
-  const invoice = await queryOne<Invoice>("SELECT * FROM invoices WHERE id = ?", [invoiceId]);
-  if (!invoice || invoice.status === "Cancelled") return;
-
-  const payments = await query<Pick<Payment, "amount" | "status">>(
-    "SELECT amount, status FROM payments WHERE invoice_id = ?",
+async function reconcileInvoiceWithConn(conn: any, invoiceId: string) {
+  const [invRows] = await conn.execute(
+    "SELECT id, total, status, due_date FROM invoices WHERE id = ? LIMIT 1",
     [invoiceId],
   );
-  const paid = payments
-    .filter((p) => p.status === "Received")
-    .reduce((sum, p) => sum + Number(p.amount), 0);
-  const total = Number(invoice.total);
-  let status = invoice.status;
-  if (paid <= 0) status = invoice.status === "Draft" ? "Draft" : "Sent";
-  else if (paid + 0.01 < total) status = "Partially Paid";
-  else status = "Paid";
-  if (status !== invoice.status) {
-    await execute("UPDATE invoices SET status = ? WHERE id = ?", [status, invoiceId]);
+  const inv = (invRows as any[])[0];
+  if (!inv || inv.status === "Cancelled") return;
+
+  const [payRows] = await conn.execute(
+    "SELECT amount FROM payments WHERE invoice_id = ? AND status = 'Received'",
+    [invoiceId],
+  );
+  const paidTotal = (payRows as any[]).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const invoiceTotal = Number(inv.total || 0);
+
+  let newStatus = inv.status;
+  if (paidTotal <= 0) {
+    newStatus = inv.status === "Draft" ? "Draft" : "Sent";
+  } else if (paidTotal + 0.01 < invoiceTotal) {
+    newStatus = "Partially Paid";
+  } else {
+    newStatus = "Paid";
   }
+
+  // Check overdue: if balance > 0 and due_date passed
+  if (newStatus !== "Paid" && newStatus !== "Draft" && inv.due_date) {
+    const due = new Date(inv.due_date);
+    if (due < new Date()) {
+      newStatus = "Overdue";
+    }
+  }
+
+  if (newStatus !== inv.status) {
+    await conn.execute("UPDATE invoices SET status = ? WHERE id = ?", [newStatus, invoiceId]);
+  }
+}
+
+async function reconcileInvoiceInternal(invoiceId: string) {
+  await transaction(async (conn) => {
+    await reconcileInvoiceWithConn(conn, invoiceId);
+  });
 }
 
 export const reconcileInvoiceFn = createServerFn({ method: "POST" })
@@ -1410,6 +1925,179 @@ export const reconcileInvoiceFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await reconcileInvoiceInternal(data.invoiceId);
     return { ok: true };
+  });
+
+export type FinanceReportsData = {
+  revenueMtd: number;
+  revenueYtd: number;
+  totalInvoiced: number;
+  totalPaid: number;
+  totalOutstanding: number;
+  totalOverdue: number;
+  invoiceCount: number;
+  paymentCount: number;
+  statusDistribution: { status: string; count: number; total: number }[];
+  methodDistribution: { method: string; count: number; total: number }[];
+  teamAttribution: {
+    userId: string;
+    userName: string;
+    invoicesCreated: number;
+    paymentsCollected: number;
+  }[];
+  recentActivity: {
+    id: string;
+    action: string;
+    actor: string;
+    target: string;
+    at: string;
+  }[];
+};
+
+export const getFinanceReportsFn = createServerFn({ method: "GET" })
+  .middleware([requireMySqlAuth])
+  .validator((input: { workspaceId: string }) => input)
+  .handler(async ({ data, context }): Promise<FinanceReportsData> => {
+    const wsId = getTargetWorkspaceId(data.workspaceId, context);
+    await assertPermission(context, "view.finance_reports", wsId);
+
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+      .toISOString()
+      .slice(0, 19)
+      .replace("T", " ");
+
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const fyStart = currentMonth >= 4 ? currentYear : currentYear - 1;
+    const firstDayOfFy = `${fyStart}-04-01 00:00:00`;
+
+    // 1. Revenue MTD & YTD
+    const revMtdRow = await queryOne<{ val: number }>(
+      "SELECT COALESCE(SUM(amount), 0) as val FROM payments WHERE workspace_id = ? AND status = 'Received' AND paid_at >= ?",
+      [wsId, firstDayOfMonth],
+    );
+    const revYtdRow = await queryOne<{ val: number }>(
+      "SELECT COALESCE(SUM(amount), 0) as val FROM payments WHERE workspace_id = ? AND status = 'Received' AND paid_at >= ?",
+      [wsId, firstDayOfFy],
+    );
+
+    // 2. Total Invoiced & Invoice count
+    const invSumRow = await queryOne<{ total: number; cnt: number }>(
+      "SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as cnt FROM invoices WHERE workspace_id = ? AND status != 'Cancelled'",
+      [wsId],
+    );
+
+    // 3. Total Received & Payment count
+    const paySumRow = await queryOne<{ total: number; cnt: number }>(
+      "SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as cnt FROM payments WHERE workspace_id = ? AND status = 'Received'",
+      [wsId],
+    );
+
+    // 4. Overdue
+    const overdueRow = await queryOne<{ total: number }>(
+      "SELECT COALESCE(SUM(total), 0) as total FROM invoices WHERE workspace_id = ? AND status = 'Overdue'",
+      [wsId],
+    );
+
+    const totalInvoiced = Number(invSumRow?.total ?? 0);
+    const totalPaid = Number(paySumRow?.total ?? 0);
+    const totalOutstanding = Math.max(0, totalInvoiced - totalPaid);
+    const totalOverdue = Number(overdueRow?.total ?? 0);
+
+    // 5. Status distribution
+    const statusRows = await query<{ status: string; count: number; total: number }>(
+      "SELECT status, COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM invoices WHERE workspace_id = ? GROUP BY status",
+      [wsId],
+    );
+
+    // 6. Method distribution
+    const methodRows = await query<{ method: string; count: number; total: number }>(
+      "SELECT method, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM payments WHERE workspace_id = ? AND status = 'Received' GROUP BY method",
+      [wsId],
+    );
+
+    // 7. Team attribution
+    const teamInvoices = await query<{ created_by: string; cnt: number }>(
+      "SELECT created_by, COUNT(*) as cnt FROM invoices WHERE workspace_id = ? AND created_by IS NOT NULL GROUP BY created_by",
+      [wsId],
+    );
+    const teamPayments = await query<{ created_by: string; total: number }>(
+      "SELECT created_by, COALESCE(SUM(amount), 0) as total FROM payments WHERE workspace_id = ? AND status = 'Received' AND created_by IS NOT NULL GROUP BY created_by",
+      [wsId],
+    );
+    const profiles = await query<{ id: string; full_name: string }>(
+      "SELECT id, full_name FROM profiles WHERE workspace_id = ?",
+      [wsId],
+    );
+    const profMap = new Map(profiles.map((p) => [p.id, p.full_name]));
+    const invMap = new Map(teamInvoices.map((r) => [r.created_by, Number(r.cnt)]));
+    const payMap = new Map(teamPayments.map((r) => [r.created_by, Number(r.total)]));
+
+    const userIds = Array.from(
+      new Set([
+        ...teamInvoices.map((i) => i.created_by),
+        ...teamPayments.map((p) => p.created_by),
+      ]),
+    );
+    const teamAttribution = userIds.map((uid) => ({
+      userId: uid,
+      userName: profMap.get(uid) || "User",
+      invoicesCreated: invMap.get(uid) || 0,
+      paymentsCollected: payMap.get(uid) || 0,
+    }));
+
+    // 8. Recent activity
+    const auditRows = await query<{
+      id: string;
+      action: string;
+      actor_label: string;
+      metadata: string;
+      created_at: string;
+    }>(
+      `SELECT a.id, a.action, COALESCE(p.full_name, a.actor_label, 'User') as actor_label, a.metadata, a.created_at
+       FROM audit_logs a
+       LEFT JOIN profiles p ON a.actor_id = p.id
+       WHERE a.workspace_id = ? AND (a.action LIKE '%invoice%' OR a.action LIKE '%payment%')
+       ORDER BY a.created_at DESC LIMIT 15`,
+      [wsId],
+    );
+
+    const recentActivity = auditRows.map((a) => {
+      let meta: any = {};
+      try {
+        meta = JSON.parse(a.metadata || "{}");
+      } catch {}
+      return {
+        id: a.id,
+        action: a.action,
+        actor: a.actor_label,
+        target: meta.invoice_number || (meta.amount ? `₹${meta.amount}` : "record"),
+        at: a.created_at,
+      };
+    });
+
+    return {
+      revenueMtd: Number(revMtdRow?.val ?? 0),
+      revenueYtd: Number(revYtdRow?.val ?? 0),
+      totalInvoiced,
+      totalPaid,
+      totalOutstanding,
+      totalOverdue,
+      invoiceCount: Number(invSumRow?.cnt ?? 0),
+      paymentCount: Number(paySumRow?.cnt ?? 0),
+      statusDistribution: statusRows.map((s) => ({
+        status: s.status,
+        count: Number(s.count),
+        total: Number(s.total),
+      })),
+      methodDistribution: methodRows.map((m) => ({
+        method: m.method,
+        count: Number(m.count),
+        total: Number(m.total),
+      })),
+      teamAttribution,
+      recentActivity,
+    };
   });
 
 /* ----------------------------- platform config ---------------------------- */
@@ -1739,29 +2427,46 @@ export const getDashboardDataFn = createServerFn({ method: "GET" })
       upcomingVisitsParams,
     );
 
+    let canViewFinance = false;
+    if (context.role === "owner" || context.role === "super_admin") {
+      canViewFinance = true;
+    } else {
+      const permCheck = await queryOne<{ id: string }>(
+        "SELECT id FROM user_permissions WHERE workspace_id = ? AND user_id = ? AND permission = 'view.finance' LIMIT 1",
+        [wsId, userId],
+      );
+      canViewFinance = Boolean(permCheck);
+    }
+
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
       .toISOString()
       .slice(0, 19)
       .replace("T", " ");
 
-    const mtdRevRow = await queryOne<{ total: number }>(
-      "SELECT SUM(amount) as total FROM payments WHERE workspace_id = ? AND status = 'Received' AND paid_at >= ?",
-      [wsId, firstDayOfMonth],
-    );
+    let mtdRevRow: { total: number } | null = null;
+    let pendingPayRow: { total: number; c: number } | null = null;
+    let pendingInvoicesRaw: (Invoice & { customer_name?: string })[] = [];
 
-    const pendingPayRow = await queryOne<{ total: number; c: number }>(
-      "SELECT SUM(total) as total, COUNT(*) as c FROM invoices WHERE workspace_id = ? AND status IN ('Overdue', 'Partially Paid', 'Sent')",
-      [wsId],
-    );
+    if (canViewFinance) {
+      mtdRevRow = await queryOne<{ total: number }>(
+        "SELECT SUM(amount) as total FROM payments WHERE workspace_id = ? AND status = 'Received' AND paid_at >= ?",
+        [wsId, firstDayOfMonth],
+      );
 
-    const pendingInvoicesRaw = await query<Invoice & { customer_name?: string }>(
-      `SELECT i.*, c.name as customer_name 
-       FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id 
-       WHERE i.workspace_id = ? AND i.status IN ('Overdue', 'Partially Paid', 'Sent') 
-       ORDER BY i.created_at DESC LIMIT 5`,
-      [wsId],
-    );
+      pendingPayRow = await queryOne<{ total: number; c: number }>(
+        "SELECT SUM(total) as total, COUNT(*) as c FROM invoices WHERE workspace_id = ? AND status IN ('Overdue', 'Partially Paid', 'Sent')",
+        [wsId],
+      );
+
+      pendingInvoicesRaw = await query<Invoice & { customer_name?: string }>(
+        `SELECT i.*, c.name as customer_name 
+         FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id 
+         WHERE i.workspace_id = ? AND i.status IN ('Overdue', 'Partially Paid', 'Sent') 
+         ORDER BY i.created_at DESC LIMIT 5`,
+        [wsId],
+      );
+    }
 
     const activitiesSql = isEmp
       ? `SELECT * FROM lead_activities WHERE workspace_id = ? AND (actor_id = ? OR lead_id IN (SELECT id FROM leads WHERE workspace_id = ? AND (assigned_to = ? OR created_by = ?))) ORDER BY created_at DESC LIMIT 10`

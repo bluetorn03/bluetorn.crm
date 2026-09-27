@@ -120,7 +120,11 @@ async function run() {
     }
   }
 
-  // 4. Verify tables list
+  // 4. Finance V1 Migration (user_permissions, workspace billing profile, invoice GST & attribution, payments)
+  console.log("\nRunning Finance V1 migrations...");
+  await import("./migrate-finance-v1.mjs");
+
+  // 5. Verify tables list
   const [tables] = await conn.query("SHOW TABLES");
   console.log("\nTables currently present in database:");
   for (const row of tables) {

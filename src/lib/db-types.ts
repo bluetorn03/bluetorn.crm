@@ -23,9 +23,31 @@ export interface Workspace {
   contact_email: string | null;
   contact_phone: string | null;
   address: string | null;
+  gstin?: string | null;
+  pan?: string | null;
+  state?: string | null;
+  state_code?: string | null;
+  website?: string | null;
+  bank_name?: string | null;
+  bank_account_no?: string | null;
+  bank_account_name?: string | null;
+  bank_ifsc?: string | null;
+  invoice_prefix?: string;
+  default_payment_terms_days?: number;
+  default_invoice_notes?: string | null;
+  default_invoice_terms?: string | null;
   seat_limit: number;
   created_at: string;
   updated_at: string;
+}
+
+/* ----------------------------- user_permissions ---------------------------- */
+export interface UserPermission {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  permission: string;
+  created_at: string;
 }
 
 /* --------------------------------- profiles -------------------------------- */
@@ -180,20 +202,49 @@ export interface Invoice {
   id: string;
   workspace_id: string;
   invoice_number: string;
+  financial_year?: string | null;
+  invoice_type?: string;
   customer_id: string | null;
+  lead_id?: string | null;
   property_id: string | null;
+  assigned_to?: string | null;
+  updated_by?: string | null;
   status: string;
   issue_date: string;
   due_date: string | null;
   currency: string;
   tax_rate: number;
   subtotal: number;
+  discount?: number;
+  taxable_amount?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  cess?: number;
   tax_amount: number;
   total: number;
+  place_of_supply?: string | null;
   notes: string | null;
+  terms?: string | null;
+  cancellation_reason?: string | null;
+  cancelled_at?: string | null;
+  cancelled_by?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  // Joined fields
+  customer_name?: string | null;
+  customer_email?: string | null;
+  customer_phone?: string | null;
+  customer_city?: string | null;
+  lead_name?: string | null;
+  property_name?: string | null;
+  created_by_name?: string | null;
+  assigned_to_name?: string | null;
+  creator_name?: string | null;
+  assignee_name?: string | null;
+  updated_by_name?: string | null;
+  cancelled_by_name?: string | null;
 }
 
 /* ------------------------------- invoice_items ----------------------------- */
@@ -202,10 +253,18 @@ export interface InvoiceItem {
   workspace_id: string;
   invoice_id: string;
   description: string;
+  hsn_sac?: string | null;
   quantity: number;
+  unit?: string | null;
+  rate?: number;
   unit_amount: number;
+  discount?: number;
+  tax_rate?: number;
+  tax_type?: string;
+  tax_amount?: number;
+  line_total?: number;
   amount: number;
-  position: number;
+  position?: number;
 }
 
 /* --------------------------------- payments -------------------------------- */
@@ -214,6 +273,8 @@ export interface Payment {
   workspace_id: string;
   invoice_id: string | null;
   customer_id: string | null;
+  assigned_to?: string | null;
+  updated_by?: string | null;
   amount: number;
   currency: string;
   method: string;
@@ -221,9 +282,21 @@ export interface Payment {
   paid_at: string;
   reference: string | null;
   notes: string | null;
+  reversal_reason?: string | null;
+  reversed_at?: string | null;
+  reversed_by?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  // Joined fields
+  invoice_number?: string | null;
+  customer_name?: string | null;
+  created_by_name?: string | null;
+  assigned_to_name?: string | null;
+  creator_name?: string | null;
+  assignee_name?: string | null;
+  updated_by_name?: string | null;
+  reversed_by_name?: string | null;
 }
 
 /* ----------------------------------- plans --------------------------------- */

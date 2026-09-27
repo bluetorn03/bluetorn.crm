@@ -16,9 +16,9 @@ export const Route = createFileRoute("/app/finance/invoices/")({
   head: () => ({
     meta: [
       { title: "Invoices · BLUETORN CRM" },
-      { name: "description", content: "Create, send and track invoices for your customers." },
+      { name: "description", content: "Create, send and track tax invoices for your customers." },
       { property: "og:title", content: "Invoices · BLUETORN CRM" },
-      { property: "og:description", content: "Create, send and track invoices." },
+      { property: "og:description", content: "Create, send and track tax invoices." },
     ],
   }),
   component: InvoicesPage,
@@ -26,14 +26,14 @@ export const Route = createFileRoute("/app/finance/invoices/")({
 
 function InvoicesPage() {
   return (
-    <PermissionGate requires="view.finance">
+    <PermissionGate requires={["finance.view", "manage.finance"]}>
       <InvoicesContent />
     </PermissionGate>
   );
 }
 
 function InvoicesContent() {
-  const { workspace } = useSession();
+  const { workspace, can } = useSession();
 
   const invoicesQuery = useQuery({
     queryKey: qk.invoices(workspace.id),
@@ -41,17 +41,21 @@ function InvoicesContent() {
     enabled: !!workspace.id,
   });
 
+  const canCreate = can("finance.invoices.create");
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <PageHeader
-        title="Invoices"
-        description="Create, send and track invoices for your customers."
+        title="Tax Invoices"
+        description="Manage customer billing, GST breakdowns, payments, and statutory documents."
         actions={
-          <Button asChild size="sm">
-            <Link to="/app/finance/invoices/new">
-              <Plus className="mr-1.5 h-4 w-4" /> New Invoice
-            </Link>
-          </Button>
+          canCreate && (
+            <Button asChild size="sm">
+              <Link to="/app/finance/invoices/new">
+                <Plus className="mr-1.5 h-4 w-4" /> New Invoice
+              </Link>
+            </Button>
+          )
         }
       />
 
@@ -64,9 +68,11 @@ function InvoicesContent() {
                 title="No invoices yet"
                 description="Create your first invoice to start tracking revenue."
                 action={
-                  <Button asChild>
-                    <Link to="/app/finance/invoices/new">Create Invoice</Link>
-                  </Button>
+                  canCreate ? (
+                    <Button asChild>
+                      <Link to="/app/finance/invoices/new">Create Invoice</Link>
+                    </Button>
+                  ) : undefined
                 }
               />
             );
@@ -74,31 +80,90 @@ function InvoicesContent() {
 
           return (
             <SectionCard bodyClassName="p-0">
-              <ul className="divide-border divide-y">
-                {invoices.map((inv) => (
-                  <li key={inv.id}>
-                    <Link
-                      to="/app/finance/invoices/$invoiceId"
-                      params={{ invoiceId: inv.id }}
-                      className="hover:bg-accent/50 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3.5 transition-colors sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:px-5"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">{inv.invoice_number}</p>
-                        <p className="text-muted-foreground truncate text-xs">
-                          {inv.customer_id ? `Customer` : "—"} · Issued {formatDate(inv.issue_date)}
-                        </p>
-                      </div>
-                      <p className="hidden text-sm font-medium sm:block">
-                        {formatMoney(inv.total, (inv.currency ?? "INR") as any)}
-                      </p>
-                      <p className="text-muted-foreground hidden text-xs sm:block">
-                        {inv.due_date ? `Due ${formatDate(inv.due_date)}` : "No due date"}
-                      </p>
-                      <StatusBadge label={inv.status} />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-muted-foreground text-xs uppercase tracking-wider">
+                      <th className="px-4 py-3">Invoice #</th>
+                      <th className="px-4 py-3">Customer</th>
+                      <th className="px-4 py-3">Issue Date</th>
+                      <th className="px-4 py-3">Due Date</th>
+                      <th className="px-4 py-3 text-right">Total</th>
+                      <th className="px-4 py-3">Assigned To</th>
+                      <th className="px-4 py-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {invoices.map((inv) => {
+                      const isOverdue =
+                        inv.due_date &&
+                        new Date(inv.due_date).getTime() < Date.now() &&
+                        inv.status !== "Paid" &&
+                        inv.status !== "Cancelled" &&
+                        inv.status !== "Draft";
+
+                      const displayStatus = isOverdue ? "Overdue" : inv.status;
+
+                      return (
+                        <tr
+                          key={inv.id}
+                          className="hover:bg-muted/40 cursor-pointer transition-colors"
+                        >
+                          <td className="px-4 py-3.5 font-mono font-medium text-foreground">
+                            <Link
+                              to="/app/finance/invoices/$invoiceId"
+                              params={{ invoiceId: inv.id }}
+                              className="text-primary hover:underline"
+                            >
+                              {inv.invoice_number}
+                            </Link>
+                            <span className="block text-[11px] text-muted-foreground font-sans">
+                              {inv.invoice_type || "Tax Invoice"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 font-medium text-foreground">
+                            {inv.customer_name || "Direct Customer"}
+                          </td>
+                          <td className="px-4 py-3.5 text-muted-foreground">
+                            {formatDate(inv.issue_date)}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span
+                              className={
+                                isOverdue
+                                  ? "text-destructive font-medium"
+                                  : "text-muted-foreground"
+                              }
+                            >
+                              {inv.due_date ? formatDate(inv.due_date) : "—"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-right font-semibold font-mono text-foreground">
+                            {formatMoney(inv.total, (inv.currency ?? "INR") as any)}
+                          </td>
+                          <td className="px-4 py-3.5 text-xs text-muted-foreground">
+                            {inv.assignee_name || "—"}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <StatusBadge
+                              label={displayStatus}
+                              tone={
+                                displayStatus === "Paid"
+                                  ? "success"
+                                  : displayStatus === "Overdue" || displayStatus === "Cancelled"
+                                    ? "danger"
+                                    : displayStatus === "Partially Paid"
+                                      ? "warning"
+                                      : "neutral"
+                              }
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </SectionCard>
           );
         }}

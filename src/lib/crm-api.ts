@@ -54,12 +54,15 @@ import {
   nextInvoiceNumberFn,
   saveInvoiceFn,
   updateInvoiceStatusFn,
+  cancelInvoiceFn,
   deleteInvoiceFn,
   listPaymentsFn,
   createPaymentFn,
   updatePaymentFn,
+  reversePaymentFn,
   deletePaymentFn,
   reconcileInvoiceFn,
+  getFinanceReportsFn,
   listPlansFn,
   createPlanFn,
   updatePlanFn,
@@ -79,11 +82,13 @@ import {
   markNotificationReadFn,
   markAllNotificationsReadFn,
   invoiceTotals,
+  computeInvoiceTotals,
   type Member,
   type InvoiceLineInput,
   type PlatformSettings,
   type DashboardData,
   type SearchResult,
+  type FinanceReportsData,
 } from "./crm.functions";
 
 export type {
@@ -104,11 +109,12 @@ export type {
   DashboardData,
   SearchResult,
   Notification,
+  FinanceReportsData,
 };
 
 export type Activity = DashboardData["recentActivities"][number];
 
-export { invoiceTotals };
+export { invoiceTotals, computeInvoiceTotals };
 
 export const leadStatuses = [
   "New",
@@ -336,28 +342,35 @@ export async function listInvoices(workspaceId: string): Promise<Invoice[]> {
 
 export async function getInvoice(
   id: string,
-): Promise<{ invoice: Invoice; items: InvoiceItem[]; payments: Payment[] } | null> {
+): Promise<{ invoice: Invoice; items: InvoiceItem[]; payments: Payment[]; activities?: any[] } | null> {
   return getInvoiceFn({ data: { id } });
 }
 
-export async function nextInvoiceNumber(workspaceId: string): Promise<string> {
+export async function nextInvoiceNumber(
+  workspaceId: string,
+): Promise<{ invoiceNumber: string; prefix: string; financialYear: string }> {
   return nextInvoiceNumberFn({ data: { workspaceId } });
 }
 
 export async function saveInvoice(params: {
   id?: string;
   workspaceId: string;
-  userId: string;
   invoice: {
     invoice_number: string;
+    financial_year?: string | null;
+    invoice_type?: string;
     customer_id?: string | null;
+    lead_id?: string | null;
     property_id?: string | null;
+    assigned_to?: string | null;
     status?: string;
     issue_date: string;
     due_date?: string | null;
     currency?: string;
     tax_rate?: number;
+    place_of_supply?: string | null;
     notes?: string | null;
+    terms?: string | null;
   };
   lines: InvoiceLineInput[];
 }): Promise<Invoice> {
@@ -368,6 +381,10 @@ export async function updateInvoiceStatus(id: string, status: string): Promise<I
   return updateInvoiceStatusFn({ data: { id, status } });
 }
 
+export async function cancelInvoice(id: string, reason: string): Promise<Invoice> {
+  return cancelInvoiceFn({ data: { id, reason } });
+}
+
 export async function deleteInvoice(id: string): Promise<void> {
   await deleteInvoiceFn({ data: { id } });
 }
@@ -376,9 +393,19 @@ export async function listPayments(workspaceId: string): Promise<Payment[]> {
   return listPaymentsFn({ data: { workspaceId } });
 }
 
-export async function createPayment(
-  input: Partial<Payment> & { workspace_id: string; amount: number },
-): Promise<Payment> {
+export async function createPayment(input: {
+  workspace_id: string;
+  invoice_id?: string | null;
+  customer_id?: string | null;
+  assigned_to?: string | null;
+  amount: number;
+  currency?: string;
+  method: string;
+  status?: string;
+  paid_at?: string;
+  reference?: string | null;
+  notes?: string | null;
+}): Promise<Payment> {
   return createPaymentFn({ data: input });
 }
 
@@ -386,8 +413,16 @@ export async function updatePayment(id: string, patch: Partial<Payment>): Promis
   return updatePaymentFn({ data: { id, patch } });
 }
 
+export async function reversePayment(id: string, reason: string): Promise<Payment> {
+  return reversePaymentFn({ data: { id, reason } });
+}
+
 export async function deletePayment(id: string): Promise<void> {
   await deletePaymentFn({ data: { id } });
+}
+
+export async function getFinanceReports(workspaceId: string): Promise<FinanceReportsData> {
+  return getFinanceReportsFn({ data: { workspaceId } });
 }
 
 export async function reconcileInvoice(invoiceId: string): Promise<void> {
