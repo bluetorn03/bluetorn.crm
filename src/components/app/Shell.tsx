@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Bell,
@@ -100,50 +100,15 @@ export function Shell({
             {group.label}
           </p>
           <ul className="space-y-0.5">
-            {group.items.map((item) => {
-              const expanded = isActive(item) || childActive(item);
-              const active = item.to ? isActive(item) : expanded;
-              const rowClass = cn(
-                "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors",
-                active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/60",
-              );
-              return (
-                <li key={item.to ?? item.label}>
-                  {item.to ? (
-                    <Link to={item.to} className={rowClass}>
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{item.label}</span>
-                    </Link>
-                  ) : (
-                    <div className={rowClass}>
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{item.label}</span>
-                    </div>
-                  )}
-                  {item.children && (expanded || !item.to) && (
-                    <ul className="border-sidebar-border mt-1 ml-6 space-y-0.5 border-l pl-3">
-                      {item.children.map((child) => (
-                        <li key={child.to}>
-                          <Link
-                            to={child.to}
-                            className={cn(
-                              "block rounded-md px-2 py-1.5 text-sm transition-colors",
-                              pathname === child.to || pathname.startsWith(child.to + "/")
-                                ? "text-primary font-medium"
-                                : "text-muted-foreground hover:text-foreground",
-                            )}
-                          >
-                            {child.label}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
+            {group.items.map((item) => (
+              <SidebarNavItem
+                key={item.to ?? item.label}
+                item={item}
+                pathname={pathname}
+                isActive={isActive}
+                childActive={childActive}
+              />
+            ))}
           </ul>
         </div>
       ))}
@@ -156,7 +121,7 @@ export function Shell({
   return (
     <div className="bg-background min-h-screen">
       <aside className="bg-sidebar border-sidebar-border fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r lg:flex">
-        <div className="border-sidebar-border flex h-16 items-center border-b px-4">
+        <div className="border-sidebar-border flex h-16 shrink-0 items-center border-b px-4">
           <Link to={variant === "admin" ? "/admin" : "/app"} className="min-w-0">
             <Logo size="sm" />
           </Link>
@@ -170,8 +135,8 @@ export function Shell({
       </aside>
 
       <div className="lg:pl-64">
-        <header className="bg-background/85 border-border sticky top-0 z-30 border-b backdrop-blur">
-          <div className="flex h-16 items-center gap-2 px-3 sm:px-6">
+        <header className="bg-background/85 border-border sticky top-0 z-30 h-16 border-b backdrop-blur">
+          <div className="flex h-full items-center gap-2 px-3 sm:px-6">
             <Sheet open={mobileMenu} onOpenChange={setMobileMenu}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open menu">
@@ -268,6 +233,127 @@ export function Shell({
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
+  );
+}
+
+function SidebarNavItem({
+  item,
+  pathname,
+  isActive,
+  childActive,
+}: {
+  item: NavItem;
+  pathname: string;
+  isActive: (item: NavItem) => boolean;
+  childActive: (item: NavItem) => boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const hasChildren = Boolean(item.children && item.children.length > 0);
+  const isCurrent = item.to
+    ? isActive(item) || childActive(item)
+    : childActive(item);
+
+  const rowClass = cn(
+    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors",
+    isCurrent
+      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+      : "text-sidebar-foreground hover:bg-sidebar-accent/60",
+  );
+
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    setIsOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 150);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  if (hasChildren && item.children) {
+    return (
+      <li
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className="relative"
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            setIsOpen((open) => !open);
+          }}
+          className={cn(rowClass, "cursor-pointer")}
+          aria-expanded={isOpen}
+        >
+          <item.icon className="h-4 w-4 shrink-0" />
+          <span className="truncate">{item.label}</span>
+        </button>
+
+        <div
+          className="grid transition-[grid-template-rows,opacity] duration-200 ease-in-out"
+          style={{
+            gridTemplateRows: isOpen ? "1fr" : "0fr",
+            opacity: isOpen ? 1 : 0,
+            pointerEvents: isOpen ? "auto" : "none",
+          }}
+          aria-hidden={!isOpen}
+        >
+          <div className="overflow-hidden">
+            <ul className="border-sidebar-border mt-1 ml-6 space-y-0.5 border-l pl-3">
+              {item.children.map((child) => (
+                <li key={child.to}>
+                  <Link
+                    to={child.to}
+                    className={cn(
+                      "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                      pathname === child.to || pathname.startsWith(child.to + "/")
+                        ? "text-primary font-medium"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {child.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      {item.to ? (
+        <Link to={item.to} className={rowClass}>
+          <item.icon className="h-4 w-4 shrink-0" />
+          <span className="truncate">{item.label}</span>
+        </Link>
+      ) : (
+        <div className={rowClass}>
+          <item.icon className="h-4 w-4 shrink-0" />
+          <span className="truncate">{item.label}</span>
+        </div>
+      )}
+    </li>
   );
 }
 
