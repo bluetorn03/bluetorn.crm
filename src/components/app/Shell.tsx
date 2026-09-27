@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Bell,
+  ChevronDown,
   ChevronsUpDown,
   Command as CommandIcon,
   LogOut,
@@ -305,6 +306,11 @@ function SidebarNavItem({
         >
           <item.icon className="h-4 w-4 shrink-0" />
           <span className="truncate">{item.label}</span>
+          <ChevronDown
+            className="ml-auto h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 transition-transform duration-200"
+            style={{ transform: isOpen ? "rotate(-180deg)" : "rotate(0deg)" }}
+            aria-hidden
+          />
         </button>
 
         <div
