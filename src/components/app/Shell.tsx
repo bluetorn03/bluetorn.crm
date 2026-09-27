@@ -304,6 +304,85 @@ function SidebarNavItem({
   }, []);
 
   if (hasChildren && item.children) {
+    // ── CASE A: item has its own page AND children (e.g. Leads → /app/leads + Pipeline)
+    // The label/icon area is a Link that navigates; the chevron is a separate toggle button.
+    if (item.to) {
+      const linkClass = cn(
+        "flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors",
+        isCurrent
+          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+          : "text-sidebar-foreground hover:bg-sidebar-accent/60",
+      );
+      const chevronClass = cn(
+        "flex shrink-0 items-center justify-center rounded-md p-1.5 transition-colors",
+        isCurrent
+          ? "text-sidebar-accent-foreground/70 hover:text-sidebar-accent-foreground"
+          : "text-sidebar-foreground/50 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+      );
+      return (
+        <li
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          className="relative"
+        >
+          <div className="flex items-center">
+            <Link to={item.to} className={linkClass}>
+              <item.icon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{item.label}</span>
+            </Link>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                setIsHoverOpen((h) => !h);
+              }}
+              className={chevronClass}
+              aria-label={`${showOpen ? "Collapse" : "Expand"} ${item.label} submenu`}
+              aria-expanded={showOpen}
+            >
+              <ChevronDown
+                className="h-3.5 w-3.5 transition-transform duration-200"
+                style={{ transform: showOpen ? "rotate(-180deg)" : "rotate(0deg)" }}
+                aria-hidden
+              />
+            </button>
+          </div>
+
+          <div
+            className="grid transition-[grid-template-rows,opacity] duration-200 ease-in-out"
+            style={{
+              gridTemplateRows: showOpen ? "1fr" : "0fr",
+              opacity: showOpen ? 1 : 0,
+              pointerEvents: showOpen ? "auto" : "none",
+            }}
+            aria-hidden={!showOpen}
+          >
+            <div className="overflow-hidden">
+              <ul className="border-sidebar-border mt-1 ml-6 space-y-0.5 border-l pl-3">
+                {item.children.map((child) => (
+                  <li key={child.to}>
+                    <Link
+                      to={child.to}
+                      className={cn(
+                        "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                        pathname === child.to || pathname.startsWith(child.to + "/")
+                          ? "text-primary font-medium"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {child.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </li>
+      );
+    }
+
+    // ── CASE B: dropdown-only (no own page, e.g. Finance)
+    // The entire row is a toggle button; clicking anywhere opens/closes the submenu.
     return (
       <li
         onMouseEnter={handleMouseEnter}
@@ -314,13 +393,7 @@ function SidebarNavItem({
           type="button"
           onClick={(e) => {
             e.preventDefault();
-            // If route is keeping it open, a click explicitly closes (toggles).
-            // If route is not active, toggle hover state.
-            if (isRouteOpen) {
-              setIsHoverOpen((h) => !h);
-            } else {
-              setIsHoverOpen((h) => !h);
-            }
+            setIsHoverOpen((h) => !h);
           }}
           className={cn(rowClass, "cursor-pointer")}
           aria-expanded={showOpen}
