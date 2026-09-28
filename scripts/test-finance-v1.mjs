@@ -1,11 +1,25 @@
 import mysql from "mysql2/promise";
+import fs from "node:fs";
+
+if (fs.existsSync(".env")) {
+  const envContent = fs.readFileSync(".env", "utf-8");
+  for (const line of envContent.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
+      const idx = trimmed.indexOf("=");
+      const key = trimmed.slice(0, idx).trim();
+      const val = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, "");
+      if (!(key in process.env)) process.env[key] = val;
+    }
+  }
+}
 
 const pool = mysql.createPool({
-  host: process.env.MYSQL_HOST || "localhost",
-  port: parseInt(process.env.MYSQL_PORT || "3306", 10),
-  user: process.env.MYSQL_USER || "root",
-  password: process.env.MYSQL_PASSWORD ?? "",
-  database: process.env.MYSQL_DATABASE || "bluetorn_crm",
+  host: process.env["DB_HOST"] || process.env.MYSQL_HOST || "localhost",
+  port: parseInt(process.env["DB_PORT"] || process.env.MYSQL_PORT || "3306", 10),
+  user: process.env["DB_USER"] || process.env.MYSQL_USER || "root",
+  password: process.env["DB_PASSWORD"] !== undefined ? process.env["DB_PASSWORD"] : (process.env.MYSQL_PASSWORD ?? ""),
+  database: process.env["DB_NAME"] || process.env.MYSQL_DATABASE || "bluetorn_crm",
   decimalNumbers: true,
 });
 

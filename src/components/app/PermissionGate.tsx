@@ -29,6 +29,17 @@ export function PermissionGate({
     }
   }, [status, allowed, redirect, navigate]);
 
+  if (status === "loading") {
+    return (
+      <div className="flex min-h-[300px] items-center justify-center p-12">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          Checking permissions…
+        </div>
+      </div>
+    );
+  }
+
   if (status !== "authenticated") return null;
   if (!allowed) return <PermissionDenied />;
 

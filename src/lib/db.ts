@@ -1,22 +1,25 @@
 /**
  * BLUETORN CRM — MySQL connection layer.
  *
- * Server-side only. Uses mysql2/promise for async pool.
+ * Server-side only. Uses lazy async import of mysql2/promise to prevent
+ * accidental client bundling by Vite / TanStack Start.
  * Reads DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD from process.env.
  *
- * NEVER import this file in client-side code.
+ * NEVER import this file in client-side components.
  */
-import mysql from "mysql2/promise";
-import type { PoolOptions, RowDataPacket, ResultSetHeader, Pool } from "mysql2/promise";
+import type { RowDataPacket, ResultSetHeader, Pool, PoolConnection } from "mysql2/promise";
 
 /* ----------------------------- connection pool ----------------------------- */
 
 let _pool: Pool | undefined;
 
-function getPool(): Pool {
+async function getPool(): Promise<Pool> {
   if (_pool) return _pool;
 
-  const config: PoolOptions = {
+  const mysqlModule = await import("mysql2/promise");
+  const createPool = mysqlModule.createPool || (mysqlModule as any).default?.createPool;
+
+  const config = {
     host: process.env["DB_HOST"] || "localhost",
     port: Number(process.env["DB_PORT"]) || 3306,
     database: process.env["DB_NAME"] || "bluetorn_crm",
@@ -30,7 +33,7 @@ function getPool(): Pool {
     decimalNumbers: true,
   };
 
-  _pool = mysql.createPool(config);
+  _pool = createPool(config);
   return _pool;
 }
 
@@ -38,7 +41,8 @@ function getPool(): Pool {
 
 /** Run a SELECT and return typed rows. */
 export async function query<T = RowDataPacket>(sql: string, params?: any[]): Promise<T[]> {
-  const [rows] = await getPool().execute<RowDataPacket[]>(sql, params ?? []);
+  const pool = await getPool();
+  const [rows] = await pool.execute<RowDataPacket[]>(sql, params ?? []);
   return rows as T[];
 }
 
@@ -50,13 +54,15 @@ export async function queryOne<T = RowDataPacket>(sql: string, params?: any[]): 
 
 /** Run an INSERT / UPDATE / DELETE and return the result header. */
 export async function execute(sql: string, params?: any[]): Promise<ResultSetHeader> {
-  const [result] = await getPool().execute<ResultSetHeader>(sql, params ?? []);
+  const pool = await getPool();
+  const [result] = await pool.execute<ResultSetHeader>(sql, params ?? []);
   return result;
 }
 
 /** Run multiple statements inside a transaction. */
-export async function transaction<T>(fn: (conn: mysql.PoolConnection) => Promise<T>): Promise<T> {
-  const conn = await getPool().getConnection();
+export async function transaction<T>(fn: (conn: PoolConnection) => Promise<T>): Promise<T> {
+  const pool = await getPool();
+  const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
     const result = await fn(conn);

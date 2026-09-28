@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireMySqlAuth } from "./auth.functions";
+import { requireMySqlAuth } from "./auth-server";
 import { isSuperAdmin } from "./server-utils";
 import { query, queryOne } from "./db";
 import type { Workspace, Profile, UserRole, AuditLog } from "./db-types";

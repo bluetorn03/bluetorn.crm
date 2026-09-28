@@ -81,15 +81,18 @@ import {
   unreadNotificationCountFn,
   markNotificationReadFn,
   markAllNotificationsReadFn,
-  invoiceTotals,
-  computeInvoiceTotals,
   type Member,
-  type InvoiceLineInput,
   type PlatformSettings,
   type DashboardData,
   type SearchResult,
   type FinanceReportsData,
 } from "./crm.functions";
+
+import {
+  invoiceTotals,
+  computeInvoiceTotals,
+  type InvoiceLineInput,
+} from "./invoice-calculations";
 
 export type {
   Customer,

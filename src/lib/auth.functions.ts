@@ -1,11 +1,13 @@
 /**
  * BLUETORN CRM — MySQL-backed authentication server functions.
  *
- * Uses bcrypt for password hashing and signed session cookies for persistence.
+ * Uses bcrypt for password hashing and HMAC-SHA256 signed session cookies.
+ *
+ * Production MUST set SESSION_SECRET env variable (min 32 chars).
+ * In development a process-stable random key is generated (tokens do not
+ * survive server restarts — log out and back in after restart).
  */
 import { createServerFn } from "@tanstack/react-start";
-import { createMiddleware } from "@tanstack/react-start";
-import { getCookie, setCookie, deleteCookie } from "@tanstack/react-start/server";
 import bcrypt from "bcryptjs";
 import { query, queryOne, execute, uuid } from "./db";
 import {
@@ -14,6 +16,13 @@ import {
   PLATFORM_WORKSPACE_CODE,
 } from "./auth-identity";
 import type { Profile, UserRole, Workspace } from "./db-types";
+import {
+  createSessionToken,
+  parseSessionToken,
+  setSessionCookie,
+  clearSessionCookie,
+  readSessionCookie,
+} from "./auth-server";
 
 /* --------------------------------- types ---------------------------------- */
 
@@ -31,65 +40,6 @@ export type SessionPayload = {
   workspaceCode: string;
   workspaceName: string;
 };
-
-/* -------------------------------- constants -------------------------------- */
-
-const SESSION_COOKIE = "bt_session";
-const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
-
-/* ----------------------------- session tokens ----------------------------- */
-
-/**
- * Simple HMAC-like session token: base64(userId:timestamp:random).
- * The session is stateless — the token encodes the user ID and we look up
- * the rest from MySQL on every request.
- */
-function createSessionToken(userId: string): string {
-  const payload = `${userId}:${Date.now()}:${uuid()}`;
-  if (typeof Buffer !== "undefined") {
-    return Buffer.from(payload, "utf-8").toString("base64url");
-  }
-  return btoa(payload);
-}
-
-function parseSessionToken(token: string): string | null {
-  try {
-    let decoded: string;
-    if (typeof Buffer !== "undefined") {
-      decoded = Buffer.from(token, "base64url").toString("utf-8");
-    } else {
-      decoded = atob(token);
-    }
-    const parts = decoded.split(":");
-    return parts[0] || null;
-  } catch {
-    return null;
-  }
-}
-
-/* ------------------------------ cookie helpers ----------------------------- */
-
-function setSessionCookie(token: string) {
-  setCookie(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env["NODE_ENV"] === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
-  });
-}
-
-function clearSessionCookie() {
-  deleteCookie(SESSION_COOKIE, { path: "/" });
-}
-
-function readSessionCookie(): string | null {
-  try {
-    return getCookie(SESSION_COOKIE) || null;
-  } catch {
-    return null;
-  }
-}
 
 /* ------------------------------ server functions -------------------------- */
 
@@ -168,8 +118,8 @@ export const loginAction = createServerFn({ method: "POST" })
     }
 
     // 6. Create session
-    const token = createSessionToken(profile.id);
-    setSessionCookie(token);
+    const token = await createSessionToken(profile.id);
+    await setSessionCookie(token);
 
     // 7. Update last_login_at
     await execute("UPDATE profiles SET last_login_at = NOW() WHERE id = ?", [profile.id]);
@@ -183,21 +133,21 @@ export const loginAction = createServerFn({ method: "POST" })
 
 /** Logout: clear session cookie. */
 export const logoutAction = createServerFn({ method: "POST" }).handler(async () => {
-  clearSessionCookie();
+  await clearSessionCookie();
   return { ok: true };
 });
 
 /** Get current session data from cookie. */
 export const getSessionAction = createServerFn({ method: "GET" }).handler(async () => {
-  const token = readSessionCookie();
+  const token = await readSessionCookie();
   if (!token) return { authenticated: false as const };
 
-  const userId = parseSessionToken(token);
+  const userId = await parseSessionToken(token);
   if (!userId) return { authenticated: false as const };
 
   const profile = await queryOne<Profile>("SELECT * FROM profiles WHERE id = ? LIMIT 1", [userId]);
   if (!profile || !profile.is_active) {
-    clearSessionCookie();
+    await clearSessionCookie();
     return { authenticated: false as const };
   }
 
@@ -206,7 +156,7 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
     [profile.id],
   );
   if (!role) {
-    clearSessionCookie();
+    await clearSessionCookie();
     return { authenticated: false as const };
   }
 
@@ -285,73 +235,4 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
   };
 });
 
-/* ----------------------------- auth middleware ----------------------------- */
 
-/**
- * Server-function middleware that validates the session cookie
- * and injects userId into the context.
- */
-export const requireMySqlAuth = createMiddleware({ type: "function" }).server(async ({ next }) => {
-  const token = readSessionCookie();
-  if (!token) throw new Error("Unauthorized: No session.");
-
-  const userId = parseSessionToken(token);
-  if (!userId) throw new Error("Unauthorized: Invalid session.");
-
-  const profile = await queryOne<Profile>(
-    "SELECT id, workspace_id, is_active FROM profiles WHERE id = ? LIMIT 1",
-    [userId],
-  );
-  if (!profile || !profile.is_active) {
-    clearSessionCookie();
-    throw new Error("Unauthorized: Session expired.");
-  }
-
-  const role = await queryOne<UserRole>(
-    "SELECT role FROM user_roles WHERE user_id = ? ORDER BY CASE WHEN role = 'super_admin' THEN 0 ELSE 1 END LIMIT 1",
-    [userId],
-  );
-
-  return next({
-    context: {
-      userId: profile.id,
-      workspaceId: profile.workspace_id,
-      role: role?.role ?? "employee",
-    },
-  });
-});
-
-/**
- * Server-side authorization check.
- * - Owner and Super Admin have full access.
- * - Employees and Managers require explicit granular permission in `user_permissions`.
- * - Validates workspace isolation.
- */
-export async function assertPermission(
-  context: { userId: string; workspaceId: string | null; role: string },
-  permission: string,
-  targetWorkspaceId?: string,
-): Promise<void> {
-  const wsId = targetWorkspaceId || context.workspaceId;
-  if (!wsId) throw new Error("FORBIDDEN: No workspace context.");
-
-  // Workspace isolation: user must belong to the workspace unless super_admin
-  if (context.role !== "super_admin" && context.workspaceId !== wsId) {
-    throw new Error("FORBIDDEN: Cross-workspace access denied.");
-  }
-
-  // Super admin and Owner have full access
-  if (context.role === "super_admin" || context.role === "owner") {
-    return;
-  }
-
-  // Check granular permission in database
-  const row = await queryOne<{ id: string }>(
-    "SELECT id FROM user_permissions WHERE workspace_id = ? AND user_id = ? AND permission = ? LIMIT 1",
-    [wsId, context.userId, permission],
-  );
-
-  if (!row) {
-    throw new Error(`FORBIDDEN: You do not have '${permission}' permission.`);
-  }
-}

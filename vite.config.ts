@@ -24,6 +24,12 @@ export default defineConfig(({ command }) => {
         "@tanstack/query-core",
       ],
     },
+    optimizeDeps: {
+      exclude: ["mysql2", "mysql2/promise", "bcryptjs"],
+    },
+    ssr: {
+      external: ["mysql2", "mysql2/promise", "bcryptjs"],
+    },
     plugins: [
       tailwindcss(),
       tsconfigPaths({ projects: ["./tsconfig.json"] }),

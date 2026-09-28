@@ -34,6 +34,7 @@ import { Route as AdminWorkspacesWorkspaceIdRouteImport } from './routes/admin.w
 import { Route as AdminWorkspacesNewRouteImport } from './routes/admin.workspaces.new'
 import { Route as AppCustomersIndexRouteImport } from './routes/app.customers.index'
 import { Route as AppCustomersCustomerIdRouteImport } from './routes/app.customers.$customerId'
+import { Route as AppFinanceIndexRouteImport } from './routes/app.finance.index'
 import { Route as AppFinancePaymentsRouteImport } from './routes/app.finance.payments'
 import { Route as AppLeadsIndexRouteImport } from './routes/app.leads.index'
 import { Route as AppLeadsLeadIdRouteImport } from './routes/app.leads.$leadId'
@@ -170,6 +171,11 @@ const AppCustomersCustomerIdRoute = AppCustomersCustomerIdRouteImport.update({
   path: '/customers/$customerId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppFinanceIndexRoute = AppFinanceIndexRouteImport.update({
+  id: '/finance/',
+  path: '/finance/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppFinancePaymentsRoute = AppFinancePaymentsRouteImport.update({
   id: '/finance/payments',
   path: '/finance/payments',
@@ -247,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/app/properties/$propertyId': typeof AppPropertiesPropertyIdRoute
   '/admin/workspaces/': typeof AdminWorkspacesIndexRoute
   '/app/customers/': typeof AppCustomersIndexRoute
+  '/app/finance/': typeof AppFinanceIndexRoute
   '/app/leads/': typeof AppLeadsIndexRoute
   '/app/properties/': typeof AppPropertiesIndexRoute
   '/app/finance/invoices/$invoiceId': typeof AppFinanceInvoicesInvoiceIdRoute
@@ -281,6 +288,7 @@ export interface FileRoutesByTo {
   '/app/properties/$propertyId': typeof AppPropertiesPropertyIdRoute
   '/admin/workspaces': typeof AdminWorkspacesIndexRoute
   '/app/customers': typeof AppCustomersIndexRoute
+  '/app/finance': typeof AppFinanceIndexRoute
   '/app/leads': typeof AppLeadsIndexRoute
   '/app/properties': typeof AppPropertiesIndexRoute
   '/app/finance/invoices/$invoiceId': typeof AppFinanceInvoicesInvoiceIdRoute
@@ -318,6 +326,7 @@ export interface FileRoutesById {
   '/app/properties/$propertyId': typeof AppPropertiesPropertyIdRoute
   '/admin/workspaces/': typeof AdminWorkspacesIndexRoute
   '/app/customers/': typeof AppCustomersIndexRoute
+  '/app/finance/': typeof AppFinanceIndexRoute
   '/app/leads/': typeof AppLeadsIndexRoute
   '/app/properties/': typeof AppPropertiesIndexRoute
   '/app/finance/invoices/$invoiceId': typeof AppFinanceInvoicesInvoiceIdRoute
@@ -356,6 +365,7 @@ export interface FileRouteTypes {
     | '/app/properties/$propertyId'
     | '/admin/workspaces/'
     | '/app/customers/'
+    | '/app/finance/'
     | '/app/leads/'
     | '/app/properties/'
     | '/app/finance/invoices/$invoiceId'
@@ -390,6 +400,7 @@ export interface FileRouteTypes {
     | '/app/properties/$propertyId'
     | '/admin/workspaces'
     | '/app/customers'
+    | '/app/finance'
     | '/app/leads'
     | '/app/properties'
     | '/app/finance/invoices/$invoiceId'
@@ -426,6 +437,7 @@ export interface FileRouteTypes {
     | '/app/properties/$propertyId'
     | '/admin/workspaces/'
     | '/app/customers/'
+    | '/app/finance/'
     | '/app/leads/'
     | '/app/properties/'
     | '/app/finance/invoices/$invoiceId'
@@ -621,6 +633,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCustomersCustomerIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/finance/': {
+      id: '/app/finance/'
+      path: '/finance'
+      fullPath: '/app/finance/'
+      preLoaderRoute: typeof AppFinanceIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/finance/payments': {
       id: '/app/finance/payments'
       path: '/finance/payments'
@@ -727,6 +746,7 @@ interface AppRouteChildren {
   AppLeadsPipelineRoute: typeof AppLeadsPipelineRoute
   AppPropertiesPropertyIdRoute: typeof AppPropertiesPropertyIdRoute
   AppCustomersIndexRoute: typeof AppCustomersIndexRoute
+  AppFinanceIndexRoute: typeof AppFinanceIndexRoute
   AppLeadsIndexRoute: typeof AppLeadsIndexRoute
   AppPropertiesIndexRoute: typeof AppPropertiesIndexRoute
   AppFinanceInvoicesInvoiceIdRoute: typeof AppFinanceInvoicesInvoiceIdRoute
@@ -746,6 +766,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppLeadsPipelineRoute: AppLeadsPipelineRoute,
   AppPropertiesPropertyIdRoute: AppPropertiesPropertyIdRoute,
   AppCustomersIndexRoute: AppCustomersIndexRoute,
+  AppFinanceIndexRoute: AppFinanceIndexRoute,
   AppLeadsIndexRoute: AppLeadsIndexRoute,
   AppPropertiesIndexRoute: AppPropertiesIndexRoute,
   AppFinanceInvoicesInvoiceIdRoute: AppFinanceInvoicesInvoiceIdRoute,
