@@ -35,7 +35,10 @@ export const Route = createFileRoute("/app/reports")({
   head: () => ({
     meta: [
       { title: "Reports & Analytics · BLUETORN CRM" },
-      { name: "description", content: "Real MySQL analytics for revenue, collections, pipeline, and team performance." },
+      {
+        name: "description",
+        content: "Real MySQL analytics for revenue, collections, pipeline, and team performance.",
+      },
       { property: "og:title", content: "Reports & Analytics · BLUETORN CRM" },
       {
         property: "og:description",
@@ -91,19 +94,22 @@ function ReportsContent() {
             </h2>
           </div>
 
-          <DataState query={financeReportsQuery} loadingLabel="Aggregating finance reports from MySQL…">
+          <DataState
+            query={financeReportsQuery}
+            loadingLabel="Aggregating finance reports from MySQL…"
+          >
             {(fin: FinanceReportsData) => (
               <>
                 {/* Finance Metric Cards */}
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <MetricCard
-                    label="Revenue (Month-to-Date)"
+                    label="Collected (Month-to-Date)"
                     value={formatMoney(fin.revenueMtd, currency, true)}
                     hint="Collected in current month"
                     icon={TrendingUp}
                   />
                   <MetricCard
-                    label="Revenue (Year-to-Date)"
+                    label="Collected (Year-to-Date)"
                     value={formatMoney(fin.revenueYtd, currency, true)}
                     hint="Collected this fiscal year"
                     icon={IndianRupee}
@@ -222,9 +228,7 @@ function ReportsContent() {
                             key={m.method}
                             className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 border border-border"
                           >
-                            <span className="text-sm font-medium text-foreground">
-                              {m.method}
-                            </span>
+                            <span className="text-sm font-medium text-foreground">{m.method}</span>
                             <div className="text-right">
                               <span className="font-semibold text-sm text-emerald-600 dark:text-emerald-400 font-mono">
                                 {formatMoney(m.total, currency)}
@@ -262,7 +266,9 @@ function ReportsContent() {
                               <td className="px-4 py-3 font-medium text-foreground">
                                 {emp.userName}
                               </td>
-                              <td className="px-4 py-3 text-right font-mono font-medium">{emp.invoicesCreated}</td>
+                              <td className="px-4 py-3 text-right font-mono font-medium">
+                                {emp.invoicesCreated}
+                              </td>
                               <td className="px-4 py-3 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
                                 {emp.paymentsCollected}
                               </td>

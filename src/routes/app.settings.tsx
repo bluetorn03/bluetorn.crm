@@ -2,11 +2,22 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, FileText, KeyRound, Landmark, Loader2, Plus, ShieldCheck, UserCheck, UserX } from "lucide-react";
+import {
+  Building2,
+  FileText,
+  KeyRound,
+  Landmark,
+  Loader2,
+  Plus,
+  ShieldCheck,
+  UserCheck,
+  UserX,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SectionCard } from "@/components/common/SectionCard";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { ImageUpload } from "@/components/common/ImageUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -208,21 +219,6 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
           description="Your business identity. Automatically loaded into invoices, previews, and PDF documents."
         >
           <div className="space-y-4">
-            {form.logoUrl && (
-              <div className="flex items-center gap-4 p-3 bg-muted/30 rounded-lg border border-border">
-                <img
-                  src={form.logoUrl}
-                  alt="Company Logo"
-                  className="h-12 w-auto max-w-[120px] object-contain rounded bg-background p-1 border"
-                  onError={(e) => ((e.target as HTMLElement).style.display = "none")}
-                />
-                <div>
-                  <p className="text-xs font-medium text-foreground">Current Company Logo Preview</p>
-                  <p className="text-[11px] text-muted-foreground">Will appear on header of all invoices and receipts</p>
-                </div>
-              </div>
-            )}
-
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 label="Workspace Display Name *"
@@ -237,11 +233,14 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
                 disabled={!canEdit}
               />
               <div className="sm:col-span-2">
-                <Field
-                  label="Company Logo URL (HTTPS link)"
+                <ImageUpload
                   value={form.logoUrl}
-                  onChange={(v) => setForm({ ...form, logoUrl: v })}
+                  onChange={(url) => setForm({ ...form, logoUrl: url })}
+                  workspaceId={workspace.id}
+                  label="Company Logo"
+                  hint="Upload company logo (JPG, PNG, WebP) or enter an image URL. Automatically loaded into invoice headers, receipts, and PDF documents."
                   disabled={!canEdit}
+                  previewHeight="h-28"
                 />
               </div>
               <Field
@@ -394,7 +393,8 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
           {canEdit ? (
             <div className="mt-5 flex justify-end">
               <Button size="sm" disabled={!loaded || save.isPending} onClick={() => save.mutate()}>
-                {save.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Save workspace profile
+                {save.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Save
+                workspace profile
               </Button>
             </div>
           ) : (
@@ -704,19 +704,63 @@ function TeamTab({
 }
 
 const FINANCE_PERMISSIONS: { id: string; label: string; description: string }[] = [
-  { id: "finance.view", label: "View Finance", description: "Access the Finance section, overview metrics, invoices, and payments" },
-  { id: "finance.invoices.create", label: "Create Invoice", description: "Draft new customer invoices with line items and taxes" },
-  { id: "finance.invoices.edit", label: "Edit Invoice", description: "Edit existing invoices and line item calculations" },
-  { id: "finance.invoices.issue", label: "Issue / Send Invoice", description: "Finalize and mark invoices as issued/sent to clients" },
-  { id: "finance.invoices.cancel", label: "Cancel / Void Invoice", description: "Cancel or void issued invoices with cancellation reason" },
-  { id: "finance.payments.record", label: "Record Payment", description: "Record received client payments and update invoice balance" },
-  { id: "finance.payments.edit", label: "Edit Payment", description: "Update reference, notes or details of recorded payments" },
-  { id: "finance.payments.reverse", label: "Reverse / Refund Payment", description: "Reverse or refund recorded payments with audit reason" },
+  {
+    id: "finance.view",
+    label: "View Finance",
+    description: "Access the Finance section, overview metrics, invoices, and payments",
+  },
+  {
+    id: "finance.invoices.create",
+    label: "Create Invoice",
+    description: "Draft new customer invoices with line items and taxes",
+  },
+  {
+    id: "finance.invoices.edit",
+    label: "Edit Invoice",
+    description: "Edit existing invoices and line item calculations",
+  },
+  {
+    id: "finance.invoices.issue",
+    label: "Issue / Send Invoice",
+    description: "Finalize and mark invoices as issued/sent to clients",
+  },
+  {
+    id: "finance.invoices.cancel",
+    label: "Cancel / Void Invoice",
+    description: "Cancel or void issued invoices with cancellation reason",
+  },
+  {
+    id: "finance.payments.record",
+    label: "Record Payment",
+    description: "Record received client payments and update invoice balance",
+  },
+  {
+    id: "finance.payments.edit",
+    label: "Edit Payment",
+    description: "Update reference, notes or details of recorded payments",
+  },
+  {
+    id: "finance.payments.reverse",
+    label: "Reverse / Refund Payment",
+    description: "Reverse or refund recorded payments with audit reason",
+  },
   { id: "finance.print", label: "Print Invoice", description: "Print formatted GST tax invoices" },
-  { id: "finance.download", label: "Download PDF", description: "Export invoices and payment receipts as PDF documents" },
+  {
+    id: "finance.download",
+    label: "Download PDF",
+    description: "Export invoices and payment receipts as PDF documents",
+  },
   { id: "finance.share", label: "Share Documents", description: "Generate client share links" },
-  { id: "finance.export", label: "Export Financial Data", description: "Export financial records to CSV/Excel reports" },
-  { id: "finance.reports.view", label: "View Finance Reports", description: "View live workspace revenue, receivables, and tax reports" },
+  {
+    id: "finance.export",
+    label: "Export Financial Data",
+    description: "Export financial records to CSV/Excel reports",
+  },
+  {
+    id: "finance.reports.view",
+    label: "View Finance Reports",
+    description: "View live workspace revenue, receivables, and tax reports",
+  },
 ];
 
 function PermissionsDialog({
@@ -791,8 +835,9 @@ function PermissionsDialog({
             Finance Permissions · {member.full_name}
           </DialogTitle>
           <DialogDescription>
-            Configure granular finance access for user <code className="bg-muted px-1 rounded">{member.user_code}</code> ({member.role}).
-            By default, employees have Finance disabled. All permissions are enforced server-side.
+            Configure granular finance access for user{" "}
+            <code className="bg-muted px-1 rounded">{member.user_code}</code> ({member.role}). By
+            default, employees have Finance disabled. All permissions are enforced server-side.
           </DialogDescription>
         </DialogHeader>
 
@@ -804,7 +849,12 @@ function PermissionsDialog({
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={grantAll}>
               Grant All Finance
             </Button>
-            <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive" onClick={revokeAll}>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs text-destructive hover:text-destructive"
+              onClick={revokeAll}
+            >
               Revoke All
             </Button>
           </div>
@@ -822,9 +872,7 @@ function PermissionsDialog({
                 <label
                   key={p.id}
                   className={`flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
-                    isChecked
-                      ? "border-primary/40 bg-primary/5"
-                      : "border-border hover:bg-muted/40"
+                    isChecked ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/40"
                   }`}
                 >
                   <Checkbox

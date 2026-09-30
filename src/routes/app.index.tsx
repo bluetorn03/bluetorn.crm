@@ -115,7 +115,7 @@ function HomePage() {
         {can("finance.view") ? (
           <>
             <MetricCard
-              label="Revenue (MTD)"
+              label="Collected (MTD)"
               value={formatMoney(dash?.mtdRevenue ?? 0, curr, true)}
               icon={IndianRupee}
               to="/app/reports"
@@ -130,7 +130,8 @@ function HomePage() {
           </>
         ) : (
           <div className="border-border bg-card text-muted-foreground rounded-xl border border-dashed p-5 text-sm sm:col-span-2 xl:col-span-1">
-            Finance metrics are hidden by default. Access can be granted by the workspace Owner in Settings.
+            Finance metrics are hidden by default. Access can be granted by the workspace Owner in
+            Settings.
           </div>
         )}
       </div>

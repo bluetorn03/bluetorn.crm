@@ -92,6 +92,37 @@ ALTER TABLE `invoice_items`
 UPDATE `invoice_items` SET `rate` = `unit_amount` WHERE `rate` = 0.00 AND `unit_amount` > 0;
 UPDATE `invoice_items` SET `line_total` = `amount` WHERE `line_total` = 0.00 AND `amount` > 0;
 
+-- Ensure legacy invoice_items and invoices have reconciled tax data
+UPDATE `invoice_items` ii
+JOIN `invoices` i ON ii.invoice_id = i.id
+SET 
+  ii.tax_rate = i.tax_rate,
+  ii.tax_amount = ROUND((ii.rate * ii.quantity - ii.discount) * i.tax_rate / 100, 2),
+  ii.line_total = ROUND((ii.rate * ii.quantity - ii.discount) * (1 + i.tax_rate / 100), 2),
+  ii.amount = ROUND((ii.rate * ii.quantity - ii.discount) * (1 + i.tax_rate / 100), 2)
+WHERE i.tax_rate > 0 
+  AND i.tax_amount > 0 
+  AND ii.tax_rate = 0 
+  AND ii.tax_amount = 0;
+
+UPDATE `invoices` i
+JOIN `workspaces` w ON i.workspace_id = w.id
+SET 
+  i.taxable_amount = GREATEST(0, i.subtotal - i.discount),
+  i.cgst = CASE 
+    WHEN (w.state_code IS NOT NULL AND i.place_of_supply IS NOT NULL AND UPPER(TRIM(i.place_of_supply)) != UPPER(TRIM(w.state_code))) THEN 0 
+    ELSE ROUND(i.tax_amount / 2, 2) 
+  END,
+  i.sgst = CASE 
+    WHEN (w.state_code IS NOT NULL AND i.place_of_supply IS NOT NULL AND UPPER(TRIM(i.place_of_supply)) != UPPER(TRIM(w.state_code))) THEN 0 
+    ELSE ROUND(i.tax_amount / 2, 2) 
+  END,
+  i.igst = CASE 
+    WHEN (w.state_code IS NOT NULL AND i.place_of_supply IS NOT NULL AND UPPER(TRIM(i.place_of_supply)) != UPPER(TRIM(w.state_code))) THEN i.tax_amount 
+    ELSE 0 
+  END
+WHERE i.taxable_amount = 0 AND i.subtotal > 0;
+
 -- ----------------------------------------------------------------------------
 -- 5. PAYMENTS: ATTRIBUTION & REVERSAL AUDIT COLUMNS
 -- ----------------------------------------------------------------------------

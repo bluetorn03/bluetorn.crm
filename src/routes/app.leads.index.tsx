@@ -75,6 +75,8 @@ function LeadsPage() {
   const [status, setStatus] = useState<string>("All");
   const [q, setQ] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<string[] | null>(null);
+  const [activeSourceName, setActiveSourceName] = useState<string | null>(null);
 
   // Active dialog states
   const [assigningLead, setAssigningLead] = useState<Lead | null>(null);
@@ -114,7 +116,7 @@ function LeadsPage() {
 
       <AddLeadDialog open={addOpen} onOpenChange={setAddOpen} />
 
-      {/* Automation Cards */}
+      {/* Automation Cards — clickable source filters */}
       <SectionCard title="Automatic lead capture" description="Live sources feeding this workspace">
         {(() => {
           const allLeads = leadsQuery.data ?? [];
@@ -164,23 +166,53 @@ function LeadsPage() {
 
           return (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {cards.map((c) => (
-                <div
-                  key={c.name}
-                  className="border-border bg-background flex items-center gap-3 rounded-lg border p-3"
-                >
-                  <span className="bg-accent text-accent-foreground grid h-8 w-8 shrink-0 place-items-center rounded-lg">
-                    <Zap className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{c.name}</p>
-                    <p className="text-muted-foreground truncate text-xs">{c.campaign}</p>
-                  </div>
-                  <span className="text-muted-foreground ml-auto shrink-0 text-xs font-semibold">
-                    {c.count} lead{c.count === 1 ? "" : "s"}
-                  </span>
-                </div>
-              ))}
+              {cards.map((c) => {
+                const isActive = activeSourceName === c.name;
+                return (
+                  <button
+                    key={c.name}
+                    type="button"
+                    onClick={() => {
+                      if (isActive) {
+                        setSourceFilter(null);
+                        setActiveSourceName(null);
+                      } else {
+                        setSourceFilter(c.src);
+                        setActiveSourceName(c.name);
+                      }
+                    }}
+                    className={
+                      "flex items-center gap-3 rounded-lg border p-3 text-left transition-all cursor-pointer " +
+                      (isActive
+                        ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                        : "border-border bg-background hover:border-primary/40 hover:bg-accent/40")
+                    }
+                  >
+                    <span
+                      className={
+                        "grid h-8 w-8 shrink-0 place-items-center rounded-lg " +
+                        (isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-accent text-accent-foreground")
+                      }
+                    >
+                      <Zap className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{c.name}</p>
+                      <p className="text-muted-foreground truncate text-xs">{c.campaign}</p>
+                    </div>
+                    <span
+                      className={
+                        "ml-auto shrink-0 text-xs font-semibold " +
+                        (isActive ? "text-primary" : "text-muted-foreground")
+                      }
+                    >
+                      {c.count} lead{c.count === 1 ? "" : "s"}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           );
         })()}
@@ -213,6 +245,19 @@ function LeadsPage() {
             </button>
           ))}
         </div>
+        {/* Active source filter indicator */}
+        {activeSourceName && (
+          <button
+            onClick={() => {
+              setSourceFilter(null);
+              setActiveSourceName(null);
+            }}
+            className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/30 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+          >
+            Source: {activeSourceName}
+            <span className="ml-0.5 text-[10px]">✕</span>
+          </button>
+        )}
       </div>
 
       {/* Leads List */}
@@ -221,7 +266,9 @@ function LeadsPage() {
           const rows = leads.filter(
             (l) =>
               (status === "All" || l.status === status) &&
-              l.name.toLowerCase().includes(q.toLowerCase()),
+              l.name.toLowerCase().includes(q.toLowerCase()) &&
+              (!sourceFilter ||
+                sourceFilter.some((k) => l.source.toLowerCase().includes(k.toLowerCase()))),
           );
 
           if (rows.length === 0) {

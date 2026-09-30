@@ -3,11 +3,7 @@ import { requireMySqlAuth, assertPermission } from "./auth-server";
 import { query, queryOne, execute, transaction, uuid } from "./db";
 import { getDefaultQuickAddDueDateTime } from "./date-utils";
 import { calculateLeadScore } from "./lead-scoring";
-import {
-  type InvoiceLineInput,
-  invoiceTotals,
-  computeInvoiceTotals,
-} from "./invoice-calculations";
+import { type InvoiceLineInput, invoiceTotals, computeInvoiceTotals } from "./invoice-calculations";
 import type {
   Customer,
   Property,
@@ -1144,7 +1140,7 @@ export const deleteEventFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await execute("DELETE FROM calendar_events WHERE id = ?", [data.id]);
     return { ok: true };
-  });/* --------------------------------- finance -------------------------------- */
+  }); /* --------------------------------- finance -------------------------------- */
 
 export const listInvoicesFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
@@ -1250,47 +1246,52 @@ export const getInvoiceFn = createServerFn({ method: "GET" })
 export const nextInvoiceNumberFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .validator((input: { workspaceId: string }) => input)
-  .handler(async ({ data, context }): Promise<{ invoiceNumber: string; prefix: string; financialYear: string }> => {
-    const wsId = getTargetWorkspaceId(data.workspaceId, context);
-    await assertPermission(context, "finance.invoices.create", wsId);
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ invoiceNumber: string; prefix: string; financialYear: string }> => {
+      const wsId = getTargetWorkspaceId(data.workspaceId, context);
+      await assertPermission(context, "finance.invoices.create", wsId);
 
-    // Concurrency-safe: run inside a transaction with SELECT FOR UPDATE
-    return transaction(async (conn) => {
-      const [wsRows] = await conn.execute(
-        "SELECT invoice_prefix FROM workspaces WHERE id = ? LIMIT 1",
-        [wsId],
-      );
-      const ws = (wsRows as any[])[0];
-      const prefix = ws?.invoice_prefix?.trim() || "INV";
+      // Concurrency-safe: run inside a transaction with SELECT FOR UPDATE
+      return transaction(async (conn) => {
+        const [wsRows] = await conn.execute(
+          "SELECT invoice_prefix FROM workspaces WHERE id = ? LIMIT 1",
+          [wsId],
+        );
+        const ws = (wsRows as any[])[0];
+        const prefix = ws?.invoice_prefix?.trim() || "INV";
 
-      const now = new Date();
-      const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth() + 1;
-      const fyStart = currentMonth >= 4 ? currentYear : currentYear - 1;
-      const fyEnd = (fyStart + 1) % 100;
-      const financialYear = `${fyStart}-${String(fyEnd).padStart(2, "0")}`;
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
+        const fyStart = currentMonth >= 4 ? currentYear : currentYear - 1;
+        const fyEnd = (fyStart + 1) % 100;
+        const financialYear = `${fyStart}-${String(fyEnd).padStart(2, "0")}`;
 
-      // Lock the invoices table rows for this workspace to prevent race conditions
-      const [rows] = await conn.execute(
-        "SELECT invoice_number FROM invoices WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 100 FOR UPDATE",
-        [wsId],
-      );
+        // Lock the invoices table rows for this workspace to prevent race conditions
+        const [rows] = await conn.execute(
+          "SELECT invoice_number FROM invoices WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 100 FOR UPDATE",
+          [wsId],
+        );
 
-      let maxSeq = 0;
-      for (const r of rows as any[]) {
-        const num = r.invoice_number ?? "";
-        const m = /(\d+)\s*$/.exec(num);
-        if (m?.[1]) {
-          maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+        let maxSeq = 0;
+        for (const r of rows as any[]) {
+          const num = r.invoice_number ?? "";
+          const m = /(\d+)\s*$/.exec(num);
+          if (m?.[1]) {
+            maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+          }
         }
-      }
 
-      const nextSeq = String(maxSeq + 1).padStart(4, "0");
-      const invoiceNumber = `${prefix}-${currentYear}-${nextSeq}`;
+        const nextSeq = String(maxSeq + 1).padStart(4, "0");
+        const invoiceNumber = `${prefix}-${currentYear}-${nextSeq}`;
 
-      return { invoiceNumber, prefix, financialYear };
-    });
-  });
+        return { invoiceNumber, prefix, financialYear };
+      });
+    },
+  );
 
 export const saveInvoiceFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
@@ -1321,7 +1322,11 @@ export const saveInvoiceFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<Invoice> => {
     const wsId = getTargetWorkspaceId(data.workspaceId, context);
     const isNew = !data.id;
-    await assertPermission(context, isNew ? "finance.invoices.create" : "finance.invoices.edit", wsId);
+    await assertPermission(
+      context,
+      isNew ? "finance.invoices.create" : "finance.invoices.edit",
+      wsId,
+    );
 
     // Multi-tenant object ownership checks
     if (data.invoice.customer_id) {
@@ -1350,7 +1355,8 @@ export const saveInvoiceFn = createServerFn({ method: "POST" })
         "SELECT id FROM profiles WHERE id = ? AND workspace_id = ? LIMIT 1",
         [data.invoice.assigned_to, wsId],
       );
-      if (!assignee) throw new Error("Validation error: Assigned employee does not belong to this workspace.");
+      if (!assignee)
+        throw new Error("Validation error: Assigned employee does not belong to this workspace.");
     }
 
     // Phase 6: Server-side GST inter-state detection.
@@ -1382,8 +1388,10 @@ export const saveInvoiceFn = createServerFn({ method: "POST" })
         const existing = (existingRows as any[])[0];
         if (!existing) throw new Error("Invoice not found.");
         if (existing.workspace_id !== wsId) throw new Error("Unauthorized invoice access.");
-        if (existing.status === "Cancelled") {
-          throw new Error("Cannot edit a cancelled invoice.");
+        if (existing.status !== "Draft") {
+          throw new Error(
+            "Only draft invoices can be edited directly. Historical financial values are protected.",
+          );
         }
 
         await conn.execute(
@@ -1546,7 +1554,9 @@ export const updateInvoiceStatusFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string; status: string }) => input)
   .handler(async ({ data, context }): Promise<Invoice> => {
-    const invoice = await queryOne<Invoice>("SELECT * FROM invoices WHERE id = ? LIMIT 1", [data.id]);
+    const invoice = await queryOne<Invoice>("SELECT * FROM invoices WHERE id = ? LIMIT 1", [
+      data.id,
+    ]);
     if (!invoice) throw new Error("Invoice not found.");
 
     const wsId = invoice.workspace_id;
@@ -1569,7 +1579,9 @@ export const updateInvoiceStatusFn = createServerFn({ method: "POST" })
 
     if (targetStatus === "Issued") {
       if (invoice.status !== "Draft") {
-        throw new Error(`Cannot issue an invoice with status '${invoice.status}'. Only Draft invoices can be issued.`);
+        throw new Error(
+          `Cannot issue an invoice with status '${invoice.status}'. Only Draft invoices can be issued.`,
+        );
       }
       await assertPermission(context, "finance.invoices.issue", wsId);
     } else if (targetStatus === "Cancelled") {
@@ -1583,10 +1595,11 @@ export const updateInvoiceStatusFn = createServerFn({ method: "POST" })
       await assertPermission(context, "finance.invoices.edit", wsId);
     }
 
-    await execute(
-      "UPDATE invoices SET status = ?, updated_by = ? WHERE id = ?",
-      [targetStatus, context.userId, data.id],
-    );
+    await execute("UPDATE invoices SET status = ?, updated_by = ? WHERE id = ?", [
+      targetStatus,
+      context.userId,
+      data.id,
+    ]);
 
     await execute(
       `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
@@ -1613,7 +1626,9 @@ export const cancelInvoiceFn = createServerFn({ method: "POST" })
     if (!data.reason?.trim()) {
       throw new Error("A cancellation reason is required.");
     }
-    const invoice = await queryOne<Invoice>("SELECT * FROM invoices WHERE id = ? LIMIT 1", [data.id]);
+    const invoice = await queryOne<Invoice>("SELECT * FROM invoices WHERE id = ? LIMIT 1", [
+      data.id,
+    ]);
     if (!invoice) throw new Error("Invoice not found.");
 
     await assertPermission(context, "finance.invoices.cancel", invoice.workspace_id);
@@ -1651,7 +1666,9 @@ export const deleteInvoiceFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string }) => input)
   .handler(async ({ data, context }) => {
-    const invoice = await queryOne<Invoice>("SELECT * FROM invoices WHERE id = ? LIMIT 1", [data.id]);
+    const invoice = await queryOne<Invoice>("SELECT * FROM invoices WHERE id = ? LIMIT 1", [
+      data.id,
+    ]);
     if (!invoice) throw new Error("Invoice not found.");
 
     await assertPermission(context, "finance.invoices.delete", invoice.workspace_id);
@@ -1754,7 +1771,8 @@ export const createPaymentFn = createServerFn({ method: "POST" })
         "SELECT id FROM profiles WHERE id = ? AND workspace_id = ? LIMIT 1",
         [data.assigned_to, wsId],
       );
-      if (!assignee) throw new Error("Validation error: Assigned user does not belong to this workspace.");
+      if (!assignee)
+        throw new Error("Validation error: Assigned user does not belong to this workspace.");
     }
 
     const id = uuid();
@@ -1779,8 +1797,14 @@ export const createPaymentFn = createServerFn({ method: "POST" })
         }
         if (!resolvedCustomerId && inv.customer_id) {
           resolvedCustomerId = inv.customer_id;
-        } else if (resolvedCustomerId && inv.customer_id && resolvedCustomerId !== inv.customer_id) {
-          throw new Error("Validation error: Payment customer does not match linked invoice customer.");
+        } else if (
+          resolvedCustomerId &&
+          inv.customer_id &&
+          resolvedCustomerId !== inv.customer_id
+        ) {
+          throw new Error(
+            "Validation error: Payment customer does not match linked invoice customer.",
+          );
         }
       }
 
@@ -1842,7 +1866,9 @@ export const updatePaymentFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string; patch: Partial<Payment> }) => input)
   .handler(async ({ data, context }): Promise<Payment> => {
-    const existing = await queryOne<Payment>("SELECT * FROM payments WHERE id = ? LIMIT 1", [data.id]);
+    const existing = await queryOne<Payment>("SELECT * FROM payments WHERE id = ? LIMIT 1", [
+      data.id,
+    ]);
     if (!existing) throw new Error("Payment not found.");
 
     await assertPermission(context, "finance.payments.edit", existing.workspace_id);
@@ -1869,7 +1895,8 @@ export const updatePaymentFn = createServerFn({ method: "POST" })
         "SELECT id FROM profiles WHERE id = ? AND workspace_id = ? LIMIT 1",
         [data.patch.assigned_to, existing.workspace_id],
       );
-      if (!assignee) throw new Error("Validation error: Assigned user does not belong to this workspace.");
+      if (!assignee)
+        throw new Error("Validation error: Assigned user does not belong to this workspace.");
     }
 
     // Whitelist only safe editable metadata fields
@@ -1903,7 +1930,9 @@ export const reversePaymentFn = createServerFn({ method: "POST" })
     if (!data.reason?.trim()) {
       throw new Error("Reversal reason is required.");
     }
-    const payment = await queryOne<Payment>("SELECT * FROM payments WHERE id = ? LIMIT 1", [data.id]);
+    const payment = await queryOne<Payment>("SELECT * FROM payments WHERE id = ? LIMIT 1", [
+      data.id,
+    ]);
     if (!payment) throw new Error("Payment not found.");
 
     await assertPermission(context, "finance.payments.reverse", payment.workspace_id);
@@ -1948,7 +1977,9 @@ export const deletePaymentFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string }) => input)
   .handler(async ({ data, context }) => {
-    const existing = await queryOne<Payment>("SELECT * FROM payments WHERE id = ? LIMIT 1", [data.id]);
+    const existing = await queryOne<Payment>("SELECT * FROM payments WHERE id = ? LIMIT 1", [
+      data.id,
+    ]);
     if (!existing) throw new Error("Payment not found.");
 
     await assertPermission(context, "finance.payments.reverse", existing.workspace_id);
@@ -2081,7 +2112,23 @@ export const getFinanceReportsFn = createServerFn({ method: "GET" })
       [wsId],
     );
 
-    // 4. Overdue Outstanding Balance (Real remaining balance of overdue invoices)
+    // 4. Outstanding Receivables (Collectible balance from applicable issued/partially-paid/overdue invoices)
+    // Draft invoices MUST NOT be included. Cancelled invoices MUST NOT be included.
+    const outstandingRow = await queryOne<{ total: number }>(
+      `SELECT COALESCE(SUM(GREATEST(0, i.total - COALESCE(p.paid, 0))), 0) as total
+       FROM invoices i
+       LEFT JOIN (
+         SELECT invoice_id, SUM(amount) as paid 
+         FROM payments 
+         WHERE workspace_id = ? AND status = 'Received' 
+         GROUP BY invoice_id
+       ) p ON i.id = p.invoice_id
+       WHERE i.workspace_id = ? 
+         AND i.status NOT IN ('Draft', 'Cancelled', 'Paid')`,
+      [wsId, wsId],
+    );
+
+    // 5. Overdue Outstanding Balance (Real remaining unpaid balance of overdue invoices)
     const overdueRow = await queryOne<{ total: number }>(
       `SELECT COALESCE(SUM(GREATEST(0, i.total - COALESCE(p.paid, 0))), 0) as total
        FROM invoices i
@@ -2092,13 +2139,14 @@ export const getFinanceReportsFn = createServerFn({ method: "GET" })
          GROUP BY invoice_id
        ) p ON i.id = p.invoice_id
        WHERE i.workspace_id = ? 
-         AND (i.status = 'Overdue' OR (i.due_date < CURDATE() AND i.status NOT IN ('Draft', 'Cancelled', 'Paid')))`,
+         AND (i.status = 'Overdue' OR (i.due_date IS NOT NULL AND i.due_date < CURDATE() AND i.status NOT IN ('Draft', 'Cancelled', 'Paid')))
+         AND (i.total - COALESCE(p.paid, 0)) > 0`,
       [wsId, wsId],
     );
 
     const totalInvoiced = Number(invSumRow?.total ?? 0);
     const totalPaid = Number(paySumRow?.total ?? 0);
-    const totalOutstanding = Math.max(0, totalInvoiced - totalPaid);
+    const totalOutstanding = Number(outstandingRow?.total ?? 0);
     const totalOverdue = Number(overdueRow?.total ?? 0);
 
     // 5. Status distribution
@@ -2131,10 +2179,7 @@ export const getFinanceReportsFn = createServerFn({ method: "GET" })
     const payMap = new Map(teamPayments.map((r) => [r.created_by, Number(r.total)]));
 
     const userIds = Array.from(
-      new Set([
-        ...teamInvoices.map((i) => i.created_by),
-        ...teamPayments.map((p) => p.created_by),
-      ]),
+      new Set([...teamInvoices.map((i) => i.created_by), ...teamPayments.map((p) => p.created_by)]),
     );
     const teamAttribution = userIds.map((uid) => ({
       userId: uid,
@@ -2551,7 +2596,7 @@ export const getDashboardDataFn = createServerFn({ method: "GET" })
         [wsId, firstDayOfMonth],
       );
 
-      // Outstanding balance on active issued/overdue/partially paid invoices
+      // Outstanding balance on active issued/overdue/partially paid invoices (Excluding Draft, Cancelled, Paid)
       pendingPayRow = await queryOne<{ total: number; c: number }>(
         `SELECT 
            COUNT(DISTINCT i.id) as c,
@@ -2563,16 +2608,27 @@ export const getDashboardDataFn = createServerFn({ method: "GET" })
            WHERE workspace_id = ? AND status = 'Received' 
            GROUP BY invoice_id
          ) p ON i.id = p.invoice_id
-         WHERE i.workspace_id = ? AND i.status IN ('Overdue', 'Partially Paid', 'Issued', 'Sent')`,
+         WHERE i.workspace_id = ? 
+           AND i.status NOT IN ('Draft', 'Cancelled', 'Paid')
+           AND (i.total - COALESCE(p.paid, 0)) > 0`,
         [wsId, wsId],
       );
 
       pendingInvoicesRaw = await query<Invoice & { customer_name?: string }>(
         `SELECT i.*, c.name as customer_name 
-         FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id 
-         WHERE i.workspace_id = ? AND i.status IN ('Overdue', 'Partially Paid', 'Issued', 'Sent') 
+         FROM invoices i 
+         LEFT JOIN customers c ON i.customer_id = c.id 
+         LEFT JOIN (
+           SELECT invoice_id, SUM(amount) as paid 
+           FROM payments 
+           WHERE workspace_id = ? AND status = 'Received' 
+           GROUP BY invoice_id
+         ) p ON i.id = p.invoice_id
+         WHERE i.workspace_id = ? 
+           AND i.status NOT IN ('Draft', 'Cancelled', 'Paid')
+           AND (i.total - COALESCE(p.paid, 0)) > 0
          ORDER BY i.created_at DESC LIMIT 5`,
-        [wsId],
+        [wsId, wsId],
       );
     }
 

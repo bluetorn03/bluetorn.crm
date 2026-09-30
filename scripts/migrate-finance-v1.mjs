@@ -133,68 +133,319 @@ async function run() {
   await addColumnIfMissing(conn, "workspaces", "gstin", "VARCHAR(32) DEFAULT NULL AFTER `address`");
   await addColumnIfMissing(conn, "workspaces", "pan", "VARCHAR(32) DEFAULT NULL AFTER `gstin`");
   await addColumnIfMissing(conn, "workspaces", "state", "VARCHAR(64) DEFAULT NULL AFTER `pan`");
-  await addColumnIfMissing(conn, "workspaces", "state_code", "VARCHAR(8) DEFAULT NULL AFTER `state`");
-  await addColumnIfMissing(conn, "workspaces", "website", "VARCHAR(255) DEFAULT NULL AFTER `state_code`");
-  await addColumnIfMissing(conn, "workspaces", "bank_name", "VARCHAR(128) DEFAULT NULL AFTER `website`");
-  await addColumnIfMissing(conn, "workspaces", "bank_account_no", "VARCHAR(64) DEFAULT NULL AFTER `bank_name`");
-  await addColumnIfMissing(conn, "workspaces", "bank_account_name", "VARCHAR(128) DEFAULT NULL AFTER `bank_account_no`");
-  await addColumnIfMissing(conn, "workspaces", "bank_ifsc", "VARCHAR(32) DEFAULT NULL AFTER `bank_account_name`");
-  await addColumnIfMissing(conn, "workspaces", "invoice_prefix", "VARCHAR(32) NOT NULL DEFAULT 'INV' AFTER `bank_ifsc`");
-  await addColumnIfMissing(conn, "workspaces", "default_payment_terms_days", "INT NOT NULL DEFAULT 14 AFTER `invoice_prefix`");
-  await addColumnIfMissing(conn, "workspaces", "default_invoice_notes", "TEXT DEFAULT NULL AFTER `default_payment_terms_days`");
-  await addColumnIfMissing(conn, "workspaces", "default_invoice_terms", "TEXT DEFAULT NULL AFTER `default_invoice_notes`");
+  await addColumnIfMissing(
+    conn,
+    "workspaces",
+    "state_code",
+    "VARCHAR(8) DEFAULT NULL AFTER `state`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "workspaces",
+    "website",
+    "VARCHAR(255) DEFAULT NULL AFTER `state_code`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "workspaces",
+    "bank_name",
+    "VARCHAR(128) DEFAULT NULL AFTER `website`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "workspaces",
+    "bank_account_no",
+    "VARCHAR(64) DEFAULT NULL AFTER `bank_name`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "workspaces",
+    "bank_account_name",
+    "VARCHAR(128) DEFAULT NULL AFTER `bank_account_no`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "workspaces",
+    "bank_ifsc",
+    "VARCHAR(32) DEFAULT NULL AFTER `bank_account_name`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "workspaces",
+    "invoice_prefix",
+    "VARCHAR(32) NOT NULL DEFAULT 'INV' AFTER `bank_ifsc`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "workspaces",
+    "default_payment_terms_days",
+    "INT NOT NULL DEFAULT 14 AFTER `invoice_prefix`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "workspaces",
+    "default_invoice_notes",
+    "TEXT DEFAULT NULL AFTER `default_payment_terms_days`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "workspaces",
+    "default_invoice_terms",
+    "TEXT DEFAULT NULL AFTER `default_invoice_notes`",
+  );
   console.log("  ✓ `workspaces` columns verified.\n");
 
   // 3. Table: invoices columns & foreign keys
   console.log("3. Updating `invoices` with attribution, GST & lifecycle fields...");
-  await addColumnIfMissing(conn, "invoices", "lead_id", "VARCHAR(36) DEFAULT NULL AFTER `customer_id`");
-  await addColumnIfMissing(conn, "invoices", "assigned_to", "VARCHAR(36) DEFAULT NULL AFTER `property_id`");
-  await addColumnIfMissing(conn, "invoices", "updated_by", "VARCHAR(36) DEFAULT NULL AFTER `assigned_to`");
-  await addColumnIfMissing(conn, "invoices", "financial_year", "VARCHAR(16) DEFAULT NULL AFTER `invoice_number`");
-  await addColumnIfMissing(conn, "invoices", "invoice_type", "VARCHAR(32) NOT NULL DEFAULT 'Tax Invoice' AFTER `financial_year`");
-  await addColumnIfMissing(conn, "invoices", "discount", "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `subtotal`");
-  await addColumnIfMissing(conn, "invoices", "taxable_amount", "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `discount`");
-  await addColumnIfMissing(conn, "invoices", "cgst", "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `taxable_amount`");
-  await addColumnIfMissing(conn, "invoices", "sgst", "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `cgst`");
-  await addColumnIfMissing(conn, "invoices", "igst", "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `sgst`");
-  await addColumnIfMissing(conn, "invoices", "cess", "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `igst`");
-  await addColumnIfMissing(conn, "invoices", "place_of_supply", "VARCHAR(64) DEFAULT NULL AFTER `total`");
+  await addColumnIfMissing(
+    conn,
+    "invoices",
+    "lead_id",
+    "VARCHAR(36) DEFAULT NULL AFTER `customer_id`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoices",
+    "assigned_to",
+    "VARCHAR(36) DEFAULT NULL AFTER `property_id`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoices",
+    "updated_by",
+    "VARCHAR(36) DEFAULT NULL AFTER `assigned_to`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoices",
+    "financial_year",
+    "VARCHAR(16) DEFAULT NULL AFTER `invoice_number`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoices",
+    "invoice_type",
+    "VARCHAR(32) NOT NULL DEFAULT 'Tax Invoice' AFTER `financial_year`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoices",
+    "discount",
+    "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `subtotal`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoices",
+    "taxable_amount",
+    "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `discount`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoices",
+    "cgst",
+    "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `taxable_amount`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoices",
+    "sgst",
+    "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `cgst`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoices",
+    "igst",
+    "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `sgst`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoices",
+    "cess",
+    "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `igst`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoices",
+    "place_of_supply",
+    "VARCHAR(64) DEFAULT NULL AFTER `total`",
+  );
   await addColumnIfMissing(conn, "invoices", "terms", "TEXT DEFAULT NULL AFTER `notes`");
-  await addColumnIfMissing(conn, "invoices", "cancellation_reason", "TEXT DEFAULT NULL AFTER `terms`");
-  await addColumnIfMissing(conn, "invoices", "cancelled_at", "DATETIME DEFAULT NULL AFTER `cancellation_reason`");
-  await addColumnIfMissing(conn, "invoices", "cancelled_by", "VARCHAR(36) DEFAULT NULL AFTER `cancelled_at`");
+  await addColumnIfMissing(
+    conn,
+    "invoices",
+    "cancellation_reason",
+    "TEXT DEFAULT NULL AFTER `terms`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoices",
+    "cancelled_at",
+    "DATETIME DEFAULT NULL AFTER `cancellation_reason`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoices",
+    "cancelled_by",
+    "VARCHAR(36) DEFAULT NULL AFTER `cancelled_at`",
+  );
 
-  await addForeignKeyIfMissing(conn, "invoices", "fk_invoices_lead", "FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON DELETE SET NULL");
-  await addForeignKeyIfMissing(conn, "invoices", "fk_invoices_assigned", "FOREIGN KEY (`assigned_to`) REFERENCES `profiles` (`id`) ON DELETE SET NULL");
-  await addForeignKeyIfMissing(conn, "invoices", "fk_invoices_updated_by", "FOREIGN KEY (`updated_by`) REFERENCES `profiles` (`id`) ON DELETE SET NULL");
+  await addForeignKeyIfMissing(
+    conn,
+    "invoices",
+    "fk_invoices_lead",
+    "FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON DELETE SET NULL",
+  );
+  await addForeignKeyIfMissing(
+    conn,
+    "invoices",
+    "fk_invoices_assigned",
+    "FOREIGN KEY (`assigned_to`) REFERENCES `profiles` (`id`) ON DELETE SET NULL",
+  );
+  await addForeignKeyIfMissing(
+    conn,
+    "invoices",
+    "fk_invoices_updated_by",
+    "FOREIGN KEY (`updated_by`) REFERENCES `profiles` (`id`) ON DELETE SET NULL",
+  );
   console.log("  ✓ `invoices` columns & FKs verified.\n");
 
   // 4. Table: invoice_items columns
-  console.log("4. Updating `invoice_items` with HSN/SAC, Unit, Rate, Discount, Line Total fields...");
-  await addColumnIfMissing(conn, "invoice_items", "hsn_sac", "VARCHAR(32) DEFAULT NULL AFTER `description`");
-  await addColumnIfMissing(conn, "invoice_items", "unit", "VARCHAR(32) NOT NULL DEFAULT 'Units' AFTER `quantity`");
-  await addColumnIfMissing(conn, "invoice_items", "rate", "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `unit`");
-  await addColumnIfMissing(conn, "invoice_items", "discount", "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `rate`");
-  await addColumnIfMissing(conn, "invoice_items", "tax_rate", "DECIMAL(6,3) NOT NULL DEFAULT 0.000 AFTER `discount`");
-  await addColumnIfMissing(conn, "invoice_items", "tax_type", "VARCHAR(32) NOT NULL DEFAULT 'GST' AFTER `tax_rate`");
-  await addColumnIfMissing(conn, "invoice_items", "tax_amount", "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `tax_type`");
-  await addColumnIfMissing(conn, "invoice_items", "line_total", "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `tax_amount`");
+  console.log(
+    "4. Updating `invoice_items` with HSN/SAC, Unit, Rate, Discount, Line Total fields...",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoice_items",
+    "hsn_sac",
+    "VARCHAR(32) DEFAULT NULL AFTER `description`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoice_items",
+    "unit",
+    "VARCHAR(32) NOT NULL DEFAULT 'Units' AFTER `quantity`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoice_items",
+    "rate",
+    "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `unit`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoice_items",
+    "discount",
+    "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `rate`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoice_items",
+    "tax_rate",
+    "DECIMAL(6,3) NOT NULL DEFAULT 0.000 AFTER `discount`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoice_items",
+    "tax_type",
+    "VARCHAR(32) NOT NULL DEFAULT 'GST' AFTER `tax_rate`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoice_items",
+    "tax_amount",
+    "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `tax_type`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "invoice_items",
+    "line_total",
+    "DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `tax_amount`",
+  );
 
   // Sync historical rate and line_total if they are 0 but unit_amount and amount exist
-  await conn.query("UPDATE `invoice_items` SET `rate` = `unit_amount` WHERE `rate` = 0.00 AND `unit_amount` > 0");
-  await conn.query("UPDATE `invoice_items` SET `line_total` = `amount` WHERE `line_total` = 0.00 AND `amount` > 0");
-  console.log("  ✓ `invoice_items` columns verified.\n");
+  await conn.query(
+    "UPDATE `invoice_items` SET `rate` = `unit_amount` WHERE `rate` = 0.00 AND `unit_amount` > 0",
+  );
+  await conn.query(
+    "UPDATE `invoice_items` SET `line_total` = `amount` WHERE `line_total` = 0.00 AND `amount` > 0",
+  );
+
+  // Reconcile legacy tax rates and totals
+  await conn.query(`
+    UPDATE \`invoice_items\` ii
+    JOIN \`invoices\` i ON ii.invoice_id = i.id
+    SET 
+      ii.tax_rate = i.tax_rate,
+      ii.tax_amount = ROUND((ii.rate * ii.quantity - ii.discount) * i.tax_rate / 100, 2),
+      ii.line_total = ROUND((ii.rate * ii.quantity - ii.discount) * (1 + i.tax_rate / 100), 2),
+      ii.amount = ROUND((ii.rate * ii.quantity - ii.discount) * (1 + i.tax_rate / 100), 2)
+    WHERE i.tax_rate > 0 
+      AND i.tax_amount > 0 
+      AND ii.tax_rate = 0 
+      AND ii.tax_amount = 0
+  `);
+
+  await conn.query(`
+    UPDATE \`invoices\` i
+    JOIN \`workspaces\` w ON i.workspace_id = w.id
+    SET 
+      i.taxable_amount = GREATEST(0, i.subtotal - i.discount),
+      i.cgst = CASE 
+        WHEN (w.state_code IS NOT NULL AND i.place_of_supply IS NOT NULL AND UPPER(TRIM(i.place_of_supply)) != UPPER(TRIM(w.state_code))) THEN 0 
+        ELSE ROUND(i.tax_amount / 2, 2) 
+      END,
+      i.sgst = CASE 
+        WHEN (w.state_code IS NOT NULL AND i.place_of_supply IS NOT NULL AND UPPER(TRIM(i.place_of_supply)) != UPPER(TRIM(w.state_code))) THEN 0 
+        ELSE ROUND(i.tax_amount / 2, 2) 
+      END,
+      i.igst = CASE 
+        WHEN (w.state_code IS NOT NULL AND i.place_of_supply IS NOT NULL AND UPPER(TRIM(i.place_of_supply)) != UPPER(TRIM(w.state_code))) THEN i.tax_amount 
+        ELSE 0 
+      END
+    WHERE i.taxable_amount = 0 AND i.subtotal > 0
+  `);
+  console.log("  ✓ `invoice_items` and `invoices` tax data reconciled.\n");
 
   // 5. Table: payments columns & foreign keys
   console.log("5. Updating `payments` with attribution & reversal fields...");
-  await addColumnIfMissing(conn, "payments", "assigned_to", "VARCHAR(36) DEFAULT NULL AFTER `customer_id`");
-  await addColumnIfMissing(conn, "payments", "updated_by", "VARCHAR(36) DEFAULT NULL AFTER `assigned_to`");
+  await addColumnIfMissing(
+    conn,
+    "payments",
+    "assigned_to",
+    "VARCHAR(36) DEFAULT NULL AFTER `customer_id`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "payments",
+    "updated_by",
+    "VARCHAR(36) DEFAULT NULL AFTER `assigned_to`",
+  );
   await addColumnIfMissing(conn, "payments", "reversal_reason", "TEXT DEFAULT NULL AFTER `notes`");
-  await addColumnIfMissing(conn, "payments", "reversed_at", "DATETIME DEFAULT NULL AFTER `reversal_reason`");
-  await addColumnIfMissing(conn, "payments", "reversed_by", "VARCHAR(36) DEFAULT NULL AFTER `reversed_at`");
+  await addColumnIfMissing(
+    conn,
+    "payments",
+    "reversed_at",
+    "DATETIME DEFAULT NULL AFTER `reversal_reason`",
+  );
+  await addColumnIfMissing(
+    conn,
+    "payments",
+    "reversed_by",
+    "VARCHAR(36) DEFAULT NULL AFTER `reversed_at`",
+  );
 
-  await addForeignKeyIfMissing(conn, "payments", "fk_payments_assigned", "FOREIGN KEY (`assigned_to`) REFERENCES `profiles` (`id`) ON DELETE SET NULL");
-  await addForeignKeyIfMissing(conn, "payments", "fk_payments_updated_by", "FOREIGN KEY (`updated_by`) REFERENCES `profiles` (`id`) ON DELETE SET NULL");
+  await addForeignKeyIfMissing(
+    conn,
+    "payments",
+    "fk_payments_assigned",
+    "FOREIGN KEY (`assigned_to`) REFERENCES `profiles` (`id`) ON DELETE SET NULL",
+  );
+  await addForeignKeyIfMissing(
+    conn,
+    "payments",
+    "fk_payments_updated_by",
+    "FOREIGN KEY (`updated_by`) REFERENCES `profiles` (`id`) ON DELETE SET NULL",
+  );
   console.log("  ✓ `payments` columns & FKs verified.\n");
 
   await conn.end();

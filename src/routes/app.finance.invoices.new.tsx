@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Building2, FileText, Loader2, Plus, Trash2, User } from "lucide-react";
@@ -25,6 +25,7 @@ import {
   listProperties,
   nextInvoiceNumber,
   saveInvoice,
+  getInvoice,
   qk,
   type InvoiceLineInput,
 } from "@/lib/crm-api";
@@ -37,7 +38,10 @@ export const Route = createFileRoute("/app/finance/invoices/new")({
   head: () => ({
     meta: [
       { title: "New invoice · BLUETORN CRM" },
-      { name: "description", content: "Build a GST-ready tax invoice with line items and workspace branding." },
+      {
+        name: "description",
+        content: "Build a GST-ready tax invoice with line items and workspace branding.",
+      },
       { property: "og:title", content: "New invoice · BLUETORN CRM" },
       {
         property: "og:description",
@@ -50,18 +54,15 @@ export const Route = createFileRoute("/app/finance/invoices/new")({
 
 function NewInvoicePage() {
   return (
-    <PermissionGate requires={["finance.invoices.create", "manage.finance"]}>
+    <PermissionGate
+      requires={["finance.invoices.create", "finance.invoices.edit", "manage.finance"]}
+    >
       <NewInvoiceContent />
     </PermissionGate>
   );
 }
 
-const INVOICE_TYPES = [
-  "Tax Invoice",
-  "Proforma Invoice",
-  "Bill of Supply",
-  "Receipt Voucher",
-];
+const INVOICE_TYPES = ["Tax Invoice", "Proforma Invoice", "Bill of Supply", "Receipt Voucher"];
 
 const TAX_RATES = [0, 5, 12, 18, 28];
 const UNITS = ["unit", "sq ft", "service", "month", "lot", "hour", "day"];
@@ -76,11 +77,39 @@ interface FormLine {
   tax_rate: number;
 }
 
+function formatDateInput(d: unknown): string {
+  if (!d) return "";
+  if (typeof d === "string") return d.slice(0, 10);
+  if (d instanceof Date) return d.toISOString().slice(0, 10);
+  try {
+    const parsed = new Date(d as any);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  } catch {
+    // ignore
+  }
+  return String(d).slice(0, 10);
+}
+
 function NewInvoiceContent() {
   const { workspace, user } = useSession();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const getMembers = useServerFn(getWorkspaceMembersFn);
+
+  // Edit mode param detection from search query (?edit=<invoiceId>)
+  const editId = useRouterState({
+    select: (s) => {
+      const searchObj = s.location.search as Record<string, unknown> | undefined;
+      const val = searchObj ? searchObj["edit"] : undefined;
+      return typeof val === "string" ? val : null;
+    },
+  });
+
+  const editInvoiceQuery = useQuery({
+    queryKey: qk.invoice(editId || ""),
+    queryFn: () => getInvoice(editId!),
+    enabled: !!editId,
+  });
 
   // Queries
   const customersQuery = useQuery({
@@ -110,7 +139,7 @@ function NewInvoiceContent() {
   const invNumberQuery = useQuery({
     queryKey: ["nextInvoiceNumber", workspace.id],
     queryFn: () => nextInvoiceNumber(workspace.id),
-    enabled: !!workspace.id,
+    enabled: !!workspace.id && !editId,
   });
 
   // State
@@ -122,12 +151,17 @@ function NewInvoiceContent() {
   const [assignedTo, setAssignedTo] = useState(user.id);
   const [issueDate, setIssueDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState<string | null>(
-    new Date(Date.now() + (Number(workspace.defaultPaymentTermsDays) || 14) * 86400000).toISOString(),
+    new Date(Date.now() + (Number(workspace.defaultPaymentTermsDays) || 14) * 86400000)
+      .toISOString()
+      .slice(0, 10),
   );
   const [placeOfSupply, setPlaceOfSupply] = useState(workspace.state ?? "");
-  const [notes, setNotes] = useState(workspace.defaultInvoiceNotes ?? "Thank you for your business.");
+  const [notes, setNotes] = useState(
+    workspace.defaultInvoiceNotes ?? "Thank you for your business.",
+  );
   const [terms, setTerms] = useState(
-    workspace.defaultInvoiceTerms ?? "Payment due within stipulated terms. All disputes subject to local jurisdiction.",
+    workspace.defaultInvoiceTerms ??
+      "Payment due within stipulated terms. All disputes subject to local jurisdiction.",
   );
 
   // Line items state
@@ -143,12 +177,53 @@ function NewInvoiceContent() {
     },
   ]);
 
-  // Sync auto-generated invoice number when loaded
+  // Pre-populate fields when editing an existing draft
+  const [hasInitializedEdit, setHasInitializedEdit] = useState(false);
   useEffect(() => {
-    if (invNumberQuery.data?.invoiceNumber && !invoiceNumber) {
+    if (editInvoiceQuery.data && !hasInitializedEdit) {
+      const { invoice, items } = editInvoiceQuery.data;
+      if (invoice.status !== "Draft") {
+        toast.error(
+          "Only draft invoices can be edited. Historical financial records are protected.",
+        );
+        navigate({ to: `/app/finance/invoices/${invoice.id}` });
+        return;
+      }
+
+      setInvoiceNumber(invoice.invoice_number);
+      if (invoice.invoice_type) setInvoiceType(invoice.invoice_type);
+      if (invoice.customer_id) setSelectedCustomerId(invoice.customer_id);
+      if (invoice.lead_id) setSelectedLeadId(invoice.lead_id);
+      if (invoice.property_id) setSelectedPropertyId(invoice.property_id);
+      if (invoice.assigned_to) setAssignedTo(invoice.assigned_to);
+      if (invoice.issue_date) setIssueDate(formatDateInput(invoice.issue_date));
+      if (invoice.due_date) setDueDate(formatDateInput(invoice.due_date));
+      if (invoice.place_of_supply) setPlaceOfSupply(invoice.place_of_supply);
+      if (invoice.notes !== null && invoice.notes !== undefined) setNotes(invoice.notes);
+      if (invoice.terms !== null && invoice.terms !== undefined) setTerms(invoice.terms);
+      if (items && items.length > 0) {
+        setLines(
+          items.map((it) => ({
+            description: it.description || "",
+            hsn_sac: it.hsn_sac || "997212",
+            quantity: Number(it.quantity) || 1,
+            unit: it.unit || "unit",
+            rate: Number(it.rate ?? it.unit_amount ?? 0),
+            discount: Number(it.discount) || 0,
+            tax_rate: Number(it.tax_rate ?? invoice.tax_rate ?? 18),
+          })),
+        );
+      }
+      setHasInitializedEdit(true);
+    }
+  }, [editInvoiceQuery.data, hasInitializedEdit, navigate]);
+
+  // Sync auto-generated invoice number when loaded for new invoices
+  useEffect(() => {
+    if (!editId && invNumberQuery.data?.invoiceNumber && !invoiceNumber) {
       setInvoiceNumber(invNumberQuery.data.invoiceNumber);
     }
-  }, [invNumberQuery.data, invoiceNumber]);
+  }, [editId, invNumberQuery.data, invoiceNumber]);
 
   // Selected customer object
   const selectedCustomer = useMemo(() => {
@@ -244,9 +319,11 @@ function NewInvoiceContent() {
       }));
 
       return saveInvoice({
+        ...(editId ? { id: editId } : {}),
         workspaceId: workspace.id,
         invoice: {
-          invoice_number: invoiceNumber.trim() || (invNumberQuery.data?.invoiceNumber ?? `INV-${Date.now()}`),
+          invoice_number:
+            invoiceNumber.trim() || (invNumberQuery.data?.invoiceNumber ?? `INV-${Date.now()}`),
           invoice_type: invoiceType,
           customer_id: selectedCustomerId,
           lead_id: selectedLeadId || null,
@@ -265,10 +342,13 @@ function NewInvoiceContent() {
       });
     },
     onSuccess: (savedInvoice) => {
+      queryClient.invalidateQueries({ queryKey: qk.invoice(savedInvoice.id) });
       queryClient.invalidateQueries({ queryKey: qk.invoices(workspace.id) });
       queryClient.invalidateQueries({ queryKey: ["dashboard", workspace.id] });
       toast.success(
-        `Invoice ${savedInvoice.invoice_number} saved as ${savedInvoice.status} successfully.`,
+        editId
+          ? `Draft invoice ${savedInvoice.invoice_number} updated successfully.`
+          : `Invoice ${savedInvoice.invoice_number} saved as ${savedInvoice.status} successfully.`,
       );
       navigate({ to: `/app/finance/invoices/${savedInvoice.id}` });
     },
@@ -315,8 +395,12 @@ function NewInvoiceContent() {
       </Button>
 
       <PageHeader
-        title="Create New Invoice"
-        description="Draft or issue a compliant invoice with live workspace billing identity and line item taxes."
+        title={editId ? `Edit Draft Invoice (${invoiceNumber || "Draft"})` : "Create New Invoice"}
+        description={
+          editId
+            ? "Update line items, taxes, and details for this existing draft invoice."
+            : "Draft or issue a compliant invoice with live workspace billing identity and line item taxes."
+        }
       />
 
       <div className="space-y-6">
@@ -369,9 +453,7 @@ function NewInvoiceContent() {
               </div>
 
               {workspace.address && (
-                <p className="text-xs text-muted-foreground pt-1">
-                  {workspace.address}
-                </p>
+                <p className="text-xs text-muted-foreground pt-1">{workspace.address}</p>
               )}
             </div>
           </SectionCard>
@@ -413,7 +495,9 @@ function NewInvoiceContent() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">City / Region:</span>
-                    <span className="font-medium text-foreground">{selectedCustomer.city || "—"}</span>
+                    <span className="font-medium text-foreground">
+                      {selectedCustomer.city || "—"}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Status / Type:</span>
@@ -465,7 +549,10 @@ function NewInvoiceContent() {
         </div>
 
         {/* Invoice Metadata */}
-        <SectionCard title="Invoice Details" description="Document numbering, dates, and statutory tax jurisdiction.">
+        <SectionCard
+          title="Invoice Details"
+          description="Document numbering, dates, and statutory tax jurisdiction."
+        >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
               <Label>Invoice Number *</Label>
@@ -495,11 +582,7 @@ function NewInvoiceContent() {
 
             <div className="space-y-1.5">
               <Label>Invoice Date</Label>
-              <Input
-                type="date"
-                value={issueDate}
-                onChange={(e) => setIssueDate(e.target.value)}
-              />
+              <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
             </div>
 
             <div className="space-y-1.5">
@@ -544,7 +627,9 @@ function NewInvoiceContent() {
             <div className="space-y-1.5">
               <Label>Tax Treatment</Label>
               <div className="h-9 px-3 rounded-md bg-muted/60 border border-border flex items-center text-xs font-medium">
-                {calculated.isInterState ? "Inter-state (IGST applied)" : "Intra-state (CGST + SGST split 50/50)"}
+                {calculated.isInterState
+                  ? "Inter-state (IGST applied)"
+                  : "Intra-state (CGST + SGST split 50/50)"}
               </div>
             </div>
           </div>
@@ -602,7 +687,9 @@ function NewInvoiceContent() {
                         min="1"
                         value={line.quantity}
                         onChange={(e) =>
-                          updateLine(idx, { quantity: Math.max(1, parseInt(e.target.value, 10) || 1) })
+                          updateLine(idx, {
+                            quantity: Math.max(1, parseInt(e.target.value, 10) || 1),
+                          })
                         }
                         required
                       />
@@ -634,9 +721,7 @@ function NewInvoiceContent() {
                         min="0"
                         step="0.01"
                         value={line.rate}
-                        onChange={(e) =>
-                          updateLine(idx, { rate: parseFloat(e.target.value) || 0 })
-                        }
+                        onChange={(e) => updateLine(idx, { rate: parseFloat(e.target.value) || 0 })}
                         required
                       />
                     </div>
@@ -711,7 +796,10 @@ function NewInvoiceContent() {
         {/* Notes, Terms & Summary */}
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
-            <SectionCard title="Invoice Notes & Terms" description="Will be printed at the bottom of the invoice document.">
+            <SectionCard
+              title="Invoice Notes & Terms"
+              description="Will be printed at the bottom of the invoice document."
+            >
               <div className="space-y-4">
                 <div>
                   <Label className="text-xs">Invoice Notes</Label>
@@ -742,40 +830,54 @@ function NewInvoiceContent() {
               <dl className="space-y-2.5 text-sm">
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Gross Subtotal</dt>
-                  <dd className="font-medium text-foreground">{formatMoney(calculated.subtotal, currency)}</dd>
+                  <dd className="font-medium text-foreground">
+                    {formatMoney(calculated.subtotal, currency)}
+                  </dd>
                 </div>
                 {calculated.totalDiscount > 0 && (
                   <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
                     <dt>Total Discount</dt>
-                    <dd className="font-medium">- {formatMoney(calculated.totalDiscount, currency)}</dd>
+                    <dd className="font-medium">
+                      - {formatMoney(calculated.totalDiscount, currency)}
+                    </dd>
                   </div>
                 )}
                 <div className="flex justify-between pt-1 border-t border-border">
                   <dt className="text-muted-foreground">Taxable Amount</dt>
-                  <dd className="font-medium text-foreground">{formatMoney(calculated.taxableAmount, currency)}</dd>
+                  <dd className="font-medium text-foreground">
+                    {formatMoney(calculated.taxableAmount, currency)}
+                  </dd>
                 </div>
 
                 {calculated.isInterState ? (
                   <div className="flex justify-between text-xs">
                     <dt className="text-muted-foreground">IGST (Inter-state)</dt>
-                    <dd className="font-medium text-foreground">{formatMoney(calculated.igst, currency)}</dd>
+                    <dd className="font-medium text-foreground">
+                      {formatMoney(calculated.igst, currency)}
+                    </dd>
                   </div>
                 ) : (
                   <>
                     <div className="flex justify-between text-xs">
                       <dt className="text-muted-foreground">CGST (Intra-state)</dt>
-                      <dd className="font-medium text-foreground">{formatMoney(calculated.cgst, currency)}</dd>
+                      <dd className="font-medium text-foreground">
+                        {formatMoney(calculated.cgst, currency)}
+                      </dd>
                     </div>
                     <div className="flex justify-between text-xs">
                       <dt className="text-muted-foreground">SGST (Intra-state)</dt>
-                      <dd className="font-medium text-foreground">{formatMoney(calculated.sgst, currency)}</dd>
+                      <dd className="font-medium text-foreground">
+                        {formatMoney(calculated.sgst, currency)}
+                      </dd>
                     </div>
                   </>
                 )}
 
                 <div className="border-border flex justify-between border-t pt-3 text-base font-bold">
                   <dt>Grand Total</dt>
-                  <dd className="text-primary text-lg">{formatMoney(calculated.grandTotal, currency)}</dd>
+                  <dd className="text-primary text-lg">
+                    {formatMoney(calculated.grandTotal, currency)}
+                  </dd>
                 </div>
               </dl>
 
@@ -791,7 +893,7 @@ function NewInvoiceContent() {
                   ) : (
                     <FileText className="mr-1.5 h-4 w-4" />
                   )}
-                  Issue Invoice
+                  {editId ? "Update & Issue Invoice" : "Issue Invoice"}
                 </Button>
 
                 <Button
@@ -801,7 +903,7 @@ function NewInvoiceContent() {
                   disabled={saveMutation.isPending}
                   onClick={() => saveMutation.mutate("Draft")}
                 >
-                  Save as Draft
+                  {editId ? "Save Changes to Draft" : "Save as Draft"}
                 </Button>
               </div>
             </SectionCard>

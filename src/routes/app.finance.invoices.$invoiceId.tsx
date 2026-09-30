@@ -10,6 +10,7 @@ import {
   Download,
   FileText,
   Loader2,
+  Pencil,
   Printer,
   Send,
   Share2,
@@ -58,7 +59,10 @@ export const Route = createFileRoute("/app/finance/invoices/$invoiceId")({
   head: () => ({
     meta: [
       { title: "Invoice Details · BLUETORN CRM" },
-      { name: "description", content: "View full tax invoice, payments reconciliation, and print documents." },
+      {
+        name: "description",
+        content: "View full tax invoice, payments reconciliation, and print documents.",
+      },
     ],
   }),
   component: InvoiceDetailPage,
@@ -267,6 +271,14 @@ function InvoiceDetailContent() {
                   )}
 
                   {/* Draft Actions */}
+                  {inv.status === "Draft" && canEdit && (
+                    <Button asChild size="sm" variant="outline">
+                      <Link to="/app/finance/invoices/new" search={{ edit: inv.id }}>
+                        <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit Draft
+                      </Link>
+                    </Button>
+                  )}
+
                   {inv.status === "Draft" && canIssue && (
                     <Button
                       size="sm"
@@ -335,7 +347,7 @@ function InvoiceDetailContent() {
                 className="bg-card text-card-foreground border border-border rounded-xl p-6 sm:p-8 shadow-sm space-y-8 print:border-none print:shadow-none print:p-0"
               >
                 {/* Header: Workspace Supplier & Invoice Metadata */}
-                <div className="flex flex-col sm:flex-row justify-between items-start gap-6 border-b border-border pb-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start gap-6 border-b border-border pb-6 print-avoid-break">
                   <div className="space-y-2 max-w-sm">
                     {workspace.logoUrl ? (
                       <img
@@ -360,18 +372,20 @@ function InvoiceDetailContent() {
                     <div className="text-xs text-muted-foreground space-y-0.5 pt-1">
                       {workspace.gstin && (
                         <p>
-                          <span className="font-semibold text-foreground">GSTIN:</span> {workspace.gstin}
+                          <span className="font-semibold text-foreground">GSTIN:</span>{" "}
+                          {workspace.gstin}
                         </p>
                       )}
                       {workspace.pan && (
                         <p>
-                          <span className="font-semibold text-foreground">PAN:</span> {workspace.pan}
+                          <span className="font-semibold text-foreground">PAN:</span>{" "}
+                          {workspace.pan}
                         </p>
                       )}
                       {workspace.state && (
                         <p>
-                          <span className="font-semibold text-foreground">State:</span> {workspace.state}{" "}
-                          {workspace.stateCode ? `(${workspace.stateCode})` : ""}
+                          <span className="font-semibold text-foreground">State:</span>{" "}
+                          {workspace.state} {workspace.stateCode ? `(${workspace.stateCode})` : ""}
                         </p>
                       )}
                       {workspace.contactEmail && <p>Email: {workspace.contactEmail}</p>}
@@ -387,12 +401,17 @@ function InvoiceDetailContent() {
                       {inv.invoice_number}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Date: <span className="font-medium text-foreground">{formatDate(inv.issue_date)}</span>
+                      Date:{" "}
+                      <span className="font-medium text-foreground">
+                        {formatDate(inv.issue_date)}
+                      </span>
                     </p>
                     {inv.due_date && (
                       <p className="text-xs text-muted-foreground">
                         Due Date:{" "}
-                        <span className={`font-medium ${isOverdue ? "text-destructive font-bold" : "text-foreground"}`}>
+                        <span
+                          className={`font-medium ${isOverdue ? "text-destructive font-bold" : "text-foreground"}`}
+                        >
                           {formatDate(inv.due_date)}
                         </span>
                       </p>
@@ -405,14 +424,15 @@ function InvoiceDetailContent() {
                     )}
                     {inv.financial_year && (
                       <p className="text-xs text-muted-foreground">
-                        FY: <span className="font-medium text-foreground">{inv.financial_year}</span>
+                        FY:{" "}
+                        <span className="font-medium text-foreground">{inv.financial_year}</span>
                       </p>
                     )}
                   </div>
                 </div>
 
                 {/* Billed To (Customer) & Relations */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm print-avoid-break">
                   <div className="space-y-1.5 p-4 rounded-lg bg-muted/20 border border-border">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       Billed To (Customer)
@@ -427,7 +447,7 @@ function InvoiceDetailContent() {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5 p-4 rounded-lg bg-muted/20 border border-border">
+                  <div className="space-y-1.5 p-4 rounded-lg bg-muted/20 border border-border print:hidden">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       Record Attribution & Linkages
                     </p>
@@ -493,13 +513,20 @@ function InvoiceDetailContent() {
                             {item.hsn_sac || "—"}
                           </td>
                           <td className="py-3 px-3 text-right">
-                            {item.quantity} {item.unit ? <span className="text-xs text-muted-foreground">{item.unit}</span> : ""}
+                            {item.quantity}{" "}
+                            {item.unit ? (
+                              <span className="text-xs text-muted-foreground">{item.unit}</span>
+                            ) : (
+                              ""
+                            )}
                           </td>
                           <td className="py-3 px-3 text-right">
                             {formatMoney(Number(item.rate ?? item.unit_amount), currency)}
                           </td>
                           <td className="py-3 px-3 text-right text-muted-foreground">
-                            {Number(item.discount) > 0 ? formatMoney(Number(item.discount), currency) : "—"}
+                            {Number(item.discount) > 0
+                              ? formatMoney(Number(item.discount), currency)
+                              : "—"}
                           </td>
                           <td className="py-3 px-3 text-right text-xs">
                             {item.tax_rate ?? inv.tax_rate}%
@@ -514,7 +541,7 @@ function InvoiceDetailContent() {
                 </div>
 
                 {/* Financial Summary & Bank Details */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-border">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-border print-avoid-break">
                   {/* Bank & Settlement Details */}
                   <div className="space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -523,33 +550,47 @@ function InvoiceDetailContent() {
                     <div className="p-3 rounded-lg bg-muted/20 border border-border text-xs space-y-1">
                       <p>
                         <span className="text-muted-foreground">Bank: </span>
-                        <span className="font-semibold text-foreground">{workspace.bankName || "—"}</span>
+                        <span className="font-semibold text-foreground">
+                          {workspace.bankName || "—"}
+                        </span>
                       </p>
                       <p>
                         <span className="text-muted-foreground">A/C Name: </span>
-                        <span className="font-semibold text-foreground">{workspace.bankAccountName || workspace.legalName || workspace.name}</span>
+                        <span className="font-semibold text-foreground">
+                          {workspace.bankAccountName || workspace.legalName || workspace.name}
+                        </span>
                       </p>
                       <p>
                         <span className="text-muted-foreground">A/C No: </span>
-                        <span className="font-mono font-semibold text-foreground">{workspace.bankAccountNo || "—"}</span>
+                        <span className="font-mono font-semibold text-foreground">
+                          {workspace.bankAccountNo || "—"}
+                        </span>
                       </p>
                       <p>
                         <span className="text-muted-foreground">IFSC: </span>
-                        <span className="font-mono font-semibold text-foreground">{workspace.bankIfsc || "—"}</span>
+                        <span className="font-mono font-semibold text-foreground">
+                          {workspace.bankIfsc || "—"}
+                        </span>
                       </p>
                     </div>
 
                     {inv.notes && (
                       <div className="pt-2">
                         <p className="text-xs font-semibold text-muted-foreground">Notes:</p>
-                        <p className="text-xs text-muted-foreground whitespace-pre-line mt-0.5">{inv.notes}</p>
+                        <p className="text-xs text-muted-foreground whitespace-pre-line mt-0.5">
+                          {inv.notes}
+                        </p>
                       </div>
                     )}
 
                     {inv.terms && (
                       <div className="pt-1">
-                        <p className="text-xs font-semibold text-muted-foreground">Terms & Conditions:</p>
-                        <p className="text-xs text-muted-foreground whitespace-pre-line mt-0.5">{inv.terms}</p>
+                        <p className="text-xs font-semibold text-muted-foreground">
+                          Terms & Conditions:
+                        </p>
+                        <p className="text-xs text-muted-foreground whitespace-pre-line mt-0.5">
+                          {inv.terms}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -558,7 +599,9 @@ function InvoiceDetailContent() {
                   <div className="space-y-2 text-sm sm:max-w-sm sm:ml-auto w-full">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Subtotal</span>
-                      <span className="font-medium text-foreground">{formatMoney(inv.subtotal, currency)}</span>
+                      <span className="font-medium text-foreground">
+                        {formatMoney(inv.subtotal, currency)}
+                      </span>
                     </div>
 
                     {Number(inv.discount) > 0 && (
@@ -570,30 +613,45 @@ function InvoiceDetailContent() {
 
                     <div className="flex justify-between pt-1 border-t border-border text-xs">
                       <span className="text-muted-foreground">Taxable Value</span>
-                      <span className="font-medium text-foreground">{formatMoney(Number(inv.taxable_amount ?? inv.subtotal), currency)}</span>
+                      <span className="font-medium text-foreground">
+                        {formatMoney(
+                          Number(inv.taxable_amount) > 0
+                            ? Number(inv.taxable_amount)
+                            : Math.max(0, Number(inv.subtotal) - Number(inv.discount || 0)),
+                          currency,
+                        )}
+                      </span>
                     </div>
 
                     {Number(inv.igst) > 0 ? (
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">IGST (Inter-state)</span>
-                        <span className="font-medium text-foreground">{formatMoney(Number(inv.igst || 0), currency)}</span>
+                        <span className="font-medium text-foreground">
+                          {formatMoney(Number(inv.igst || 0), currency)}
+                        </span>
                       </div>
                     ) : (
                       <>
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">CGST (Intra-state)</span>
-                          <span className="font-medium text-foreground">{formatMoney(Number(inv.cgst ?? Number(inv.tax_amount) / 2), currency)}</span>
+                          <span className="font-medium text-foreground">
+                            {formatMoney(Number(inv.cgst || Number(inv.tax_amount) / 2), currency)}
+                          </span>
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">SGST (Intra-state)</span>
-                          <span className="font-medium text-foreground">{formatMoney(Number(inv.sgst ?? Number(inv.tax_amount) / 2), currency)}</span>
+                          <span className="font-medium text-foreground">
+                            {formatMoney(Number(inv.sgst || Number(inv.tax_amount) / 2), currency)}
+                          </span>
                         </div>
                       </>
                     )}
 
                     <div className="flex justify-between border-t border-border pt-2 text-base font-bold">
                       <span>Total Invoiced</span>
-                      <span className="text-primary text-lg">{formatMoney(inv.total, currency)}</span>
+                      <span className="text-primary text-lg">
+                        {formatMoney(inv.total, currency)}
+                      </span>
                     </div>
 
                     <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold pt-1">
@@ -603,12 +661,49 @@ function InvoiceDetailContent() {
 
                     <div className="flex justify-between border-t-2 border-border pt-2 font-bold text-foreground">
                       <span>Balance Outstanding</span>
-                      <span className={balance > 0 ? "text-destructive font-mono text-base" : "text-emerald-600"}>
+                      <span
+                        className={
+                          balance > 0 ? "text-destructive font-mono text-base" : "text-emerald-600"
+                        }
+                      >
                         {formatMoney(balance, currency)}
                       </span>
                     </div>
                   </div>
                 </div>
+
+                {/* Recorded Payments (Printed on Invoice if payments exist) */}
+                {payments.length > 0 && (
+                  <div className="hidden print:block print-avoid-break pt-4 border-t border-border space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-foreground">
+                      Payment Receipts &amp; Settlement History
+                    </p>
+                    <table className="w-full text-left text-xs border border-border">
+                      <thead>
+                        <tr className="bg-muted/40 border-b border-border font-semibold">
+                          <th className="py-1.5 px-2">Date</th>
+                          <th className="py-1.5 px-2">Reference / UTR</th>
+                          <th className="py-1.5 px-2">Method</th>
+                          <th className="py-1.5 px-2 text-right">Amount Paid</th>
+                          <th className="py-1.5 px-2 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {payments.map((p) => (
+                          <tr key={p.id}>
+                            <td className="py-1.5 px-2">{formatDate(p.paid_at)}</td>
+                            <td className="py-1.5 px-2 font-mono">{p.reference || "—"}</td>
+                            <td className="py-1.5 px-2">{p.method}</td>
+                            <td className="py-1.5 px-2 text-right font-medium">
+                              {formatMoney(p.amount, currency)}
+                            </td>
+                            <td className="py-1.5 px-2 text-center">{p.status}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               {/* Payment History & Reconciliations */}
@@ -667,8 +762,13 @@ function InvoiceDetailContent() {
                       <DollarSign className="h-5 w-5 text-emerald-600" /> Record Client Payment
                     </DialogTitle>
                     <DialogDescription>
-                      Record payment for invoice <code className="bg-muted px-1 rounded">{inv.invoice_number}</code>.
-                      Remaining balance: <span className="font-semibold text-foreground">{formatMoney(balance, currency)}</span>.
+                      Record payment for invoice{" "}
+                      <code className="bg-muted px-1 rounded">{inv.invoice_number}</code>. Remaining
+                      balance:{" "}
+                      <span className="font-semibold text-foreground">
+                        {formatMoney(balance, currency)}
+                      </span>
+                      .
                     </DialogDescription>
                   </DialogHeader>
 
@@ -757,7 +857,8 @@ function InvoiceDetailContent() {
                       <XCircle className="h-5 w-5" /> Cancel / Void Invoice
                     </DialogTitle>
                     <DialogDescription>
-                      Voiding an issued invoice is an audited statutory action. Please provide a clear cancellation reason.
+                      Voiding an issued invoice is an audited statutory action. Please provide a
+                      clear cancellation reason.
                     </DialogDescription>
                   </DialogHeader>
 
@@ -781,7 +882,9 @@ function InvoiceDetailContent() {
                       disabled={!cancelReason.trim() || cancelMutation.isPending}
                       onClick={() => cancelMutation.mutate()}
                     >
-                      {cancelMutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                      {cancelMutation.isPending && (
+                        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      )}
                       Confirm Void
                     </Button>
                   </DialogFooter>
@@ -808,7 +911,9 @@ function InvoiceDetailContent() {
                       disabled={deleteMutation.isPending}
                       onClick={() => deleteMutation.mutate()}
                     >
-                      {deleteMutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                      {deleteMutation.isPending && (
+                        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      )}
                       Delete Draft
                     </Button>
                   </DialogFooter>

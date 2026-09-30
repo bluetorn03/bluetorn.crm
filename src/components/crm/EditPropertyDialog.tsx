@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ImageUpload } from "@/components/common/ImageUpload";
 import {
   updateProperty,
   listMembers,
@@ -266,12 +267,12 @@ export function EditPropertyDialog({
               </div>
             )}
             <div className="space-y-1.5">
-              <Label htmlFor="editPropImage">Image URL</Label>
-              <Input
-                id="editPropImage"
-                placeholder="https://..."
+              <ImageUpload
                 value={form.imageUrl}
-                onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                onChange={(url) => setForm({ ...form, imageUrl: url })}
+                workspaceId={workspace.id}
+                label="Property Photo"
+                hint="Upload a photo (JPG, PNG, WebP) or enter an image URL"
               />
             </div>
             <div className="space-y-1.5">

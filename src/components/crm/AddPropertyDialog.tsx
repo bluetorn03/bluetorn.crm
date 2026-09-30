@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ImageUpload } from "@/components/common/ImageUpload";
 import { createProperty, listMembers, propertyTypes, propertyStatuses, qk } from "@/lib/crm-api";
 import { useSession } from "@/hooks/use-session";
 import { toast } from "sonner";
@@ -31,6 +32,7 @@ const emptyForm = {
   price: "",
   areaSqft: "",
   bedrooms: "",
+  imageUrl: "",
   description: "",
   assigned_to: "unassigned",
 };
@@ -75,6 +77,7 @@ export function AddPropertyDialog({
         area_sqft: form.areaSqft ? parseInt(form.areaSqft, 10) : null,
         bedrooms: form.bedrooms ? parseInt(form.bedrooms, 10) : null,
         description: form.description.trim() || null,
+        image_url: form.imageUrl.trim() || null,
         assigned_to: canAssign && form.assigned_to !== "unassigned" ? form.assigned_to : null,
       }),
     onSuccess: () => {
@@ -99,7 +102,7 @@ export function AddPropertyDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Add Property</DialogTitle>
@@ -215,6 +218,15 @@ export function AddPropertyDialog({
                 </Select>
               </div>
             )}
+            <div className="space-y-1.5">
+              <ImageUpload
+                value={form.imageUrl}
+                onChange={(url) => setForm({ ...form, imageUrl: url })}
+                workspaceId={workspace.id}
+                label="Property Photo"
+                hint="Upload a photo (JPG, PNG, WebP) or enter an image URL"
+              />
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="propDesc">Description</Label>
               <Input
