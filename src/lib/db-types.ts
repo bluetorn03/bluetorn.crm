@@ -37,6 +37,7 @@ export interface Workspace {
   default_invoice_notes?: string | null;
   default_invoice_terms?: string | null;
   seat_limit: number;
+  chat_retention_days?: number;
   created_at: string;
   updated_at: string;
 }
@@ -365,4 +366,54 @@ export interface Notification {
   is_read: boolean;
   created_by: string | null;
   created_at: string;
+}
+
+/* --------------------------- chat_conversations ---------------------------- */
+export interface ChatConversation {
+  id: string;
+  workspace_id: string;
+  user1_id: string;
+  user2_id: string;
+  last_message_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/* ------------------------------ chat_messages ------------------------------ */
+export interface ChatMessage {
+  id: string;
+  workspace_id: string;
+  conversation_id: string;
+  sender_id: string;
+  receiver_id: string;
+  body: string;
+  is_read: boolean | number;
+  read_at: string | null;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface ChatParticipant {
+  id: string;
+  user_code: string;
+  full_name: string;
+  job_title: string | null;
+  avatar_url: string | null;
+  is_active: boolean;
+  role: string | null;
+}
+
+export interface ChatConversationSummary {
+  id: string;
+  workspace_id: string;
+  participant: ChatParticipant;
+  lastMessage: {
+    id: string;
+    body: string;
+    sender_id: string;
+    created_at: string;
+    is_read: boolean;
+  } | null;
+  unreadCount: number;
+  updated_at: string;
 }

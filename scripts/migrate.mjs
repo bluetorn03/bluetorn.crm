@@ -124,7 +124,12 @@ async function run() {
   console.log("\nRunning Finance V1 migrations...");
   await import("./migrate-finance-v1.mjs");
 
-  // 5. Verify tables list
+  // 5. Team Chat V1 Migration (chat_retention_days, chat_conversations, chat_messages)
+  console.log("\nRunning Team Chat V1 migrations...");
+  const { migrateTeamChatV1 } = await import("./migrate-team-chat-v1.mjs");
+  await migrateTeamChatV1(conn);
+
+  // 6. Verify tables list
   const [tables] = await conn.query("SHOW TABLES");
   console.log("\nTables currently present in database:");
   for (const row of tables) {

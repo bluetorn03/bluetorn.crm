@@ -12,9 +12,12 @@ import {
   Wallet,
   AlertCircle,
   Loader2,
+  MessageSquare,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { QuickAddButton, Shell, type NavGroup, type NavItem } from "@/components/app/Shell";
 import { AuthGate } from "@/components/app/AuthGate";
+import { qk, getChatUnreadCount } from "@/lib/crm-api";
 
 export const Route = createFileRoute("/app")({
   ssr: false,
@@ -47,7 +50,7 @@ export const Route = createFileRoute("/app")({
   ),
 });
 
-const groups: NavGroup[] = [
+const baseGroups: NavGroup[] = [
   {
     label: "Workspace",
     items: [
@@ -67,6 +70,7 @@ const groups: NavGroup[] = [
     items: [
       { label: "Tasks", to: "/app/tasks", icon: CheckSquare },
       { label: "Calendar", to: "/app/calendar", icon: CalendarDays },
+      { label: "Team Chat", to: "/app/chat", icon: MessageSquare },
     ],
   },
   {
@@ -97,6 +101,30 @@ const mobileNav: NavItem[] = [
 ];
 
 function AppLayout() {
+  const { data: unreadData } = useQuery({
+    queryKey: qk.chatUnreadCount(),
+    queryFn: () => getChatUnreadCount(),
+    refetchInterval: 10000,
+  });
+
+  const unreadCount = Number(unreadData ?? 0);
+
+  const groups = baseGroups.map((group) => {
+    if (group.label !== "Work") return group;
+    return {
+      ...group,
+      items: group.items.map((item) => {
+        if (item.to === "/app/chat") {
+          return {
+            ...item,
+            badge: unreadCount > 0 ? (unreadCount > 99 ? "99+" : unreadCount) : undefined,
+          };
+        }
+        return item;
+      }),
+    };
+  });
+
   return (
     <AuthGate>
       <Shell
@@ -119,3 +147,4 @@ function AppLayout() {
     </AuthGate>
   );
 }
+

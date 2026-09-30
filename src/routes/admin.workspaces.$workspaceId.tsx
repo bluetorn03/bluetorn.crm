@@ -19,8 +19,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { adminGetWorkspace } from "@/lib/admin-queries.functions";
 import { createWorkspaceUser, setUserActive, setUserPassword } from "@/lib/admin.functions";
+import { updateWorkspaceRetentionPolicyFn } from "@/lib/chat.functions";
 import { formatDate, relativeTime } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/workspaces/$workspaceId")({
@@ -52,6 +63,11 @@ function AdminWorkspaceDetail() {
   const addUser = useServerFn(createWorkspaceUser);
   const toggleActive = useServerFn(setUserActive);
   const resetPassword = useServerFn(setUserPassword);
+  const updateRetention = useServerFn(updateWorkspaceRetentionPolicyFn);
+
+  const [selectedRetention, setSelectedRetention] = useState<number | null>(null);
+  const [reductionWarningOpen, setReductionWarningOpen] = useState(false);
+  const [pendingRetention, setPendingRetention] = useState<number | null>(null);
 
   const { data, isPending, error } = useQuery({
     queryKey: ["admin", "workspace", workspaceId],
@@ -69,6 +85,34 @@ function AdminWorkspaceDetail() {
   });
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["admin"] });
+
+  const retentionMutation = useMutation({
+    mutationFn: (days: number) => updateRetention({ data: { workspaceId, retentionDays: days } }),
+    onSuccess: async (r) => {
+      toast.success(`Retention policy updated to ${r.retentionDays} days.`, {
+        description: r.deletedExpired > 0 ? `Cleaned up ${r.deletedExpired} expired messages.` : undefined,
+      });
+      setReductionWarningOpen(false);
+      setPendingRetention(null);
+      setSelectedRetention(null);
+      await refresh();
+    },
+    onError: (e: Error) => {
+      toast.error(e.message);
+      setReductionWarningOpen(false);
+      setPendingRetention(null);
+    },
+  });
+
+  const handleRetentionSelect = (newDays: number, currentDays: number) => {
+    if (newDays === currentDays) return;
+    if (newDays < currentDays) {
+      setPendingRetention(newDays);
+      setReductionWarningOpen(true);
+    } else {
+      retentionMutation.mutate(newDays);
+    }
+  };
 
   const createUser = useMutation({
     mutationFn: () => addUser({ data: { workspaceId, ...form } }),
@@ -145,16 +189,59 @@ function AdminWorkspaceDetail() {
       />
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <SectionCard title="Profile" className="lg:col-span-1">
-          <dl className="space-y-2.5 text-sm">
-            <Row label="Legal name" value={workspace.legalName ?? "—"} />
-            <Row label="Currency" value={workspace.currency} />
-            <Row label="Timezone" value={workspace.timezone} />
-            <Row label="Seats" value={`${members.length} / ${workspace.seatLimit}`} />
-            <Row label="Contact" value={workspace.contactEmail ?? workspace.contactPhone ?? "—"} />
-            <Row label="Created" value={formatDate(workspace.createdAt)} />
-          </dl>
-        </SectionCard>
+        <div className="space-y-4 lg:col-span-1">
+          <SectionCard title="Profile">
+            <dl className="space-y-2.5 text-sm">
+              <Row label="Legal name" value={workspace.legalName ?? "—"} />
+              <Row label="Currency" value={workspace.currency} />
+              <Row label="Timezone" value={workspace.timezone} />
+              <Row label="Seats" value={`${members.length} / ${workspace.seatLimit}`} />
+              <Row label="Contact" value={workspace.contactEmail ?? workspace.contactPhone ?? "—"} />
+              <Row label="Created" value={formatDate(workspace.createdAt)} />
+            </dl>
+          </SectionCard>
+
+          <SectionCard
+            title="Team Chat Retention"
+            description="Automated server-side message expiration policy for this workspace."
+          >
+            <div className="space-y-4 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Current Policy:</span>
+                <StatusBadge
+                  label={`${workspace.chatRetentionDays ?? 15} Days`}
+                  tone={(workspace.chatRetentionDays ?? 15) === 15 ? "brand" : "neutral"}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="retention-select">Configure Retention</Label>
+                <Select
+                  value={String(selectedRetention ?? workspace.chatRetentionDays ?? 15)}
+                  onValueChange={(val) => {
+                    const days = Number(val);
+                    setSelectedRetention(days);
+                    handleRetentionSelect(days, workspace.chatRetentionDays ?? 15);
+                  }}
+                  disabled={retentionMutation.isPending}
+                >
+                  <SelectTrigger id="retention-select">
+                    <SelectValue placeholder="Select retention days" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="3">3 Days</SelectItem>
+                    <SelectItem value="7">7 Days</SelectItem>
+                    <SelectItem value="10">10 Days</SelectItem>
+                    <SelectItem value="15">15 Days (Default)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-muted-foreground text-xs font-medium">
+                  Maximum retention: 15 days
+                </p>
+              </div>
+            </div>
+          </SectionCard>
+        </div>
 
         <SectionCard
           title="Members"
@@ -320,6 +407,42 @@ function AdminWorkspaceDetail() {
           </ul>
         )}
       </SectionCard>
+
+      <AlertDialog open={reductionWarningOpen} onOpenChange={setReductionWarningOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Retention Reduction</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2 text-sm">
+              <span className="block font-semibold text-foreground">
+                Reducing retention may permanently delete older Team Chat messages.
+              </span>
+              <span className="block text-muted-foreground">
+                Changing retention from {workspace.chatRetentionDays ?? 15} days to {pendingRetention} days will immediately make all messages older than {pendingRetention} days eligible for permanent deletion from MySQL.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setSelectedRetention(null);
+                setPendingRetention(null);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingRetention) {
+                  retentionMutation.mutate(pendingRetention);
+                }
+              }}
+            >
+              Confirm & Reduce Retention
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

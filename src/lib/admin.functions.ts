@@ -143,8 +143,8 @@ export const adminCreateWorkspace = createServerFn({ method: "POST" })
 
     const wsId = uuid();
     await execute(
-      `INSERT INTO workspaces (id, code, name, legal_name, industry, plan, status, currency, timezone, contact_email, contact_phone, seat_limit)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO workspaces (id, code, name, legal_name, industry, plan, status, currency, timezone, contact_email, contact_phone, seat_limit, chat_retention_days)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         wsId,
         code,
@@ -158,6 +158,7 @@ export const adminCreateWorkspace = createServerFn({ method: "POST" })
         data.contactEmail?.trim() || null,
         data.contactPhone?.trim() || null,
         data.seatLimit ?? 10,
+        15,
       ],
     );
 

@@ -97,16 +97,67 @@ async function serveUploadedFile(pathname: string): Promise<Response | null> {
   }
 }
 
+/* ----------------- Scheduled Chat Message Retention Cleanup ---------------- */
+
+let _cleanupIntervalStarted = false;
+
+function ensureChatCleanupJob(): void {
+  if (_cleanupIntervalStarted) return;
+  _cleanupIntervalStarted = true;
+
+  // Run initial cleanup after 15 seconds, then every 30 minutes
+  setTimeout(async () => {
+    try {
+      const { cleanupExpiredChatMessages } = await import("./lib/chat-cleanup");
+      await cleanupExpiredChatMessages();
+    } catch (err) {
+      console.error("[Server Chat Cleanup] Initial run error:", err);
+    }
+  }, 15000);
+
+  setInterval(async () => {
+    try {
+      const { cleanupExpiredChatMessages } = await import("./lib/chat-cleanup");
+      await cleanupExpiredChatMessages();
+    } catch (err) {
+      console.error("[Server Chat Cleanup] Interval run error:", err);
+    }
+  }, 30 * 60 * 1000);
+}
+
+// Start background interval on server load
+ensureChatCleanupJob();
+
 /* --------------------------------------------------------------------------- */
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    ensureChatCleanupJob();
+
+    const url = new URL(request.url);
+
     // Serve uploaded images (property photos, workspace logos)
     // Public endpoints — URLs are UUID-based and unguessable.
-    const url = new URL(request.url);
     if (url.pathname.startsWith("/api/uploads/")) {
       const uploadResponse = await serveUploadedFile(url.pathname);
       if (uploadResponse) return uploadResponse;
+    }
+
+    // Cron endpoint for Hostinger / external webhook triggers
+    if (url.pathname === "/api/cron/cleanup-chat") {
+      try {
+        const { cleanupExpiredChatMessages } = await import("./lib/chat-cleanup");
+        const result = await cleanupExpiredChatMessages();
+        return new Response(JSON.stringify({ success: true, ...result }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      } catch (err: any) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        });
+      }
     }
 
     try {
@@ -122,3 +173,4 @@ export default {
     }
   },
 };
+

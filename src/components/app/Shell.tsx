@@ -44,6 +44,7 @@ export type NavItem = {
   exact?: boolean;
   requires?: Parameters<ReturnType<typeof useSession>["can"]>[0];
   children?: { label: string; to: string }[];
+  badge?: number | string | undefined;
 };
 
 export type NavGroup = { label: string; items: NavItem[] };
@@ -482,12 +483,22 @@ function SidebarNavItem({
       {item.to ? (
         <Link to={item.to} className={rowClass}>
           <item.icon className="h-4 w-4 shrink-0" />
-          <span className="truncate">{item.label}</span>
+          <span className="truncate flex-1">{item.label}</span>
+          {item.badge !== undefined && item.badge !== null && item.badge !== 0 && (
+            <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground leading-none">
+              {item.badge}
+            </span>
+          )}
         </Link>
       ) : (
         <div className={rowClass}>
           <item.icon className="h-4 w-4 shrink-0" />
-          <span className="truncate">{item.label}</span>
+          <span className="truncate flex-1">{item.label}</span>
+          {item.badge !== undefined && item.badge !== null && item.badge !== 0 && (
+            <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground leading-none">
+              {item.badge}
+            </span>
+          )}
         </div>
       )}
     </li>

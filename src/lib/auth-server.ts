@@ -175,8 +175,8 @@ export async function parseViewAsToken(
     const payloadBytes = fromBase64url(payloadB64);
     const payload = new TextDecoder().decode(payloadBytes);
     const parts = payload.split(":");
-    if (parts.length < 5) return null;
     const [ownerUserId, employeeId, workspaceId, , expiresAtStr] = parts;
+    if (!ownerUserId || !employeeId || !workspaceId) return null;
     const expiresAt = Number(expiresAtStr);
     if (Date.now() > expiresAt) return null;
     return { ownerUserId, employeeId, workspaceId };

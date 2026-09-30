@@ -24,6 +24,7 @@ export type WorkspaceSettingsData = {
   default_payment_terms_days: number;
   default_invoice_notes: string | null;
   default_invoice_terms: string | null;
+  chat_retention_days?: number;
 };
 
 export type WorkspaceMemberItem = {
@@ -45,7 +46,7 @@ export const getWorkspaceSettingsFn = createServerFn({ method: "GET" })
     const ws = await queryOne<Workspace>(
       `SELECT name, legal_name, contact_email, contact_phone, address, logo_url,
               gstin, pan, state, state_code, website, bank_name, bank_account_no, bank_account_name, bank_ifsc,
-              invoice_prefix, default_payment_terms_days, default_invoice_notes, default_invoice_terms
+              invoice_prefix, default_payment_terms_days, default_invoice_notes, default_invoice_terms, chat_retention_days
        FROM workspaces WHERE id = ? LIMIT 1`,
       [data.workspaceId],
     );
@@ -70,6 +71,7 @@ export const getWorkspaceSettingsFn = createServerFn({ method: "GET" })
       default_payment_terms_days: Number((ws as any).default_payment_terms_days ?? 14),
       default_invoice_notes: (ws as any).default_invoice_notes ?? null,
       default_invoice_terms: (ws as any).default_invoice_terms ?? null,
+      chat_retention_days: Number(ws.chat_retention_days ?? 15),
     };
   });
 

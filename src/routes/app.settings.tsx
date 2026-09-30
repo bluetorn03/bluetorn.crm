@@ -154,6 +154,7 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
     defaultInvoiceNotes: "",
     defaultInvoiceTerms: "",
   });
+  const [retentionDays, setRetentionDays] = useState(15);
   const [loaded, setLoaded] = useState(false);
 
   useQuery({
@@ -183,6 +184,9 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
           defaultInvoiceNotes: data.default_invoice_notes ?? "",
           defaultInvoiceTerms: data.default_invoice_terms ?? "",
         });
+        if (data.chat_retention_days) {
+          setRetentionDays(data.chat_retention_days);
+        }
         setLoaded(true);
       }
       return data;
@@ -431,6 +435,20 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
             <Row label="Timezone" value={workspace.timezone} />
             <Row label="Seat limit" value={String(workspace.seatLimit)} />
           </dl>
+        </SectionCard>
+
+        <SectionCard title="Message Retention" description="Team Chat data policy.">
+          <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-3.5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground">Message retention</span>
+              <StatusBadge label={`${retentionDays} Days`} tone="brand" />
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Team Chat messages are automatically deleted after {retentionDays} days.
+              <br />
+              Workspace retention is managed by the system administrator.
+            </p>
+          </div>
         </SectionCard>
       </div>
     </div>

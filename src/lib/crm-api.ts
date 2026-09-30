@@ -18,7 +18,22 @@ import type {
   PromoMedia,
   AuditLog,
   Notification,
+  ChatConversation,
+  ChatMessage,
+  ChatConversationSummary,
+  ChatParticipant,
 } from "./db-types";
+
+import {
+  listChatConversationsFn,
+  getChatMessagesFn,
+  sendChatMessageFn,
+  markConversationReadFn,
+  getChatUnreadCountFn,
+  listAvailableChatUsersFn,
+  getWorkspaceRetentionPolicyFn,
+  updateWorkspaceRetentionPolicyFn,
+} from "./chat.functions";
 
 import {
   listMembersFn,
@@ -194,6 +209,11 @@ export const qk = {
   platformSettings: () => ["platform-settings"] as const,
   notifications: () => ["notifications"] as const,
   notificationCount: () => ["notification-count"] as const,
+  chatConversations: () => ["chat", "conversations"] as const,
+  chatMessages: (conversationId: string) => ["chat", "messages", conversationId] as const,
+  chatUnreadCount: () => ["chat", "unread-count"] as const,
+  chatAvailableUsers: () => ["chat", "available-users"] as const,
+  chatRetentionPolicy: (workspaceId?: string) => ["chat", "retention-policy", workspaceId || ""] as const,
 };
 
 /* -------------------------------- members --------------------------------- */
@@ -537,3 +557,60 @@ export async function markNotificationRead(id: string): Promise<void> {
 export async function markAllNotificationsRead(): Promise<void> {
   await markAllNotificationsReadFn();
 }
+
+/* --------------------------------- chat ----------------------------------- */
+
+export async function listChatConversations(): Promise<ChatConversationSummary[]> {
+  return listChatConversationsFn();
+}
+
+export async function getChatMessages(conversationId: string): Promise<{
+  conversation: ChatConversation;
+  participant: ChatParticipant;
+  messages: ChatMessage[];
+  retentionDays: number;
+}> {
+  return getChatMessagesFn({ data: { conversationId } });
+}
+
+export async function sendChatMessage(input: {
+  conversationId?: string;
+  recipientId?: string;
+  body: string;
+}): Promise<{ message: ChatMessage; conversationId: string }> {
+  return sendChatMessageFn({ data: input });
+}
+
+export async function markConversationRead(conversationId: string): Promise<void> {
+  await markConversationReadFn({ data: { conversationId } });
+}
+
+export async function getChatUnreadCount(): Promise<number> {
+  const result = await getChatUnreadCountFn();
+  return result.unreadCount;
+}
+
+export async function listAvailableChatUsers(): Promise<ChatParticipant[]> {
+  return listAvailableChatUsersFn();
+}
+
+export async function getWorkspaceRetentionPolicy(workspaceId?: string): Promise<{
+  retentionDays: number;
+  maxAllowed: number;
+  allowedValues: number[];
+}> {
+  return getWorkspaceRetentionPolicyFn({ data: workspaceId ? { workspaceId } : {} });
+}
+
+export async function updateWorkspaceRetentionPolicy(input: {
+  workspaceId: string;
+  retentionDays: number;
+}): Promise<{
+  success: boolean;
+  retentionDays: number;
+  updatedMessages: number;
+  deletedExpired: number;
+}> {
+  return updateWorkspaceRetentionPolicyFn({ data: input });
+}
+

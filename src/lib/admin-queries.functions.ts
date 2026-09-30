@@ -187,6 +187,7 @@ export const adminGetWorkspace = createServerFn({ method: "GET" })
         contactEmail: workspace.contact_email,
         contactPhone: workspace.contact_phone,
         address: workspace.address,
+        chatRetentionDays: workspace.chat_retention_days ?? 15,
         createdAt: workspace.created_at,
       },
       members: profiles.map((p) => ({

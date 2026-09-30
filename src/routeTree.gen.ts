@@ -26,6 +26,7 @@ import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppCalendarRouteImport } from './routes/app.calendar'
+import { Route as AppChatRouteImport } from './routes/app.chat'
 import { Route as AppReportsRouteImport } from './routes/app.reports'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as AppTasksRouteImport } from './routes/app.tasks'
@@ -128,6 +129,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppCalendarRoute = AppCalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppChatRoute = AppChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
   getParentRoute: () => AppRoute,
 } as any)
 const AppReportsRoute = AppReportsRouteImport.update({
@@ -239,6 +245,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/users': typeof AdminUsersRoute
   '/app/calendar': typeof AppCalendarRoute
+  '/app/chat': typeof AppChatRoute
   '/app/reports': typeof AppReportsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
@@ -274,6 +281,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/users': typeof AdminUsersRoute
   '/app/calendar': typeof AppCalendarRoute
+  '/app/chat': typeof AppChatRoute
   '/app/reports': typeof AppReportsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
@@ -312,6 +320,7 @@ export interface FileRoutesById {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/users': typeof AdminUsersRoute
   '/app/calendar': typeof AppCalendarRoute
+  '/app/chat': typeof AppChatRoute
   '/app/reports': typeof AppReportsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
@@ -351,6 +360,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/users'
     | '/app/calendar'
+    | '/app/chat'
     | '/app/reports'
     | '/app/settings'
     | '/app/tasks'
@@ -386,6 +396,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/users'
     | '/app/calendar'
+    | '/app/chat'
     | '/app/reports'
     | '/app/settings'
     | '/app/tasks'
@@ -423,6 +434,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/users'
     | '/app/calendar'
+    | '/app/chat'
     | '/app/reports'
     | '/app/settings'
     | '/app/tasks'
@@ -575,6 +587,13 @@ declare module '@tanstack/react-router' {
       path: '/calendar'
       fullPath: '/app/calendar'
       preLoaderRoute: typeof AppCalendarRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/chat': {
+      id: '/app/chat'
+      path: '/chat'
+      fullPath: '/app/chat'
+      preLoaderRoute: typeof AppChatRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/reports': {
@@ -736,6 +755,7 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface AppRouteChildren {
   AppCalendarRoute: typeof AppCalendarRoute
+  AppChatRoute: typeof AppChatRoute
   AppReportsRoute: typeof AppReportsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppTasksRoute: typeof AppTasksRoute
@@ -756,6 +776,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppCalendarRoute: AppCalendarRoute,
+  AppChatRoute: AppChatRoute,
   AppReportsRoute: AppReportsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppTasksRoute: AppTasksRoute,
