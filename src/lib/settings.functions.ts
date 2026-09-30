@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireMySqlAuth } from "./auth-server";
+import { requireMySqlAuth, assertNotViewingAs } from "./auth-server";
 import { query, queryOne, execute } from "./db";
 import { hashPassword } from "./server-utils";
 import type { Workspace, Profile, UserRole } from "./db-types";
@@ -102,11 +102,14 @@ export const updateWorkspaceSettingsFn = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data, context }) => {
+    assertNotViewingAs(context, "Updating workspace settings");
+
     // Only workspace Owner or Super Admin can edit workspace company profile
-    if (context.role !== "owner" && context.role !== "super_admin") {
+    const realRole = context.realRole || context.role;
+    if (realRole !== "owner" && realRole !== "super_admin") {
       throw new Error("FORBIDDEN: Only workspace Owner can update workspace settings.");
     }
-    if (context.role !== "super_admin" && context.workspaceId !== data.workspaceId) {
+    if (realRole !== "super_admin" && context.workspaceId !== data.workspaceId) {
       throw new Error("FORBIDDEN: Cross-workspace update denied.");
     }
 
@@ -179,11 +182,14 @@ export const setUserPermissionsFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { workspaceId: string; userId: string; permissions: string[] }) => input)
   .handler(async ({ data, context }) => {
+    assertNotViewingAs(context, "Configuring employee permissions");
+
     // Only Owner or Super Admin can manage employee permissions
-    if (context.role !== "owner" && context.role !== "super_admin") {
+    const realRole = context.realRole || context.role;
+    if (realRole !== "owner" && realRole !== "super_admin") {
       throw new Error("FORBIDDEN: Only workspace Owner can configure employee permissions.");
     }
-    if (context.role !== "super_admin" && context.workspaceId !== data.workspaceId) {
+    if (realRole !== "super_admin" && context.workspaceId !== data.workspaceId) {
       throw new Error("FORBIDDEN: Cross-workspace permission update denied.");
     }
 
@@ -213,8 +219,8 @@ export const setUserPermissionsFn = createServerFn({ method: "POST" })
         [
           uuid(),
           data.workspaceId,
-          context.userId,
-          context.role,
+          context.realUserId || context.userId,
+          realRole,
           "finance.permission_change",
           "user_permissions",
           data.userId,
@@ -291,5 +297,98 @@ export const changeSelfPasswordFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const pwHash = await hashPassword(data.password);
     await execute("UPDATE profiles SET password_hash = ? WHERE id = ?", [pwHash, context.userId]);
+    return { ok: true };
+  });
+
+/**
+ * Edit an employee's profile. Owner-only, scoped strictly to the current workspace.
+ * Editable: fullName, email, phone, jobTitle.
+ */
+export const updateWorkspaceEmployeeFn = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .validator(
+    (input: {
+      userId: string;
+      fullName: string;
+      email?: string | null;
+      phone?: string | null;
+      jobTitle?: string | null;
+    }) => {
+      if (!input.userId) throw new Error("Employee ID is required.");
+      if (!input.fullName?.trim()) throw new Error("Full name is required.");
+      if (input.email?.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.email.trim())) {
+        throw new Error("Invalid email format.");
+      }
+      return input;
+    },
+  )
+  .handler(async ({ data, context }) => {
+    assertNotViewingAs(context, "Editing employee profile");
+
+    const realRole = context.realRole || context.role;
+    if (realRole !== "owner" && realRole !== "super_admin") {
+      throw new Error("FORBIDDEN: Only workspace Owner can edit employees.");
+    }
+
+    const { queryOne, execute, uuid } = await import("./db");
+    const employee = await queryOne<Profile>(
+      "SELECT id, workspace_id, user_code, full_name, email, phone, job_title FROM profiles WHERE id = ? LIMIT 1",
+      [data.userId],
+    );
+    if (!employee) throw new Error("Employee not found.");
+
+    if (realRole !== "super_admin" && employee.workspace_id !== context.workspaceId) {
+      throw new Error("FORBIDDEN: Cross-workspace access denied.");
+    }
+
+    // Role cannot be owner (Owners edit their own profile in My Account)
+    const empRole = await queryOne<UserRole>(
+      "SELECT role FROM user_roles WHERE user_id = ? LIMIT 1",
+      [employee.id],
+    );
+    if (empRole?.role === "owner" && realRole !== "super_admin") {
+      throw new Error("FORBIDDEN: Owner profile should be updated via My Account.");
+    }
+
+    await execute(
+      "UPDATE profiles SET full_name = ?, email = ?, phone = ?, job_title = ? WHERE id = ? AND workspace_id = ?",
+      [
+        data.fullName.trim(),
+        data.email?.trim() || null,
+        data.phone?.trim() || null,
+        data.jobTitle?.trim() || null,
+        employee.id,
+        employee.workspace_id,
+      ],
+    );
+
+    // Audit log
+    await execute(
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+       VALUES (?, ?, ?, ?, 'employee.updated', 'profile', ?, ?)`,
+      [
+        uuid(),
+        employee.workspace_id,
+        context.realUserId || context.userId,
+        realRole,
+        employee.id,
+        JSON.stringify({
+          user_code: employee.user_code,
+          before: {
+            full_name: employee.full_name,
+            email: employee.email,
+            phone: employee.phone,
+            job_title: employee.job_title,
+          },
+          after: {
+            full_name: data.fullName.trim(),
+            email: data.email?.trim() || null,
+            phone: data.phone?.trim() || null,
+            job_title: data.jobTitle?.trim() || null,
+          },
+        }),
+      ],
+    );
+
     return { ok: true };
   });

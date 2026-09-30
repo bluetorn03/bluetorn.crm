@@ -14,6 +14,8 @@ import type { Profile, UserRole } from "./db-types";
 
 export const SESSION_COOKIE = "bt_session";
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
+export const VIEW_AS_COOKIE = "bt_view_as";
+export const VIEW_AS_MAX_AGE = 60 * 60 * 4; // 4 hours
 
 /* ---------------------------- dynamic server loaders ----------------------- */
 
@@ -129,6 +131,60 @@ export async function parseSessionToken(token: string): Promise<string | null> {
   }
 }
 
+/**
+ * Create an HMAC-SHA256 signed View-As token.
+ * Payload: ownerUserId:employeeId:workspaceId:issuedAt:expiresAt:nonce
+ */
+export async function createViewAsToken(
+  ownerUserId: string,
+  employeeId: string,
+  workspaceId: string,
+): Promise<string> {
+  const key = await getSigningKey();
+  const nonce = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(nonce);
+  const issuedAt = Date.now();
+  const expiresAt = issuedAt + VIEW_AS_MAX_AGE * 1000;
+  const payload = `${ownerUserId}:${employeeId}:${workspaceId}:${issuedAt}:${expiresAt}:${toBase64url(nonce)}`;
+  const payloadB64 = toBase64url(new TextEncoder().encode(payload));
+  const sigBuf = await globalThis.crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payloadB64));
+  const sig = toBase64url(sigBuf);
+  return `${payloadB64}.${sig}`;
+}
+
+/**
+ * Parse and verify the View-As token.
+ * Returns { ownerUserId, employeeId, workspaceId } or null if invalid/expired.
+ */
+export async function parseViewAsToken(
+  token: string,
+): Promise<{ ownerUserId: string; employeeId: string; workspaceId: string } | null> {
+  try {
+    const dotIdx = token.lastIndexOf(".");
+    if (dotIdx === -1) return null;
+    const payloadB64 = token.slice(0, dotIdx);
+    const sig = token.slice(dotIdx + 1);
+    const key = await getSigningKey();
+    const valid = await globalThis.crypto.subtle.verify(
+      "HMAC",
+      key,
+      fromBase64url(sig) as unknown as BufferSource,
+      new TextEncoder().encode(payloadB64),
+    );
+    if (!valid) return null;
+    const payloadBytes = fromBase64url(payloadB64);
+    const payload = new TextDecoder().decode(payloadBytes);
+    const parts = payload.split(":");
+    if (parts.length < 5) return null;
+    const [ownerUserId, employeeId, workspaceId, , expiresAtStr] = parts;
+    const expiresAt = Number(expiresAtStr);
+    if (Date.now() > expiresAt) return null;
+    return { ownerUserId, employeeId, workspaceId };
+  } catch {
+    return null;
+  }
+}
+
 /* ------------------------------ cookie helpers ----------------------------- */
 
 export async function setSessionCookie(token: string): Promise<void> {
@@ -156,11 +212,46 @@ export async function readSessionCookie(): Promise<string | null> {
   }
 }
 
+export async function setViewAsCookie(token: string): Promise<void> {
+  const { setCookie } = await getServerCookie();
+  setCookie(VIEW_AS_COOKIE, token, {
+    httpOnly: true,
+    secure: typeof process !== "undefined" && process.env?.["NODE_ENV"] === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: VIEW_AS_MAX_AGE,
+  });
+}
+
+export async function clearViewAsCookie(): Promise<void> {
+  const { deleteCookie } = await getServerCookie();
+  deleteCookie(VIEW_AS_COOKIE, { path: "/" });
+}
+
+export async function readViewAsCookie(): Promise<string | null> {
+  try {
+    const { getCookie } = await getServerCookie();
+    return getCookie(VIEW_AS_COOKIE) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Enforce that sensitive mutations are blocked while in view-as preview mode */
+export function assertNotViewingAs(
+  context: { isViewingAs?: boolean },
+  actionLabel = "This action",
+): void {
+  if (context.isViewingAs) {
+    throw new Error(`FORBIDDEN: ${actionLabel} is disabled in employee preview mode (Read-Only).`);
+  }
+}
+
 /* -------------------------------- middleware -------------------------------- */
 
 /**
  * Middleware that authenticates a request using the MySQL session cookie.
- * Injects `userId`, `workspaceId`, and `role` into `context`.
+ * Injects `userId`, `workspaceId`, `role`, `isViewingAs`, `realUserId`, `realRole` into `context`.
  * Throws 401 if unauthenticated or user inactive.
  */
 export const requireMySqlAuth = createMiddleware().server(async ({ next }) => {
@@ -190,11 +281,57 @@ export const requireMySqlAuth = createMiddleware().server(async ({ next }) => {
     [userId],
   );
 
+  const realRole = role?.role ?? "employee";
+
+  // Check if secure view-as context is active
+  const viewAsToken = await readViewAsCookie();
+  let effectiveUserId = profile.id;
+  let effectiveRole = realRole;
+  let isViewingAs = false;
+
+  if (viewAsToken) {
+    const parsed = await parseViewAsToken(viewAsToken);
+    if (
+      parsed &&
+      parsed.ownerUserId === profile.id &&
+      (realRole === "owner" || realRole === "super_admin")
+    ) {
+      const empProfile = await queryOne<Profile>(
+        "SELECT id, workspace_id, is_active FROM profiles WHERE id = ? LIMIT 1",
+        [parsed.employeeId],
+      );
+      if (
+        empProfile &&
+        (realRole === "super_admin" || empProfile.workspace_id === profile.workspace_id)
+      ) {
+        const empRole = await queryOne<UserRole>(
+          "SELECT role FROM user_roles WHERE user_id = ? LIMIT 1",
+          [parsed.employeeId],
+        );
+        // Only allow viewing as an employee or manager, never owner/admin
+        if (empRole?.role !== "owner" && empRole?.role !== "super_admin") {
+          effectiveUserId = empProfile.id;
+          effectiveRole = empRole?.role ?? "employee";
+          isViewingAs = true;
+        } else {
+          await clearViewAsCookie();
+        }
+      } else {
+        await clearViewAsCookie();
+      }
+    } else {
+      await clearViewAsCookie();
+    }
+  }
+
   return next({
     context: {
-      userId: profile.id,
+      userId: effectiveUserId,
       workspaceId: profile.workspace_id,
-      role: role?.role ?? "employee",
+      role: effectiveRole,
+      isViewingAs,
+      realUserId: profile.id,
+      realRole,
     },
   });
 });

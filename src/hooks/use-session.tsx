@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { getSessionAction, logoutAction } from "@/lib/auth.functions";
+import { getSessionAction, logoutAction, exitViewAsEmployeeFn } from "@/lib/auth.functions";
 
 export type Role = "Owner" | "Manager" | "Employee" | "Super Admin";
 
@@ -230,6 +230,15 @@ type SessionValue = {
   can: (perm: Permission) => boolean;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
+  isViewingAs: boolean;
+  viewAs: {
+    originalUserId: string;
+    originalUserName: string;
+    employeeId: string;
+    employeeName: string;
+    employeeUserCode: string;
+  } | null;
+  exitViewAs: () => Promise<void>;
 };
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -242,6 +251,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [workspaces, setWorkspaces] = useState<SessionWorkspace[]>([]);
   const [workspaceId, setWorkspaceIdState] = useState<string | null>(null);
+  const [isViewingAs, setIsViewingAs] = useState(false);
+  const [viewAs, setViewAs] = useState<SessionValue["viewAs"]>(null);
 
   const load = useCallback(async () => {
     try {
@@ -254,6 +265,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setPermissions([]);
         setWorkspaces([]);
         setWorkspaceIdState(null);
+        setIsViewingAs(false);
+        setViewAs(null);
         return;
       }
 
@@ -261,6 +274,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setDbRole(session.role);
       setPermissions(session.permissions ?? []);
       setWorkspaces(session.workspaces);
+      setIsViewingAs(Boolean(session.isViewingAs));
+      setViewAs(session.viewAs ?? null);
       setWorkspaceIdState((current) => {
         if (current && session.workspaces.some((w) => w.id === current)) return current;
         return session.primaryWorkspaceId ?? session.workspaces[0]?.id ?? null;
@@ -273,6 +288,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setPermissions([]);
       setWorkspaces([]);
       setWorkspaceIdState(null);
+      setIsViewingAs(false);
+      setViewAs(null);
     }
   }, []);
 
@@ -290,7 +307,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setPermissions([]);
     setWorkspaces([]);
     setWorkspaceIdState(null);
+    setIsViewingAs(false);
+    setViewAs(null);
   }, [queryClient]);
+
+  const exitViewAs = useCallback(async () => {
+    await exitViewAsEmployeeFn();
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    await load();
+  }, [load, queryClient]);
 
   const value = useMemo<SessionValue>(() => {
     const role = dbRole ? roleLabel[dbRole] : "Employee";
@@ -308,8 +334,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       workspaceOptions: workspaces,
       setWorkspaceId: setWorkspaceIdState,
       can: (perm: Permission) => {
-        // Owner and Super Admin have full access
-        if (dbRole === "owner" || dbRole === "super_admin") return true;
+        // Owner and Super Admin have full access (when not viewing as employee)
+        if (!isViewingAs && (dbRole === "owner" || dbRole === "super_admin")) return true;
 
         // Check if granted in DB permissions
         if (permissions.includes(perm)) return true;
@@ -345,8 +371,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       },
       refresh: load,
       signOut,
+      isViewingAs,
+      viewAs,
+      exitViewAs,
     };
-  }, [status, user, dbRole, permissions, workspaces, workspaceId, load, signOut]);
+  }, [status, user, dbRole, permissions, workspaces, workspaceId, isViewingAs, viewAs, exitViewAs, load, signOut]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

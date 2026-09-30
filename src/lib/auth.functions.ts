@@ -22,6 +22,12 @@ import {
   setSessionCookie,
   clearSessionCookie,
   readSessionCookie,
+  createViewAsToken,
+  parseViewAsToken,
+  setViewAsCookie,
+  clearViewAsCookie,
+  readViewAsCookie,
+  requireMySqlAuth,
 } from "./auth-server";
 
 /* --------------------------------- types ---------------------------------- */
@@ -131,8 +137,9 @@ export const loginAction = createServerFn({ method: "POST" })
     };
   });
 
-/** Logout: clear session cookie. */
+/** Logout: clear session cookie and any active view-as cookie. */
 export const logoutAction = createServerFn({ method: "POST" }).handler(async () => {
+  await clearViewAsCookie();
   await clearSessionCookie();
   return { ok: true };
 });
@@ -148,6 +155,7 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
   const profile = await queryOne<Profile>("SELECT * FROM profiles WHERE id = ? LIMIT 1", [userId]);
   if (!profile || !profile.is_active) {
     await clearSessionCookie();
+    await clearViewAsCookie();
     return { authenticated: false as const };
   }
 
@@ -157,6 +165,7 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
   );
   if (!role) {
     await clearSessionCookie();
+    await clearViewAsCookie();
     return { authenticated: false as const };
   }
 
@@ -185,21 +194,84 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
     allWorkspaces = [workspace];
   }
 
+  // Check if view-as preview context is active for Owner / Super Admin
+  const viewAsToken = await readViewAsCookie();
+  let isViewingAs = false;
+  let viewAsUser: Profile | null = null;
+  let viewAsRole: string | null = null;
+  let viewAsPermissions: string[] = [];
+
+  if (viewAsToken && (role.role === "owner" || role.role === "super_admin")) {
+    const parsed = await parseViewAsToken(viewAsToken);
+    if (parsed && parsed.ownerUserId === profile.id) {
+      const empProfile = await queryOne<Profile>(
+        "SELECT * FROM profiles WHERE id = ? LIMIT 1",
+        [parsed.employeeId],
+      );
+      if (
+        empProfile &&
+        (role.role === "super_admin" || empProfile.workspace_id === profile.workspace_id)
+      ) {
+        const empRole = await queryOne<UserRole>(
+          "SELECT role FROM user_roles WHERE user_id = ? LIMIT 1",
+          [parsed.employeeId],
+        );
+        if (empRole?.role !== "owner" && empRole?.role !== "super_admin") {
+          isViewingAs = true;
+          viewAsUser = empProfile;
+          viewAsRole = empRole?.role ?? "employee";
+
+          const empPermRows = profile.workspace_id
+            ? await query<{ permission: string }>(
+                "SELECT permission FROM user_permissions WHERE workspace_id = ? AND user_id = ?",
+                [profile.workspace_id, empProfile.id],
+              )
+            : [];
+          viewAsPermissions = empPermRows.map((r) => r.permission);
+        } else {
+          await clearViewAsCookie();
+        }
+      } else {
+        await clearViewAsCookie();
+      }
+    } else {
+      await clearViewAsCookie();
+    }
+  }
+
+  const effectiveUser = isViewingAs && viewAsUser ? viewAsUser : profile;
+  const effectiveRole =
+    isViewingAs && viewAsRole
+      ? (viewAsRole as "super_admin" | "owner" | "manager" | "employee")
+      : role.role;
+  const effectivePermissions = isViewingAs ? viewAsPermissions : permissions;
+
   return {
     authenticated: true as const,
     user: {
-      id: profile.id,
-      userCode: profile.user_code,
-      name: profile.full_name,
-      email: profile.email ?? "",
-      phone: profile.phone ?? "",
-      whatsappPhone: (profile as any).whatsapp_phone ?? "",
-      jobTitle: profile.job_title ?? "",
-      avatarUrl: profile.avatar_url,
-      isActive: Boolean(profile.is_active),
+      id: effectiveUser.id,
+      userCode: effectiveUser.user_code,
+      name: effectiveUser.full_name,
+      email: effectiveUser.email ?? "",
+      phone: effectiveUser.phone ?? "",
+      whatsappPhone: (effectiveUser as any).whatsapp_phone ?? "",
+      jobTitle: effectiveUser.job_title ?? "",
+      avatarUrl: effectiveUser.avatar_url,
+      isActive: Boolean(effectiveUser.is_active),
     },
-    role: role.role,
-    permissions,
+    role: effectiveRole,
+    permissions: effectivePermissions,
+    isViewingAs,
+    viewAs:
+      isViewingAs && viewAsUser
+        ? {
+            originalUserId: profile.id,
+            originalUserName: profile.full_name,
+            employeeId: viewAsUser.id,
+            employeeName: viewAsUser.full_name,
+            employeeUserCode: viewAsUser.user_code,
+          }
+        : null,
     workspaces: allWorkspaces.map((w) => ({
       id: w.id,
       code: w.code,
@@ -234,5 +306,82 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
     primaryWorkspaceId: profile.workspace_id,
   };
 });
+
+/** Start viewing as an employee (Owner/Super Admin only) */
+export const startViewAsEmployeeFn = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .validator((input: { employeeId: string }) => {
+    if (!input.employeeId) throw new Error("Employee ID is required.");
+    return input;
+  })
+  .handler(async ({ data, context }) => {
+    const realRole = context.realRole || context.role;
+    if (realRole !== "owner" && realRole !== "super_admin") {
+      throw new Error("FORBIDDEN: Only workspace Owner can preview employee dashboards.");
+    }
+    const realUserId = context.realUserId || context.userId;
+
+    const employee = await queryOne<Profile>(
+      "SELECT id, workspace_id, user_code, full_name, is_active FROM profiles WHERE id = ? LIMIT 1",
+      [data.employeeId],
+    );
+    if (!employee) throw new Error("Employee not found.");
+
+    if (realRole !== "super_admin" && employee.workspace_id !== context.workspaceId) {
+      throw new Error("FORBIDDEN: Employee does not belong to your workspace.");
+    }
+
+    const empRole = await queryOne<UserRole>(
+      "SELECT role FROM user_roles WHERE user_id = ? LIMIT 1",
+      [employee.id],
+    );
+    if (empRole?.role === "owner" || empRole?.role === "super_admin") {
+      throw new Error("FORBIDDEN: Cannot preview Owner or Super Admin accounts.");
+    }
+
+    const token = await createViewAsToken(realUserId, employee.id, employee.workspace_id ?? "");
+    await setViewAsCookie(token);
+
+    // Audit log
+    await execute(
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+       VALUES (?, ?, ?, ?, 'VIEW_EMPLOYEE_DASHBOARD', 'profile', ?, ?)`,
+      [
+        uuid(),
+        employee.workspace_id,
+        realUserId,
+        realRole,
+        employee.id,
+        JSON.stringify({ user_code: employee.user_code, full_name: employee.full_name }),
+      ],
+    );
+
+    return { ok: true, employeeName: employee.full_name };
+  });
+
+/** Exit viewing as an employee and return to Owner session */
+export const exitViewAsEmployeeFn = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .handler(async ({ context }) => {
+    const realUserId = context.realUserId || context.userId;
+    const employeeId = context.isViewingAs ? context.userId : null;
+
+    await clearViewAsCookie();
+
+    // Audit log
+    await execute(
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id)
+       VALUES (?, ?, ?, ?, 'EXIT_EMPLOYEE_DASHBOARD_VIEW', 'profile', ?)`,
+      [
+        uuid(),
+        context.workspaceId,
+        realUserId,
+        context.realRole || context.role,
+        employeeId,
+      ],
+    );
+
+    return { ok: true };
+  });
 
 

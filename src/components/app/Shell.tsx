@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronsUpDown,
   Command as CommandIcon,
+  Eye,
   LogOut,
   Menu,
   Moon,
@@ -14,6 +15,7 @@ import {
   Shield,
   Sun,
 } from "lucide-react";
+import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
 import { Logo, LogoMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
@@ -200,6 +202,41 @@ export function Shell({
             </div>
           </div>
         </header>
+
+        {session.isViewingAs && (
+          <div className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2.5 sm:px-6">
+            <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3 text-amber-950 dark:text-amber-200">
+              <div className="flex items-center gap-2.5 text-xs sm:text-sm font-medium min-w-0">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                  <Eye className="h-3.5 w-3.5" />
+                </span>
+                <span className="truncate">
+                  Viewing as: <strong className="font-semibold text-foreground">{session.user.name}</strong> — Owner Preview
+                </span>
+                <span className="hidden sm:inline-flex items-center rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                  Read-Only
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs font-medium border-amber-500/30 bg-background/80 hover:bg-amber-500/15 text-foreground shrink-0 shadow-sm"
+                onClick={async () => {
+                  try {
+                    await session.exitViewAs();
+                    toast.info("Exited employee view");
+                    navigate({ to: "/app/settings" });
+                  } catch (e: any) {
+                    toast.error(e.message || "Failed to exit view");
+                  }
+                }}
+              >
+                <LogOut className="mr-1.5 h-3.5 w-3.5" />
+                Exit Employee View
+              </Button>
+            </div>
+          </div>
+        )}
 
         <main className="mx-auto w-full max-w-[1400px] px-3 pt-5 pb-28 sm:px-6 lg:pb-10">
           {children}

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireMySqlAuth } from "./auth-server";
+import { requireMySqlAuth, assertNotViewingAs } from "./auth-server";
 import { hashPassword, isSuperAdmin, canManageWorkspaceUsers } from "./server-utils";
 import { query, queryOne, execute, uuid } from "./db";
 import type { Profile, UserRole, Workspace } from "./db-types";
@@ -194,37 +194,47 @@ export const adminCreateWorkspace = createServerFn({ method: "POST" })
     return { workspaceId: wsId, code, ownerUserCode: ownerCode };
   });
 
-/** Create a user inside a workspace. Super Admin, or an Owner/Manager of that workspace. */
+/** Create a user inside a workspace. Owner (or platform Super Admin). */
 export const createWorkspaceUser = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: WorkspaceUserInput) => {
-    if (!input.workspaceId) throw new Error("Workspace is required.");
     if (!isValidUserCode(input.userCode))
       throw new Error("User ID must be 2-31 lowercase letters, digits, dot, dash or underscore.");
     if (!input.fullName?.trim()) throw new Error("Full name is required.");
-    if (!["owner", "manager", "employee"].includes(input.role)) throw new Error("Invalid role.");
+    if (!["manager", "employee"].includes(input.role)) {
+      throw new Error("Invalid role. Role must be Employee or Manager.");
+    }
+    if (input.email?.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.email.trim())) {
+      throw new Error("Invalid email format.");
+    }
     if ((input.password ?? "").length < 8)
       throw new Error("Password must be at least 8 characters.");
     return input;
   })
   .handler(async ({ data, context }) => {
-    const isAdmin = await isSuperAdmin(context.userId);
-    const canManage = await canManageWorkspaceUsers(context.userId);
-    const me = await queryOne<Profile>("SELECT workspace_id FROM profiles WHERE id = ?", [
-      context.userId,
-    ]);
-    const sameWorkspace = me?.workspace_id === data.workspaceId;
+    assertNotViewingAs(context, "Adding team member");
 
-    if (!isAdmin && !(sameWorkspace && canManage)) {
-      throw new Error("You do not have permission to add users to this workspace.");
+    const realRole = context.realRole || context.role;
+    const realUserId = context.realUserId || context.userId;
+    const isAdmin = realRole === "super_admin" || (await isSuperAdmin(realUserId));
+    const isOwner = realRole === "owner";
+
+    if (!isAdmin && !isOwner) {
+      throw new Error("FORBIDDEN: Only workspace Owner can add users.");
     }
-    if (!isAdmin && data.role === "owner") {
-      throw new Error("Only a platform Super Admin can assign the Owner role.");
+
+    // Role escalation prevention
+    if (!isAdmin && (data.role as string) === "owner") {
+      throw new Error("FORBIDDEN: Only a platform Super Admin can assign the Owner role.");
     }
+
+    // Workspace ID: ALWAYS take from authenticated session for workspace owners
+    const targetWorkspaceId = isAdmin ? (data.workspaceId || context.workspaceId) : context.workspaceId;
+    if (!targetWorkspaceId) throw new Error("Workspace is required.");
 
     const workspace = await queryOne<Workspace>(
       "SELECT id, code, seat_limit FROM workspaces WHERE id = ?",
-      [data.workspaceId],
+      [targetWorkspaceId],
     );
     if (!workspace) throw new Error("Workspace not found.");
 
@@ -240,7 +250,7 @@ export const createWorkspaceUser = createServerFn({ method: "POST" })
 
     const userCode = canonicalUserCode(data.userCode);
 
-    // Check duplicate
+    // Check duplicate user_code in this workspace
     const dup = await queryOne<Profile>(
       "SELECT id FROM profiles WHERE workspace_id = ? AND user_code = ? LIMIT 1",
       [workspace.id, userCode],
@@ -274,12 +284,13 @@ export const createWorkspaceUser = createServerFn({ method: "POST" })
     ]);
 
     await execute(
-      `INSERT INTO audit_logs (id, workspace_id, actor_id, action, entity_type, entity_id, metadata)
-       VALUES (?, ?, ?, 'user.created', 'profile', ?, ?)`,
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+       VALUES (?, ?, ?, ?, 'user.created', 'profile', ?, ?)`,
       [
         uuid(),
         workspace.id,
-        context.userId,
+        realUserId,
+        realRole,
         userId,
         JSON.stringify({ user_code: userCode, role: data.role }),
       ],
@@ -288,7 +299,7 @@ export const createWorkspaceUser = createServerFn({ method: "POST" })
     return { userId, userCode, workspaceCode: workspace.code };
   });
 
-/** Activate/deactivate a workspace user. Super Admin, or Owner/Manager of that workspace. */
+/** Activate/deactivate a workspace user. Super Admin, or Owner of that workspace. */
 export const setUserActive = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { userId: string; isActive: boolean }) => {
@@ -296,21 +307,31 @@ export const setUserActive = createServerFn({ method: "POST" })
     return input;
   })
   .handler(async ({ data, context }) => {
-    if (data.userId === context.userId) throw new Error("You cannot deactivate your own account.");
+    assertNotViewingAs(context, "Changing user status");
 
-    const isAdmin = await isSuperAdmin(context.userId);
-    const canManage = await canManageWorkspaceUsers(context.userId);
-    const me = await queryOne<Profile>("SELECT workspace_id FROM profiles WHERE id = ?", [
-      context.userId,
-    ]);
+    const realRole = context.realRole || context.role;
+    const realUserId = context.realUserId || context.userId;
+
+    if (data.userId === realUserId) throw new Error("You cannot deactivate your own account.");
+
+    const isAdmin = realRole === "super_admin" || (await isSuperAdmin(realUserId));
+    const isOwner = realRole === "owner";
 
     const target = await queryOne<Profile>("SELECT id, workspace_id FROM profiles WHERE id = ?", [
       data.userId,
     ]);
     if (!target) throw new Error("User not found.");
 
-    if (!isAdmin && !(canManage && me?.workspace_id && me.workspace_id === target.workspace_id)) {
-      throw new Error("You do not have permission to change this user.");
+    if (!isAdmin && (!isOwner || context.workspaceId !== target.workspace_id)) {
+      throw new Error("FORBIDDEN: You do not have permission to change this user.");
+    }
+
+    // Cannot deactivate an owner unless super_admin
+    const targetRole = await queryOne<UserRole>("SELECT role FROM user_roles WHERE user_id = ?", [
+      target.id,
+    ]);
+    if (!isAdmin && targetRole?.role === "owner") {
+      throw new Error("FORBIDDEN: Workspace Owner accounts cannot be deactivated here.");
     }
 
     await execute("UPDATE profiles SET is_active = ? WHERE id = ?", [
@@ -319,12 +340,13 @@ export const setUserActive = createServerFn({ method: "POST" })
     ]);
 
     await execute(
-      `INSERT INTO audit_logs (id, workspace_id, actor_id, action, entity_type, entity_id)
-       VALUES (?, ?, ?, ?, 'profile', ?)`,
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id)
+       VALUES (?, ?, ?, ?, ?, 'profile', ?)`,
       [
         uuid(),
         target.workspace_id,
-        context.userId,
+        realUserId,
+        realRole,
         data.isActive ? "user.activated" : "user.deactivated",
         data.userId,
       ],
@@ -333,7 +355,7 @@ export const setUserActive = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** Set a user's password. Super Admin, or Owner/Manager of that workspace. */
+/** Set a user's password. Super Admin, or Owner of that workspace. */
 export const setUserPassword = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { userId: string; password: string }) => {
@@ -343,28 +365,37 @@ export const setUserPassword = createServerFn({ method: "POST" })
     return input;
   })
   .handler(async ({ data, context }) => {
-    const isAdmin = await isSuperAdmin(context.userId);
-    const canManage = await canManageWorkspaceUsers(context.userId);
-    const me = await queryOne<Profile>("SELECT workspace_id FROM profiles WHERE id = ?", [
-      context.userId,
-    ]);
+    assertNotViewingAs(context, "Resetting password");
+
+    const realRole = context.realRole || context.role;
+    const realUserId = context.realUserId || context.userId;
+    const isAdmin = realRole === "super_admin" || (await isSuperAdmin(realUserId));
+    const isOwner = realRole === "owner";
 
     const target = await queryOne<Profile>("SELECT id, workspace_id FROM profiles WHERE id = ?", [
       data.userId,
     ]);
     if (!target) throw new Error("User not found.");
 
-    if (!isAdmin && !(canManage && me?.workspace_id && me.workspace_id === target.workspace_id)) {
-      throw new Error("You do not have permission to reset this password.");
+    if (!isAdmin && (!isOwner || context.workspaceId !== target.workspace_id)) {
+      throw new Error("FORBIDDEN: You do not have permission to reset this password.");
+    }
+
+    // Target cannot be an Owner unless caller is super_admin
+    const targetRole = await queryOne<UserRole>("SELECT role FROM user_roles WHERE user_id = ?", [
+      target.id,
+    ]);
+    if (!isAdmin && targetRole?.role === "owner") {
+      throw new Error("FORBIDDEN: Owner password should be changed via My Account.");
     }
 
     const pwHash = await hashPassword(data.password);
     await execute("UPDATE profiles SET password_hash = ? WHERE id = ?", [pwHash, data.userId]);
 
     await execute(
-      `INSERT INTO audit_logs (id, workspace_id, actor_id, action, entity_type, entity_id)
-       VALUES (?, ?, ?, 'user.password_reset', 'profile', ?)`,
-      [uuid(), target.workspace_id, context.userId, data.userId],
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id)
+       VALUES (?, ?, ?, ?, 'user.password_reset', 'profile', ?)`,
+      [uuid(), target.workspace_id, realUserId, realRole, data.userId],
     );
 
     return { ok: true };

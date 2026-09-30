@@ -41,7 +41,7 @@ function HomePage() {
   const { user, role, can, workspace } = useSession();
 
   const dashboardQuery = useQuery({
-    queryKey: qk.dashboard(workspace.id),
+    queryKey: qk.dashboard(workspace.id, user.id),
     queryFn: () => getDashboardData(workspace.id, role, user.name),
     enabled: !!workspace.id,
   });

@@ -1,13 +1,18 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Building2,
+  Eye,
+  EyeOff,
   FileText,
   KeyRound,
   Landmark,
+  LayoutDashboard,
   Loader2,
+  MoreVertical,
+  Pencil,
   Plus,
   ShieldCheck,
   UserCheck,
@@ -34,6 +39,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -47,10 +59,12 @@ import {
   getWorkspaceMembersFn,
   getUserPermissionsFn,
   setUserPermissionsFn,
+  updateWorkspaceEmployeeFn,
   updateSelfProfileFn,
   changeSelfPasswordFn,
   type WorkspaceMemberItem,
 } from "@/lib/settings.functions";
+import { startViewAsEmployeeFn } from "@/lib/auth.functions";
 import { useSession } from "@/hooks/use-session";
 import { relativeTime } from "@/lib/format";
 
@@ -77,9 +91,10 @@ export const Route = createFileRoute("/app/settings")({
 type MemberRow = WorkspaceMemberItem;
 
 function SettingsPage() {
-  const { workspace, user, role, can, refresh } = useSession();
-  const canManageTeam = can("manage.team");
-  const canManageSettings = can("manage.settings");
+  const { workspace, user, role, can, refresh, isViewingAs } = useSession();
+  const isOwner = role === "Owner" || role === "Super Admin";
+  const canManageTeam = can("manage.team") && isOwner && !isViewingAs;
+  const canManageSettings = can("manage.settings") && !isViewingAs;
 
   return (
     <div className="space-y-5">
@@ -426,6 +441,7 @@ function TeamTab({
   canManage,
   workspaceId,
   currentUserId,
+  role,
 }: {
   canManage: boolean;
   workspaceId: string;
@@ -433,14 +449,23 @@ function TeamTab({
   role: string;
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { refresh } = useSession();
   const getMembers = useServerFn(getWorkspaceMembersFn);
   const addUser = useServerFn(createWorkspaceUser);
   const toggleActive = useServerFn(setUserActive);
   const resetPassword = useServerFn(setUserPassword);
+  const startViewAs = useServerFn(startViewAsEmployeeFn);
+
   const [addOpen, setAddOpen] = useState(false);
+  const [editFor, setEditFor] = useState<MemberRow | null>(null);
   const [resetFor, setResetFor] = useState<MemberRow | null>(null);
   const [permissionsFor, setPermissionsFor] = useState<MemberRow | null>(null);
   const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [viewAsLoadingId, setViewAsLoadingId] = useState<string | null>(null);
+
   const [form, setForm] = useState({
     userCode: "",
     fullName: "",
@@ -460,16 +485,33 @@ function TeamTab({
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["workspace-members", workspaceId] });
 
+  const isAddUserCodeValid = /^[a-z0-9][a-z0-9._-]{1,30}$/.test(form.userCode);
+  const isAddEmailValid = !form.email || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email.trim());
+
+  const handleOpenAdd = () => {
+    setForm({
+      userCode: "",
+      fullName: "",
+      email: "",
+      phone: "",
+      jobTitle: "",
+      role: "employee",
+      password: "",
+    });
+    setShowPassword(false);
+    setAddOpen(true);
+  };
+
   const create = useMutation({
     mutationFn: () =>
       addUser({
         data: {
           workspaceId,
           userCode: form.userCode,
-          fullName: form.fullName,
-          ...(form.email ? { email: form.email } : {}),
-          ...(form.phone ? { phone: form.phone } : {}),
-          ...(form.jobTitle ? { jobTitle: form.jobTitle } : {}),
+          fullName: form.fullName.trim(),
+          ...(form.email?.trim() ? { email: form.email.trim() } : {}),
+          ...(form.phone?.trim() ? { phone: form.phone.trim() } : {}),
+          ...(form.jobTitle?.trim() ? { jobTitle: form.jobTitle.trim() } : {}),
           role: form.role as "manager" | "employee",
           password: form.password,
         },
@@ -513,6 +555,22 @@ function TeamTab({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const handleViewDashboard = async (m: MemberRow) => {
+    try {
+      setViewAsLoadingId(m.id);
+      await startViewAs({ data: { employeeId: m.id } });
+      await queryClient.cancelQueries();
+      queryClient.clear();
+      await refresh();
+      toast.success(`Viewing as: ${m.full_name} — Owner Preview`);
+      navigate({ to: "/app" });
+    } catch (e: any) {
+      toast.error(e.message || "Failed to start employee view");
+    } finally {
+      setViewAsLoadingId(null);
+    }
+  };
+
   const list = members.data ?? [];
 
   return (
@@ -521,7 +579,7 @@ function TeamTab({
       description="Everyone with access to this workspace."
       action={
         canManage && (
-          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <Dialog open={addOpen} onOpenChange={(open) => (open ? handleOpenAdd() : setAddOpen(false))}>
             <DialogTrigger asChild>
               <Button size="sm">
                 <Plus className="mr-1.5 h-4 w-4" /> Add user
@@ -538,17 +596,35 @@ function TeamTab({
                   value={form.fullName}
                   onChange={(v) => setForm({ ...form, fullName: v })}
                 />
-                <Field
-                  label="User ID (login) *"
-                  value={form.userCode}
-                  onChange={(v) => setForm({ ...form, userCode: v })}
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <Field
-                    label="Email"
-                    value={form.email}
-                    onChange={(v) => setForm({ ...form, email: v })}
+                <div>
+                  <Label className="text-xs">User ID (login) *</Label>
+                  <Input
+                    value={form.userCode}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        userCode: e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ""),
+                      })
+                    }
+                    placeholder="e.g. rohit.sharma"
+                    className="mt-1 font-mono text-xs"
                   />
+                  <p className="text-muted-foreground mt-1 text-[11px]">
+                    2-31 lowercase letters, numbers, dot, dash, or underscore.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Field
+                      label="Email"
+                      type="email"
+                      value={form.email}
+                      onChange={(v) => setForm({ ...form, email: v })}
+                    />
+                    {!isAddEmailValid && (
+                      <p className="mt-1 text-[11px] text-destructive">Invalid email format.</p>
+                    )}
+                  </div>
                   <Field
                     label="Phone"
                     value={form.phone}
@@ -567,17 +643,31 @@ function TeamTab({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="employee">Employee</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <Field
-                  label="Temporary password *"
-                  type="password"
-                  value={form.password}
-                  onChange={(v) => setForm({ ...form, password: v })}
-                />
+                <div>
+                  <Label className="text-xs">Temporary password * (min 8 chars)</Label>
+                  <div className="relative mt-1">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={form.password}
+                      onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      placeholder="••••••••"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="text-muted-foreground hover:text-foreground absolute right-2.5 top-1/2 -translate-y-1/2 p-1"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setAddOpen(false)}>
@@ -585,7 +675,11 @@ function TeamTab({
                 </Button>
                 <Button
                   disabled={
-                    !form.fullName || !form.userCode || form.password.length < 8 || create.isPending
+                    !form.fullName.trim() ||
+                    !isAddUserCodeValid ||
+                    !isAddEmailValid ||
+                    form.password.length < 8 ||
+                    create.isPending
                   }
                   onClick={() => create.mutate()}
                 >
@@ -613,7 +707,7 @@ function TeamTab({
                 </div>
                 <p className="text-muted-foreground mt-0.5 text-xs">
                   User ID:{" "}
-                  <code className="bg-muted text-foreground rounded px-1">{m.user_code}</code>
+                  <code className="bg-muted text-foreground rounded px-1 font-mono">{m.user_code}</code>
                   {m.job_title ? ` · ${m.job_title}` : ""}
                   {m.email ? ` · ${m.email}` : ""}
                   {m.last_login_at ? ` · Last login ${relativeTime(m.last_login_at)}` : ""}
@@ -622,40 +716,88 @@ function TeamTab({
 
               {canManage && !isOwner && !isSelf && (
                 <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setPermissionsFor(m)}>
-                    <ShieldCheck className="mr-1.5 h-3.5 w-3.5 text-primary" /> Permissions
+                  {/* PRIMARY ACTIONS */}
+                  <Button size="sm" variant="outline" onClick={() => setEditFor(m)}>
+                    <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit Employee
                   </Button>
 
-                  <Button size="sm" variant="outline" onClick={() => setResetFor(m)}>
-                    <KeyRound className="mr-1.5 h-3.5 w-3.5" /> Reset password
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={viewAsLoadingId === m.id}
+                    onClick={() => handleViewDashboard(m)}
+                  >
+                    {viewAsLoadingId === m.id ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <LayoutDashboard className="mr-1.5 h-3.5 w-3.5 text-primary" />
+                    )}
+                    View Dashboard
                   </Button>
 
-                  {m.is_active ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive hover:text-destructive"
-                      disabled={activate.isPending}
-                      onClick={() => activate.mutate({ userId: m.id, isActive: false })}
-                    >
-                      <UserX className="mr-1.5 h-3.5 w-3.5" /> Deactivate
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={activate.isPending}
-                      onClick={() => activate.mutate({ userId: m.id, isActive: true })}
-                    >
-                      <UserCheck className="mr-1.5 h-3.5 w-3.5" /> Reactivate
-                    </Button>
-                  )}
+                  {/* SECONDARY ACTIONS DROPDOWN */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                        <span className="sr-only">More actions</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onClick={() => setPermissionsFor(m)}>
+                        <ShieldCheck className="mr-2 h-4 w-4 text-primary" /> Permissions
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setResetFor(m);
+                          setNewPassword("");
+                          setShowResetPassword(false);
+                        }}
+                      >
+                        <KeyRound className="mr-2 h-4 w-4" /> Reset password
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {m.is_active ? (
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          disabled={activate.isPending}
+                          onClick={() => activate.mutate({ userId: m.id, isActive: false })}
+                        >
+                          <UserX className="mr-2 h-4 w-4" /> Deactivate
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          className="text-emerald-600 focus:text-emerald-600"
+                          disabled={activate.isPending}
+                          onClick={() => activate.mutate({ userId: m.id, isActive: true })}
+                        >
+                          <UserCheck className="mr-2 h-4 w-4" /> Reactivate
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               )}
             </div>
           );
         })}
       </div>
+
+      {/* Edit employee dialog */}
+      {editFor && (
+        <EditEmployeeDialog
+          member={editFor}
+          workspaceId={workspaceId}
+          onClose={() => setEditFor(null)}
+          onSaved={async () => {
+            await invalidate();
+          }}
+        />
+      )}
 
       {/* Reset password dialog */}
       <Dialog open={Boolean(resetFor)} onOpenChange={(o) => !o && setResetFor(null)}>
@@ -669,12 +811,24 @@ function TeamTab({
             </DialogDescription>
           </DialogHeader>
           <div className="py-2">
-            <Field
-              label="New password (min 8 chars)"
-              type="password"
-              value={newPassword}
-              onChange={setNewPassword}
-            />
+            <Label className="text-xs">New password (min 8 chars) *</Label>
+            <div className="relative mt-1">
+              <Input
+                type={showResetPassword ? "text" : "password"}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="••••••••"
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowResetPassword(!showResetPassword)}
+                className="text-muted-foreground hover:text-foreground absolute right-2.5 top-1/2 -translate-y-1/2 p-1"
+                aria-label={showResetPassword ? "Hide password" : "Show password"}
+              >
+                {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setResetFor(null)}>
@@ -700,6 +854,129 @@ function TeamTab({
         />
       )}
     </SectionCard>
+  );
+}
+
+function EditEmployeeDialog({
+  member,
+  workspaceId,
+  onClose,
+  onSaved,
+}: {
+  member: MemberRow;
+  workspaceId: string;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const updateEmployee = useServerFn(updateWorkspaceEmployeeFn);
+  const [fullName, setFullName] = useState(member.full_name);
+  const [email, setEmail] = useState(member.email || "");
+  const [phone, setPhone] = useState(member.phone || "");
+  const [jobTitle, setJobTitle] = useState(member.job_title || "");
+
+  const isEmailValid = !email || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+
+  const editMutation = useMutation({
+    mutationFn: () =>
+      updateEmployee({
+        data: {
+          userId: member.id,
+          fullName: fullName.trim(),
+          email: email.trim() || null,
+          phone: phone.trim() || null,
+          jobTitle: jobTitle.trim() || null,
+        },
+      }),
+    onSuccess: async () => {
+      toast.success("Employee updated");
+      onClose();
+      await onSaved();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="h-5 w-5 text-primary" /> Edit Employee
+          </DialogTitle>
+          <DialogDescription>
+            Update personal and contact details for this team member.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-3 py-2">
+          <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/50 p-3 border border-border">
+            <div>
+              <Label className="text-[11px] text-muted-foreground uppercase font-semibold">
+                User ID (Login)
+              </Label>
+              <div className="mt-1 font-mono text-xs font-semibold text-foreground">
+                {member.user_code}
+              </div>
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground uppercase font-semibold">
+                Role
+              </Label>
+              <div className="mt-1">
+                <StatusBadge label={member.role ?? "employee"} />
+              </div>
+            </div>
+          </div>
+
+          <Field
+            label="Full name *"
+            value={fullName}
+            onChange={setFullName}
+          />
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Field
+                label="Email"
+                type="email"
+                value={email}
+                onChange={setEmail}
+              />
+              {!isEmailValid && (
+                <p className="mt-1 text-[11px] text-destructive">Enter a valid email address.</p>
+              )}
+            </div>
+            <Field
+              label="Phone"
+              value={phone}
+              onChange={setPhone}
+            />
+          </div>
+
+          <Field
+            label="Job title"
+            value={jobTitle}
+            onChange={setJobTitle}
+          />
+
+          <p className="text-muted-foreground text-[11px] border-t border-border pt-2">
+            Role, User ID, and account status are managed separately to prevent unintended privilege escalation. Passwords can be changed via Reset Password.
+          </p>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!fullName.trim() || !isEmailValid || editMutation.isPending}
+            onClick={() => editMutation.mutate()}
+          >
+            {editMutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            Save changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

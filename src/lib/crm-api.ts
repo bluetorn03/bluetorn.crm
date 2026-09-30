@@ -174,7 +174,7 @@ export const paymentStatuses = ["Received", "Pending", "Failed", "Refunded"] as 
 /* --------------------------------- helpers -------------------------------- */
 
 export const qk = {
-  dashboard: (ws: string) => ["dashboard", ws] as const,
+  dashboard: (ws: string, userId?: string) => ["dashboard", ws, userId || ""] as const,
   search: (ws: string, q: string) => ["search", ws, q] as const,
   customers: (ws: string) => ["customers", ws] as const,
   customer: (id: string) => ["customer", id] as const,
