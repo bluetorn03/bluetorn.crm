@@ -133,7 +133,12 @@ async function run() {
   console.log("\nRunning Team Chat Groups V1.1 migrations...");
   await import("./migrate-team-chat-groups.mjs");
 
-  // 7. Verify tables list
+  // 7. Leads Configurable Options Migration (lead_options table, option columns on leads, seeding & backfill)
+  console.log("\nRunning Lead Options migrations...");
+  const { migrateLeadOptions } = await import("./migrate-lead-options.mjs");
+  await migrateLeadOptions(conn);
+
+  // 8. Verify tables list
   const [tables] = await conn.query("SHOW TABLES");
   console.log("\nTables currently present in database:");
   for (const row of tables) {

@@ -158,6 +158,29 @@ CREATE TABLE IF NOT EXISTS `properties` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
+-- 5b. LEAD OPTIONS
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `lead_options` (
+  `id` VARCHAR(36) NOT NULL,
+  `workspace_id` VARCHAR(36) NOT NULL,
+  `type` ENUM('source', 'location', 'purpose', 'possession_timeline', 'transaction_timeline', 'phase') NOT NULL,
+  `name` VARCHAR(128) NOT NULL,
+  `stable_key` VARCHAR(64) DEFAULT NULL,
+  `is_system` TINYINT(1) NOT NULL DEFAULT 0,
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `created_by` VARCHAR(36) DEFAULT NULL,
+  `updated_by` VARCHAR(36) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_lead_options_ws_type_name` (`workspace_id`, `type`, `name`),
+  KEY `idx_lead_options_ws_type_active` (`workspace_id`, `type`, `is_active`, `sort_order`),
+  KEY `idx_lead_options_ws_stable_key` (`workspace_id`, `type`, `stable_key`),
+  CONSTRAINT `fk_lead_options_ws` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------------
 -- 6. LEADS
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `leads` (
@@ -167,10 +190,16 @@ CREATE TABLE IF NOT EXISTS `leads` (
   `phone` VARCHAR(64) DEFAULT NULL,
   `email` VARCHAR(255) DEFAULT NULL,
   `source` VARCHAR(64) NOT NULL DEFAULT 'Manual Entry',
+  `source_option_id` VARCHAR(36) DEFAULT NULL,
   `campaign` VARCHAR(128) DEFAULT NULL,
   `external_id` VARCHAR(128) DEFAULT NULL,
   `status` VARCHAR(64) NOT NULL DEFAULT 'New',
   `requirement` TEXT DEFAULT NULL,
+  `location_option_id` VARCHAR(36) DEFAULT NULL,
+  `purpose_option_id` VARCHAR(36) DEFAULT NULL,
+  `possession_timeline_option_id` VARCHAR(36) DEFAULT NULL,
+  `transaction_timeline_option_id` VARCHAR(36) DEFAULT NULL,
+  `phase_option_id` VARCHAR(36) DEFAULT NULL,
   `budget` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `currency` VARCHAR(10) NOT NULL DEFAULT 'INR',
   `score` INT NOT NULL DEFAULT 50,
@@ -184,13 +213,26 @@ CREATE TABLE IF NOT EXISTS `leads` (
   `created_by` VARCHAR(36) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `converted_at` DATETIME DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_leads_ws` (`workspace_id`),
   KEY `idx_leads_assigned` (`assigned_to`),
+  KEY `idx_leads_source_opt` (`source_option_id`),
+  KEY `idx_leads_location_opt` (`location_option_id`),
+  KEY `idx_leads_purpose_opt` (`purpose_option_id`),
+  KEY `idx_leads_possession_opt` (`possession_timeline_option_id`),
+  KEY `idx_leads_transaction_opt` (`transaction_timeline_option_id`),
+  KEY `idx_leads_phase_opt` (`phase_option_id`),
   CONSTRAINT `fk_leads_ws` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_leads_assigned` FOREIGN KEY (`assigned_to`) REFERENCES `profiles` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_leads_property` FOREIGN KEY (`property_id`) REFERENCES `properties` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_leads_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_leads_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_leads_source_opt` FOREIGN KEY (`source_option_id`) REFERENCES `lead_options` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_leads_location_opt` FOREIGN KEY (`location_option_id`) REFERENCES `lead_options` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_leads_purpose_opt` FOREIGN KEY (`purpose_option_id`) REFERENCES `lead_options` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_leads_possession_opt` FOREIGN KEY (`possession_timeline_option_id`) REFERENCES `lead_options` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_leads_transaction_opt` FOREIGN KEY (`transaction_timeline_option_id`) REFERENCES `lead_options` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_leads_phase_opt` FOREIGN KEY (`phase_option_id`) REFERENCES `lead_options` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------

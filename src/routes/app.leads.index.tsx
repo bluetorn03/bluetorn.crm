@@ -75,7 +75,7 @@ function LeadsPage() {
   const [status, setStatus] = useState<string>("All");
   const [q, setQ] = useState("");
   const [addOpen, setAddOpen] = useState(false);
-  const [sourceFilter, setSourceFilter] = useState<string[] | null>(null);
+  const [activeSourceKey, setActiveSourceKey] = useState<string | null>(null);
   const [activeSourceName, setActiveSourceName] = useState<string | null>(null);
 
   // Active dialog states
@@ -97,6 +97,18 @@ function LeadsPage() {
   });
   const memberMap = new Map((membersQuery.data ?? []).map((m) => [m.id, m.full_name]));
 
+  const getLeadSourceStableKey = (lead: Lead): string => {
+    if (lead.source_stable_key) return lead.source_stable_key;
+    const s = (lead.source || "").toLowerCase();
+    if (s.includes("meta") || s.includes("facebook")) return "meta_ads";
+    if (s.includes("google")) return "google_ads";
+    if (s.includes("website")) return "website_forms";
+    if (s.includes("landing")) return "landing_pages";
+    if (s.includes("whatsapp")) return "whatsapp";
+    if (s.includes("instagram")) return "instagram_ads";
+    return s;
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -116,68 +128,62 @@ function LeadsPage() {
 
       <AddLeadDialog open={addOpen} onOpenChange={setAddOpen} />
 
-      {/* Automation Cards — clickable source filters */}
+      {/* Automation Cards — clickable source filters backed by stable source identity */}
       <SectionCard title="Automatic lead capture" description="Live sources feeding this workspace">
         {(() => {
           const allLeads = leadsQuery.data ?? [];
-          const countBySource = (srcKeys: string[]) =>
-            allLeads.filter((l) =>
-              srcKeys.some((k) => l.source.toLowerCase().includes(k.toLowerCase())),
-            ).length;
 
           const cards = [
             {
+              stableKey: "meta_ads",
               name: "Meta Ads",
               campaign: "Facebook & Meta campaigns",
-              src: ["Meta Ads", "Facebook"],
-              count: countBySource(["Meta Ads", "Facebook"]),
             },
             {
+              stableKey: "google_ads",
               name: "Google Ads",
               campaign: "Search & Display ads",
-              src: ["Google Ads"],
-              count: countBySource(["Google Ads"]),
             },
             {
+              stableKey: "website_forms",
               name: "Website forms",
               campaign: "Contact & enquiry forms",
-              src: ["Website"],
-              count: countBySource(["Website"]),
             },
             {
+              stableKey: "landing_pages",
               name: "Landing pages",
               campaign: "Campaign landing pages",
-              src: ["Landing Page"],
-              count: countBySource(["Landing Page"]),
             },
             {
+              stableKey: "whatsapp",
               name: "WhatsApp",
               campaign: "Click-to-chat & API",
-              src: ["WhatsApp"],
-              count: countBySource(["WhatsApp"]),
             },
             {
+              stableKey: "instagram_ads",
               name: "Instagram Ads",
               campaign: "Reels & Story ads",
-              src: ["Instagram"],
-              count: countBySource(["Instagram"]),
             },
           ];
 
           return (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {cards.map((c) => {
-                const isActive = activeSourceName === c.name;
+                const count = allLeads.filter(
+                  (l) => getLeadSourceStableKey(l) === c.stableKey,
+                ).length;
+                const isActive = activeSourceKey === c.stableKey;
+
                 return (
                   <button
-                    key={c.name}
+                    key={c.stableKey}
                     type="button"
                     onClick={() => {
                       if (isActive) {
-                        setSourceFilter(null);
+                        setActiveSourceKey(null);
                         setActiveSourceName(null);
                       } else {
-                        setSourceFilter(c.src);
+                        setActiveSourceKey(c.stableKey);
                         setActiveSourceName(c.name);
                       }
                     }}
@@ -208,7 +214,7 @@ function LeadsPage() {
                         (isActive ? "text-primary" : "text-muted-foreground")
                       }
                     >
-                      {c.count} lead{c.count === 1 ? "" : "s"}
+                      {count} lead{count === 1 ? "" : "s"}
                     </span>
                   </button>
                 );
@@ -249,7 +255,7 @@ function LeadsPage() {
         {activeSourceName && (
           <button
             onClick={() => {
-              setSourceFilter(null);
+              setActiveSourceKey(null);
               setActiveSourceName(null);
             }}
             className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/30 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
@@ -267,8 +273,7 @@ function LeadsPage() {
             (l) =>
               (status === "All" || l.status === status) &&
               l.name.toLowerCase().includes(q.toLowerCase()) &&
-              (!sourceFilter ||
-                sourceFilter.some((k) => l.source.toLowerCase().includes(k.toLowerCase()))),
+              (!activeSourceKey || getLeadSourceStableKey(l) === activeSourceKey),
           );
 
           if (rows.length === 0) {
@@ -308,7 +313,7 @@ function LeadsPage() {
                               )}
                             </p>
                             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                              <StatusBadge label={l.source} tone="info" />
+                              <StatusBadge label={l.source_option_name || l.source} tone="info" />
                               {l.campaign && <StatusBadge label={l.campaign} tone="neutral" />}
                               {l.external_id && (
                                 <StatusBadge label={l.external_id} tone="neutral" />

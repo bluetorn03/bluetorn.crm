@@ -26,13 +26,33 @@ import {
   listMembers,
   listProperties,
   listCustomers,
-  leadSources,
   leadStatuses,
   qk,
   type Lead,
 } from "@/lib/crm-api";
+import { LeadOptionSelect } from "@/components/crm/LeadOptionSelect";
 import { useSession } from "@/hooks/use-session";
 import { toast } from "sonner";
+
+interface EditLeadFormState {
+  name: string;
+  phone: string;
+  email: string;
+  source_option_id: string | null;
+  requirement: string;
+  budget: string;
+  status: string;
+  score: string;
+  assigned_to: string;
+  customer_id: string;
+  property_id: string;
+  notes: string;
+  location_option_id: string | null;
+  purpose_option_id: string | null;
+  possession_timeline_option_id: string | null;
+  transaction_timeline_option_id: string | null;
+  phase_option_id: string | null;
+}
 
 export function EditLeadDialog({
   open,
@@ -54,12 +74,11 @@ export function EditLeadDialog({
     dbRole === "manager" ||
     dbRole === "super_admin";
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<EditLeadFormState>({
     name: lead.name ?? "",
     phone: lead.phone ?? "",
     email: lead.email ?? "",
-    source: lead.source ?? "Manual Entry",
-    campaign: lead.campaign ?? "",
+    source_option_id: lead.source_option_id ?? null,
     requirement: lead.requirement ?? "",
     budget: lead.budget !== null && lead.budget !== undefined ? String(lead.budget) : "",
     status: lead.status ?? "New",
@@ -68,6 +87,11 @@ export function EditLeadDialog({
     customer_id: lead.customer_id ?? "none",
     property_id: lead.property_id ?? "none",
     notes: lead.notes ?? "",
+    location_option_id: lead.location_option_id ?? null,
+    purpose_option_id: lead.purpose_option_id ?? null,
+    possession_timeline_option_id: lead.possession_timeline_option_id ?? null,
+    transaction_timeline_option_id: lead.transaction_timeline_option_id ?? null,
+    phase_option_id: lead.phase_option_id ?? null,
   });
 
   useEffect(() => {
@@ -76,8 +100,7 @@ export function EditLeadDialog({
         name: lead.name ?? "",
         phone: lead.phone ?? "",
         email: lead.email ?? "",
-        source: lead.source ?? "Manual Entry",
-        campaign: lead.campaign ?? "",
+        source_option_id: lead.source_option_id ?? null,
         requirement: lead.requirement ?? "",
         budget: lead.budget !== null && lead.budget !== undefined ? String(lead.budget) : "",
         status: lead.status ?? "New",
@@ -86,6 +109,11 @@ export function EditLeadDialog({
         customer_id: lead.customer_id ?? "none",
         property_id: lead.property_id ?? "none",
         notes: lead.notes ?? "",
+        location_option_id: lead.location_option_id ?? null,
+        purpose_option_id: lead.purpose_option_id ?? null,
+        possession_timeline_option_id: lead.possession_timeline_option_id ?? null,
+        transaction_timeline_option_id: lead.transaction_timeline_option_id ?? null,
+        phase_option_id: lead.phase_option_id ?? null,
       });
     }
   }, [lead, open]);
@@ -111,20 +139,23 @@ export function EditLeadDialog({
   const mutation = useMutation({
     mutationFn: async () => {
       const budgetNum = parseFloat(form.budget);
-      const scoreNum = parseInt(form.score, 10);
 
       const patchPayload: Partial<Lead> = {
         name: form.name.trim(),
         phone: form.phone.trim() || null,
         email: form.email.trim() || null,
-        source: form.source,
-        campaign: form.campaign.trim() || null,
+        source_option_id: form.source_option_id,
         requirement: form.requirement.trim() || null,
         budget: isNaN(budgetNum) ? 0 : budgetNum,
         status: form.status,
         customer_id: form.customer_id === "none" ? null : form.customer_id,
         property_id: form.property_id === "none" ? null : form.property_id,
         notes: form.notes.trim() || null,
+        location_option_id: form.location_option_id,
+        purpose_option_id: form.purpose_option_id,
+        possession_timeline_option_id: form.possession_timeline_option_id,
+        transaction_timeline_option_id: form.transaction_timeline_option_id,
+        phase_option_id: form.phase_option_id,
       };
 
       if (canAssign) {
@@ -242,21 +273,22 @@ export function EditLeadDialog({
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="editLeadSource">Source *</Label>
-                <Select value={form.source} onValueChange={(v) => setForm({ ...form, source: v })}>
-                  <SelectTrigger id="editLeadSource">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {leadSources.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <LeadOptionSelect
+                type="source"
+                label="Source"
+                required
+                value={form.source_option_id}
+                onChange={(v) => setForm({ ...form, source_option_id: v })}
+                historicalValue={
+                  lead.source_option_id
+                    ? {
+                        id: lead.source_option_id,
+                        name: lead.source_option_name || lead.source,
+                        is_active: false,
+                      }
+                    : null
+                }
+              />
 
               <div className="space-y-1.5">
                 <Label htmlFor="editLeadBudget">Budget ({workspace.currency})</Label>
@@ -335,24 +367,103 @@ export function EditLeadDialog({
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <Label htmlFor="editLeadCampaign">Campaign</Label>
-              <Input
-                id="editLeadCampaign"
-                placeholder="e.g. Sea View Launch — Jun"
-                value={form.campaign}
-                onChange={(e) => setForm({ ...form, campaign: e.target.value })}
-              />
-            </div>
+            {/* Configurable Requirements & Preferences */}
+            <div className="border-t border-border pt-3 space-y-3">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Preferences & Timelines
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                <LeadOptionSelect
+                  type="location"
+                  label="Location"
+                  value={form.location_option_id}
+                  onChange={(v) => setForm({ ...form, location_option_id: v })}
+                  historicalValue={
+                    lead.location_option_id
+                      ? {
+                          id: lead.location_option_id,
+                          name: lead.location_name || "Historical Location",
+                          is_active: false,
+                        }
+                      : null
+                  }
+                />
+                <LeadOptionSelect
+                  type="purpose"
+                  label="Purpose"
+                  value={form.purpose_option_id}
+                  onChange={(v) => setForm({ ...form, purpose_option_id: v })}
+                  historicalValue={
+                    lead.purpose_option_id
+                      ? {
+                          id: lead.purpose_option_id,
+                          name: lead.purpose_name || "Historical Purpose",
+                          is_active: false,
+                        }
+                      : null
+                  }
+                />
+              </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="editLeadReq">Requirement</Label>
-              <Input
-                id="editLeadReq"
-                placeholder="e.g. 3 BHK, sea facing, Bandra"
-                value={form.requirement}
-                onChange={(e) => setForm({ ...form, requirement: e.target.value })}
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <LeadOptionSelect
+                  type="possession_timeline"
+                  label="Possession Timeline"
+                  value={form.possession_timeline_option_id}
+                  onChange={(v) => setForm({ ...form, possession_timeline_option_id: v })}
+                  historicalValue={
+                    lead.possession_timeline_option_id
+                      ? {
+                          id: lead.possession_timeline_option_id,
+                          name: lead.possession_timeline_name || "Historical Possession Timeline",
+                          is_active: false,
+                        }
+                      : null
+                  }
+                />
+                <LeadOptionSelect
+                  type="transaction_timeline"
+                  label="Transaction Timeline"
+                  value={form.transaction_timeline_option_id}
+                  onChange={(v) => setForm({ ...form, transaction_timeline_option_id: v })}
+                  historicalValue={
+                    lead.transaction_timeline_option_id
+                      ? {
+                          id: lead.transaction_timeline_option_id,
+                          name: lead.transaction_timeline_name || "Historical Transaction Timeline",
+                          is_active: false,
+                        }
+                      : null
+                  }
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <LeadOptionSelect
+                  type="phase"
+                  label="Phase"
+                  value={form.phase_option_id}
+                  onChange={(v) => setForm({ ...form, phase_option_id: v })}
+                  historicalValue={
+                    lead.phase_option_id
+                      ? {
+                          id: lead.phase_option_id,
+                          name: lead.phase_name || "Historical Phase",
+                          is_active: false,
+                        }
+                      : null
+                  }
+                />
+                <div className="space-y-1.5">
+                  <Label htmlFor="editLeadReq">Requirement</Label>
+                  <Input
+                    id="editLeadReq"
+                    placeholder="e.g. 3 BHK, sea facing, Bandra"
+                    value={form.requirement}
+                    onChange={(e) => setForm({ ...form, requirement: e.target.value })}
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="space-y-1.5">

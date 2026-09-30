@@ -1,13 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireMySqlAuth, assertPermission } from "./auth-server";
-import { query, queryOne, execute, transaction, uuid } from "./db";
-import { getDefaultQuickAddDueDateTime } from "./date-utils";
-import { calculateLeadScore } from "./lead-scoring";
-import { type InvoiceLineInput, invoiceTotals, computeInvoiceTotals } from "./invoice-calculations";
+import { requireMySqlAuth, assertPermission } from "./auth-server.ts";
+import { query, queryOne, execute, transaction, uuid } from "./db.ts";
+import { getDefaultQuickAddDueDateTime } from "./date-utils.ts";
+import { calculateLeadScore } from "./lead-scoring.ts";
+import { type InvoiceLineInput, invoiceTotals, computeInvoiceTotals } from "./invoice-calculations.ts";
 import type {
   Customer,
   Property,
   Lead,
+  LeadOption,
+  LeadOptionType,
   LeadActivity,
   Task,
   CalendarEvent,
@@ -20,7 +22,7 @@ import type {
   Notification,
 } from "./db-types";
 
-export type { InvoiceLineInput };
+export type { InvoiceLineInput, LeadOption, LeadOptionType };
 export type Member = { id: string; full_name: string; email: string | null; is_active: boolean };
 
 /* -------------------------------- members --------------------------------- */
@@ -36,6 +38,15 @@ export const listMembersFn = createServerFn({ method: "GET" })
   });
 
 /* -------------------------------- helpers --------------------------------- */
+
+export type CrmServerAuthContext = {
+  userId: string;
+  workspaceId: string | null;
+  role: string;
+  isViewingAs?: boolean;
+  realUserId?: string;
+  realRole?: string;
+};
 
 function getTargetWorkspaceId(
   inputWsId: string | undefined,
@@ -442,243 +453,805 @@ export const deletePropertyFn = createServerFn({ method: "POST" })
 
 /* ----------------------------------- leads -------------------------------- */
 
+const LEAD_SELECT_COLS = `
+  l.*,
+  so.name AS source_option_name,
+  so.stable_key AS source_stable_key,
+  lo.name AS location_name,
+  po.name AS purpose_name,
+  pt.name AS possession_timeline_name,
+  tt.name AS transaction_timeline_name,
+  ph.name AS phase_name
+`;
+
+const LEAD_FROM_JOINS = `
+  leads l
+  LEFT JOIN lead_options so ON l.source_option_id = so.id
+  LEFT JOIN lead_options lo ON l.location_option_id = lo.id
+  LEFT JOIN lead_options po ON l.purpose_option_id = po.id
+  LEFT JOIN lead_options pt ON l.possession_timeline_option_id = pt.id
+  LEFT JOIN lead_options tt ON l.transaction_timeline_option_id = tt.id
+  LEFT JOIN lead_options ph ON l.phase_option_id = ph.id
+`;
+
+const VALID_OPTION_TYPES: LeadOptionType[] = [
+  "source",
+  "location",
+  "purpose",
+  "possession_timeline",
+  "transaction_timeline",
+  "phase",
+];
+
+export const DEFAULT_LEAD_OPTIONS: Record<
+  LeadOptionType,
+  { name: string; stable_key?: string; is_system?: boolean; sort_order: number }[]
+> = {
+  source: [
+    { name: "Meta Ads", stable_key: "meta_ads", is_system: true, sort_order: 1 },
+    { name: "Google Ads", stable_key: "google_ads", is_system: true, sort_order: 2 },
+    { name: "Website Forms", stable_key: "website_forms", is_system: true, sort_order: 3 },
+    { name: "Landing Pages", stable_key: "landing_pages", is_system: true, sort_order: 4 },
+    { name: "WhatsApp", stable_key: "whatsapp", is_system: true, sort_order: 5 },
+    { name: "Instagram Ads", stable_key: "instagram_ads", is_system: true, sort_order: 6 },
+    { name: "Manual Entry", stable_key: "manual_entry", is_system: true, sort_order: 7 },
+    { name: "Referral", stable_key: "referral", is_system: false, sort_order: 8 },
+  ],
+  location: [
+    { name: "Nerul-Seawoods", sort_order: 1 },
+    { name: "Juinagar", sort_order: 2 },
+    { name: "Ulwe", sort_order: 3 },
+    { name: "Panvel", sort_order: 4 },
+    { name: "Palaspe", sort_order: 5 },
+  ],
+  purpose: [
+    { name: "Self Use", sort_order: 1 },
+    { name: "Investment", sort_order: 2 },
+  ],
+  possession_timeline: [
+    { name: "Immediate", sort_order: 1 },
+    { name: "Within 6 months", sort_order: 2 },
+    { name: "Within a year", sort_order: 3 },
+    { name: "Within 2 years", sort_order: 4 },
+    { name: "Within 3 years", sort_order: 5 },
+    { name: "More than 3 years", sort_order: 6 },
+  ],
+  transaction_timeline: [
+    { name: "Immediate", sort_order: 1 },
+    { name: "Within a Month", sort_order: 2 },
+    { name: "Within 3 Months", sort_order: 3 },
+    { name: "Within 6 Months", sort_order: 4 },
+    { name: "Just Exploring", sort_order: 5 },
+  ],
+  phase: [
+    { name: "Pre launch", sort_order: 1 },
+    { name: "Under Construction", sort_order: 2 },
+    { name: "Nearby Possession", sort_order: 3 },
+    { name: "Ready to move in", sort_order: 4 },
+  ],
+};
+
+export async function ensureDefaultLeadOptionsInternal(
+  workspaceId: string,
+  actorId: string | null = null,
+): Promise<void> {
+  if (!workspaceId) return;
+
+  for (const [type, items] of Object.entries(DEFAULT_LEAD_OPTIONS)) {
+    for (const item of items) {
+      const existing = await queryOne<LeadOption>(
+        "SELECT id, stable_key FROM lead_options WHERE workspace_id = ? AND type = ? AND LOWER(name) = LOWER(?) LIMIT 1",
+        [workspaceId, type, item.name],
+      );
+
+      if (existing) {
+        if (item.stable_key && !existing.stable_key) {
+          await execute(
+            "UPDATE lead_options SET stable_key = ?, is_system = ? WHERE id = ?",
+            [item.stable_key, item.is_system ? 1 : 0, existing.id],
+          );
+        }
+      } else {
+        const id = uuid();
+        await execute(
+          `INSERT INTO lead_options (id, workspace_id, type, name, stable_key, is_system, is_active, sort_order, created_by, updated_by)
+           VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+          [
+            id,
+            workspaceId,
+            type,
+            item.name,
+            item.stable_key || null,
+            item.is_system ? 1 : 0,
+            item.sort_order || 0,
+            actorId,
+            actorId,
+          ],
+        );
+      }
+    }
+  }
+}
+
+async function validateLeadOptionReference(
+  wsId: string,
+  optionId: string | null | undefined,
+  expectedType: LeadOptionType,
+  requireActive: boolean = true,
+): Promise<LeadOption | null> {
+  if (!optionId || optionId === "none" || optionId === "unassigned") return null;
+  const opt = await queryOne<LeadOption>(
+    "SELECT * FROM lead_options WHERE id = ? LIMIT 1",
+    [optionId],
+  );
+  if (!opt) {
+    throw new Error(`Invalid ${expectedType} option selected (not found).`);
+  }
+  if (opt.workspace_id !== wsId) {
+    throw new Error(`Unauthorized: Cross-workspace ${expectedType} option tampering rejected.`);
+  }
+  if (opt.type !== expectedType) {
+    throw new Error(`Option mismatch: expected type '${expectedType}' but got '${opt.type}'.`);
+  }
+  if (requireActive && !opt.is_active) {
+    throw new Error(`Cannot select inactive ${expectedType} option "${opt.name}" for a lead.`);
+  }
+  return opt;
+}
+
+export async function listLeadsCore(
+  context: CrmServerAuthContext,
+  data: { workspaceId: string },
+): Promise<Lead[]> {
+  const wsId = getTargetWorkspaceId(data.workspaceId, context);
+  const ef = employeeFilter(context, "l.assigned_to", "l.created_by");
+  return query<Lead>(
+    `SELECT ${LEAD_SELECT_COLS} FROM ${LEAD_FROM_JOINS} WHERE l.workspace_id = ?${ef.sql} ORDER BY l.received_at DESC`,
+    [wsId, ...ef.params],
+  );
+}
+
 export const listLeadsFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .validator((input: { workspaceId: string }) => input)
-  .handler(async ({ data, context }): Promise<Lead[]> => {
-    const wsId = getTargetWorkspaceId(data.workspaceId, context);
-    const ef = employeeFilter(context);
-    return query<Lead>(
-      `SELECT * FROM leads WHERE workspace_id = ?${ef.sql} ORDER BY received_at DESC`,
-      [wsId, ...ef.params],
+  .handler(async ({ data, context }) => listLeadsCore(context, data));
+
+export async function getLeadCore(
+  context: CrmServerAuthContext,
+  data: { id: string },
+): Promise<Lead | null> {
+  if (context.role === "super_admin") {
+    return queryOne<Lead>(
+      `SELECT ${LEAD_SELECT_COLS} FROM ${LEAD_FROM_JOINS} WHERE l.id = ?`,
+      [data.id],
     );
-  });
+  }
+  const wsId = getTargetWorkspaceId(undefined, context);
+  const ef = employeeFilter(context, "l.assigned_to", "l.created_by");
+  return queryOne<Lead>(
+    `SELECT ${LEAD_SELECT_COLS} FROM ${LEAD_FROM_JOINS} WHERE l.id = ? AND l.workspace_id = ?${ef.sql}`,
+    [data.id, wsId, ...ef.params],
+  );
+}
 
 export const getLeadFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string }) => input)
-  .handler(async ({ data, context }): Promise<Lead | null> => {
-    if (context.role === "super_admin") {
-      return queryOne<Lead>("SELECT * FROM leads WHERE id = ?", [data.id]);
-    }
-    const wsId = getTargetWorkspaceId(undefined, context);
-    const ef = employeeFilter(context);
-    return queryOne<Lead>(`SELECT * FROM leads WHERE id = ? AND workspace_id = ?${ef.sql}`, [
-      data.id,
-      wsId,
-      ...ef.params,
-    ]);
-  });
+  .handler(async ({ data, context }) => getLeadCore(context, data));
 
-export const createLeadFn = createServerFn({ method: "POST" })
-  .middleware([requireMySqlAuth])
-  .validator((input: Partial<Lead> & { workspace_id: string; name: string }) => input)
-  .handler(async ({ data, context }): Promise<Lead> => {
-    const wsId = getTargetWorkspaceId(data.workspace_id, context);
-    const id = uuid();
+export async function createLeadCore(
+  context: CrmServerAuthContext,
+  data: Partial<Lead> & { workspace_id: string; name: string },
+): Promise<Lead> {
+  const wsId = getTargetWorkspaceId(data.workspace_id, context);
+  const id = uuid();
 
-    const creatorId = context.userId || data.created_by || null;
-    let assignedTo = data.assigned_to ?? null;
-    // When employee creates lead: Created By = Employee, Assigned To = Employee (persisted in MySQL)
-    if (isEmployee(context) && creatorId) {
-      assignedTo = creatorId;
-    }
+  const creatorId = context.userId || data.created_by || null;
+  let assignedTo = data.assigned_to ?? null;
+  if (assignedTo === "unassigned") assignedTo = null;
+  // When employee creates lead: Created By = Employee, Assigned To = Employee (persisted in MySQL)
+  if (isEmployee(context) && creatorId) {
+    assignedTo = creatorId;
+  }
 
-    const candidateLead: Lead = {
-      id,
-      workspace_id: wsId,
-      name: data.name,
-      phone: data.phone ?? null,
-      email: data.email ?? null,
-      source: data.source ?? "Manual Entry",
-      campaign: data.campaign ?? null,
-      external_id: data.external_id ?? null,
-      status: data.status ?? "New",
-      requirement: data.requirement ?? null,
-      budget: Number(data.budget) || 0,
-      currency: data.currency ?? "INR",
-      score: 0,
-      next_follow_up: data.next_follow_up ?? null,
-      received_at: data.received_at ?? new Date().toISOString().slice(0, 19).replace("T", " "),
-      assigned_to: assignedTo,
-      assigned_at: assignedTo ? new Date().toISOString().slice(0, 19).replace("T", " ") : null,
-      property_id: data.property_id ?? null,
-      customer_id: data.customer_id ?? null,
-      converted_at: null,
-      notes: data.notes ?? null,
-      created_by: creatorId,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+  // Validate configurable option references
+  const sourceOpt = data.source_option_id
+    ? await validateLeadOptionReference(wsId, data.source_option_id, "source", true)
+    : null;
+  const locationOpt = data.location_option_id
+    ? await validateLeadOptionReference(wsId, data.location_option_id, "location", true)
+    : null;
+  const purposeOpt = data.purpose_option_id
+    ? await validateLeadOptionReference(wsId, data.purpose_option_id, "purpose", true)
+    : null;
+  const possessionOpt = data.possession_timeline_option_id
+    ? await validateLeadOptionReference(wsId, data.possession_timeline_option_id, "possession_timeline", true)
+    : null;
+  const transactionOpt = data.transaction_timeline_option_id
+    ? await validateLeadOptionReference(wsId, data.transaction_timeline_option_id, "transaction_timeline", true)
+    : null;
+  const phaseOpt = data.phase_option_id
+    ? await validateLeadOptionReference(wsId, data.phase_option_id, "phase", true)
+    : null;
 
-    const calculatedScore = calculateLeadScore(candidateLead).total;
+  let sourceOptionId = sourceOpt?.id ?? null;
+  let sourceName = sourceOpt?.name ?? data.source ?? "Manual Entry";
 
-    await execute(
-      `INSERT INTO leads (id, workspace_id, name, phone, email, source, campaign, external_id, status, requirement, budget, currency, score, next_follow_up, received_at, assigned_to, assigned_at, property_id, customer_id, notes, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        wsId,
-        candidateLead.name,
-        candidateLead.phone,
-        candidateLead.email,
-        candidateLead.source,
-        candidateLead.campaign,
-        candidateLead.external_id,
-        candidateLead.status,
-        candidateLead.requirement,
-        candidateLead.budget,
-        candidateLead.currency,
-        calculatedScore,
-        candidateLead.next_follow_up,
-        candidateLead.received_at,
-        candidateLead.assigned_to,
-        candidateLead.assigned_at,
-        candidateLead.property_id,
-        candidateLead.customer_id,
-        candidateLead.notes,
-        candidateLead.created_by,
-      ],
+  // Auto-match source option ID if name provided without explicit ID
+  if (!sourceOptionId && sourceName) {
+    const matched = await queryOne<LeadOption>(
+      "SELECT id, name FROM lead_options WHERE workspace_id = ? AND type = 'source' AND LOWER(name) = LOWER(?) AND is_active = 1 LIMIT 1",
+      [wsId, sourceName],
     );
-    const newLead = (await queryOne<Lead>("SELECT * FROM leads WHERE id = ?", [id]))!;
-
-    // Notify assigned employee (if not the creator)
-    if (assignedTo && assignedTo !== context.userId) {
-      await createNotificationInternal({
-        workspaceId: wsId,
-        userId: assignedTo,
-        type: "lead_assigned",
-        title: `New lead "${data.name}" assigned to you`,
-        message: data.requirement ? `Requirement: ${data.requirement}` : null,
-        entityType: "lead",
-        entityId: id,
-        createdBy: context.userId,
-      });
+    if (matched) {
+      sourceOptionId = matched.id;
+      sourceName = matched.name;
     }
-    // Notify owner(s) when employee creates a lead
-    if (isEmployee(context)) {
-      const owners = await query<{ id: string }>(
-        "SELECT ur.user_id as id FROM user_roles ur WHERE ur.workspace_id = ? AND ur.role IN ('owner', 'manager')",
-        [wsId],
-      );
-      for (const o of owners) {
-        if (o.id !== context.userId) {
-          await createNotificationInternal({
-            workspaceId: wsId,
-            userId: o.id,
-            type: "lead_created",
-            title: `New lead "${data.name}" created by team member`,
-            entityType: "lead",
-            entityId: id,
-            createdBy: context.userId,
-          });
-        }
-      }
-    }
+  }
 
-    return newLead;
-  });
+  const candidateLead: Lead = {
+    id,
+    workspace_id: wsId,
+    name: data.name.trim(),
+    phone: data.phone ?? null,
+    email: data.email ?? null,
+    source: sourceName,
+    source_option_id: sourceOptionId,
+    location_option_id: locationOpt?.id ?? null,
+    purpose_option_id: purposeOpt?.id ?? null,
+    possession_timeline_option_id: possessionOpt?.id ?? null,
+    transaction_timeline_option_id: transactionOpt?.id ?? null,
+    phase_option_id: phaseOpt?.id ?? null,
+    campaign: data.campaign ?? null,
+    external_id: data.external_id ?? null,
+    status: data.status ?? "New",
+    requirement: data.requirement ?? null,
+    budget: Number(data.budget) || 0,
+    currency: data.currency ?? "INR",
+    score: 0,
+    next_follow_up: data.next_follow_up ?? null,
+    received_at: data.received_at ?? new Date().toISOString().slice(0, 19).replace("T", " "),
+    assigned_to: assignedTo,
+    assigned_at: assignedTo ? new Date().toISOString().slice(0, 19).replace("T", " ") : null,
+    property_id: data.property_id === "none" ? null : (data.property_id ?? null),
+    customer_id: data.customer_id === "none" ? null : (data.customer_id ?? null),
+    converted_at: null,
+    notes: data.notes ?? null,
+    created_by: creatorId,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
 
-export const updateLeadFn = createServerFn({ method: "POST" })
-  .middleware([requireMySqlAuth])
-  .validator((input: { id: string; patch: Partial<Lead> }) => input)
-  .handler(async ({ data, context }): Promise<Lead> => {
-    const wsId = getTargetWorkspaceId(undefined, context);
+  const calculatedScore = calculateLeadScore(candidateLead).total;
 
-    // 1. Fetch current lead
-    const existingLead = await queryOne<Lead>("SELECT * FROM leads WHERE id = ?", [data.id]);
-    if (!existingLead) throw new Error("Lead not found");
+  await execute(
+    `INSERT INTO leads (
+      id, workspace_id, name, phone, email, source, source_option_id,
+      location_option_id, purpose_option_id, possession_timeline_option_id,
+      transaction_timeline_option_id, phase_option_id, campaign, external_id,
+      status, requirement, budget, currency, score, next_follow_up, received_at,
+      assigned_to, assigned_at, property_id, customer_id, notes, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      id,
+      wsId,
+      candidateLead.name,
+      candidateLead.phone,
+      candidateLead.email,
+      candidateLead.source,
+      candidateLead.source_option_id,
+      candidateLead.location_option_id,
+      candidateLead.purpose_option_id,
+      candidateLead.possession_timeline_option_id,
+      candidateLead.transaction_timeline_option_id,
+      candidateLead.phase_option_id,
+      candidateLead.campaign,
+      candidateLead.external_id,
+      candidateLead.status,
+      candidateLead.requirement,
+      candidateLead.budget,
+      candidateLead.currency,
+      calculatedScore,
+      candidateLead.next_follow_up,
+      candidateLead.received_at,
+      candidateLead.assigned_to,
+      candidateLead.assigned_at,
+      candidateLead.property_id,
+      candidateLead.customer_id,
+      candidateLead.notes,
+      candidateLead.created_by,
+    ],
+  );
 
-    // Employee isolation check
-    if (isEmployee(context)) {
-      if (
-        existingLead.assigned_to !== context.userId &&
-        existingLead.created_by !== context.userId
-      ) {
-        throw new Error("Unauthorized: You do not have access to update this lead.");
-      }
-    }
+  const newLead = (await queryOne<Lead>(
+    `SELECT ${LEAD_SELECT_COLS} FROM ${LEAD_FROM_JOINS} WHERE l.id = ?`,
+    [id],
+  ))!;
 
-    // If assigned_to is changing, verify authorization & inject assigned_at
-    if (
-      data.patch.assigned_to !== undefined &&
-      data.patch.assigned_to !== existingLead.assigned_to
-    ) {
-      if (isEmployee(context)) {
-        throw new Error("Unauthorized: Only owners or managers can assign or reassign leads.");
-      }
-      (data.patch as any).assigned_at = data.patch.assigned_to
-        ? new Date().toISOString().slice(0, 19).replace("T", " ")
-        : null;
-    }
-
-    // 2. Merge patch with existing lead
-    const mergedLead: Lead = {
-      ...existingLead,
-      ...data.patch,
-    };
-
-    // 3. Recalculate deterministic lead score from real lead data
-    const calculatedScore = calculateLeadScore(mergedLead).total;
-
-    const patchWithScore: Record<string, any> = {
-      ...data.patch,
-      score: calculatedScore,
-    };
-
-    const sets: string[] = [];
-    const vals: unknown[] = [];
-    for (const [key, val] of Object.entries(patchWithScore)) {
-      if (key === "id" || key === "created_at" || key === "workspace_id") continue;
-      sets.push(`\`${key}\` = ?`);
-      vals.push(val);
-    }
-    if (sets.length === 0)
-      return (await queryOne<Lead>("SELECT * FROM leads WHERE id = ?", [data.id]))!;
-
-    vals.push(data.id);
-    if (context.role !== "super_admin") {
-      vals.push(wsId);
-      await execute(`UPDATE leads SET ${sets.join(", ")} WHERE id = ? AND workspace_id = ?`, vals);
-    } else {
-      await execute(`UPDATE leads SET ${sets.join(", ")} WHERE id = ?`, vals);
-    }
-    const updatedLead = (await queryOne<Lead>("SELECT * FROM leads WHERE id = ?", [data.id]))!;
-
-    // Notify if assignment changed
-    if (
-      data.patch.assigned_to &&
-      data.patch.assigned_to !== existingLead.assigned_to &&
-      updatedLead
-    ) {
-      if (data.patch.assigned_to !== context.userId) {
+  // Notify assigned employee (if not the creator)
+  if (assignedTo && assignedTo !== context.userId) {
+    await createNotificationInternal({
+      workspaceId: wsId,
+      userId: assignedTo,
+      type: "lead_assigned",
+      title: `New lead "${data.name}" assigned to you`,
+      message: data.requirement ? `Requirement: ${data.requirement}` : null,
+      entityType: "lead",
+      entityId: id,
+      createdBy: context.userId,
+    });
+  }
+  // Notify owner(s) when employee creates a lead
+  if (isEmployee(context)) {
+    const owners = await query<{ id: string }>(
+      "SELECT ur.user_id as id FROM user_roles ur WHERE ur.workspace_id = ? AND ur.role IN ('owner', 'manager')",
+      [wsId],
+    );
+    for (const o of owners) {
+      if (o.id !== context.userId) {
         await createNotificationInternal({
           workspaceId: wsId,
-          userId: data.patch.assigned_to as string,
-          type: "lead_assigned",
-          title: `Lead "${updatedLead.name}" assigned to you`,
-          message: updatedLead.requirement ? `Requirement: ${updatedLead.requirement}` : null,
+          userId: o.id,
+          type: "lead_created",
+          title: `New lead "${data.name}" created by team member`,
           entityType: "lead",
-          entityId: data.id,
+          entityId: id,
           createdBy: context.userId,
         });
       }
     }
+  }
 
-    return updatedLead;
-  });
+  return newLead;
+}
+
+export const createLeadFn = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .validator((input: Partial<Lead> & { workspace_id: string; name: string }) => input)
+  .handler(async ({ data, context }) => createLeadCore(context, data));
+
+export async function updateLeadCore(
+  context: CrmServerAuthContext,
+  data: { id: string; patch: Partial<Lead> },
+): Promise<Lead> {
+  const wsId = getTargetWorkspaceId(undefined, context);
+
+  // 1. Fetch current lead
+  const existingLead = await queryOne<Lead>("SELECT * FROM leads WHERE id = ?", [data.id]);
+  if (!existingLead) throw new Error("Lead not found");
+
+  // Employee isolation check
+  if (isEmployee(context)) {
+    if (
+      existingLead.assigned_to !== context.userId &&
+      existingLead.created_by !== context.userId
+    ) {
+      throw new Error("Unauthorized: You do not have access to update this lead.");
+    }
+  }
+
+  // Validate configurable option references in patch
+  if (
+    data.patch.source_option_id !== undefined &&
+    data.patch.source_option_id !== existingLead.source_option_id
+  ) {
+    const opt = await validateLeadOptionReference(wsId, data.patch.source_option_id, "source", true);
+    if (opt) {
+      data.patch.source = opt.name;
+    }
+  }
+  if (
+    data.patch.location_option_id !== undefined &&
+    data.patch.location_option_id !== existingLead.location_option_id
+  ) {
+    await validateLeadOptionReference(wsId, data.patch.location_option_id, "location", true);
+  }
+  if (
+    data.patch.purpose_option_id !== undefined &&
+    data.patch.purpose_option_id !== existingLead.purpose_option_id
+  ) {
+    await validateLeadOptionReference(wsId, data.patch.purpose_option_id, "purpose", true);
+  }
+  if (
+    data.patch.possession_timeline_option_id !== undefined &&
+    data.patch.possession_timeline_option_id !== existingLead.possession_timeline_option_id
+  ) {
+    await validateLeadOptionReference(wsId, data.patch.possession_timeline_option_id, "possession_timeline", true);
+  }
+  if (
+    data.patch.transaction_timeline_option_id !== undefined &&
+    data.patch.transaction_timeline_option_id !== existingLead.transaction_timeline_option_id
+  ) {
+    await validateLeadOptionReference(wsId, data.patch.transaction_timeline_option_id, "transaction_timeline", true);
+  }
+  if (
+    data.patch.phase_option_id !== undefined &&
+    data.patch.phase_option_id !== existingLead.phase_option_id
+  ) {
+    await validateLeadOptionReference(wsId, data.patch.phase_option_id, "phase", true);
+  }
+
+  // If assigned_to is changing, verify authorization & inject assigned_at
+  if (
+    data.patch.assigned_to !== undefined &&
+    data.patch.assigned_to !== existingLead.assigned_to
+  ) {
+    if (isEmployee(context)) {
+      throw new Error("Unauthorized: Only owners or managers can assign or reassign leads.");
+    }
+    (data.patch as any).assigned_at = data.patch.assigned_to
+      ? new Date().toISOString().slice(0, 19).replace("T", " ")
+      : null;
+  }
+
+  // 2. Merge patch with existing lead
+  const mergedLead: Lead = {
+    ...existingLead,
+    ...data.patch,
+  };
+
+  // 3. Recalculate deterministic lead score from real lead data
+  const calculatedScore = calculateLeadScore(mergedLead).total;
+
+  const patchWithScore: Record<string, any> = {
+    ...data.patch,
+    score: calculatedScore,
+  };
+
+  // Clean up virtual join fields that shouldn't be updated on leads table directly
+  delete patchWithScore["source_option_name"];
+  delete patchWithScore["source_stable_key"];
+  delete patchWithScore["location_name"];
+  delete patchWithScore["purpose_name"];
+  delete patchWithScore["possession_timeline_name"];
+  delete patchWithScore["transaction_timeline_name"];
+  delete patchWithScore["phase_name"];
+
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  for (const [key, val] of Object.entries(patchWithScore)) {
+    if (key === "id" || key === "created_at" || key === "workspace_id") continue;
+    sets.push(`\`${key}\` = ?`);
+    vals.push(val);
+  }
+  if (sets.length === 0) {
+    return (await queryOne<Lead>(
+      `SELECT ${LEAD_SELECT_COLS} FROM ${LEAD_FROM_JOINS} WHERE l.id = ?`,
+      [data.id],
+    ))!;
+  }
+
+  vals.push(data.id);
+  if (context.role !== "super_admin") {
+    vals.push(wsId);
+    await execute(`UPDATE leads SET ${sets.join(", ")} WHERE id = ? AND workspace_id = ?`, vals);
+  } else {
+    await execute(`UPDATE leads SET ${sets.join(", ")} WHERE id = ?`, vals);
+  }
+
+  const updatedLead = (await queryOne<Lead>(
+    `SELECT ${LEAD_SELECT_COLS} FROM ${LEAD_FROM_JOINS} WHERE l.id = ?`,
+    [data.id],
+  ))!;
+
+  // Notify if assignment changed
+  if (
+    data.patch.assigned_to &&
+    data.patch.assigned_to !== existingLead.assigned_to &&
+    updatedLead
+  ) {
+    if (data.patch.assigned_to !== context.userId) {
+      await createNotificationInternal({
+        workspaceId: wsId,
+        userId: data.patch.assigned_to as string,
+        type: "lead_assigned",
+        title: `Lead "${updatedLead.name}" assigned to you`,
+        message: updatedLead.requirement ? `Requirement: ${updatedLead.requirement}` : null,
+        entityType: "lead",
+        entityId: data.id,
+        createdBy: context.userId,
+      });
+    }
+  }
+
+  return updatedLead;
+}
+
+export const updateLeadFn = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .validator((input: { id: string; patch: Partial<Lead> }) => input)
+  .handler(async ({ data, context }) => updateLeadCore(context, data));
+
+/* ------------------------------- lead_options ------------------------------ */
+
+export async function listLeadOptionsCore(
+  context: CrmServerAuthContext,
+  data: { workspaceId?: string | undefined; type?: LeadOptionType | undefined; includeInactive?: boolean | undefined },
+): Promise<LeadOption[]> {
+  const wsId = getTargetWorkspaceId(data.workspaceId, context);
+  // Employees can ONLY ever receive active options
+  const onlyActive = isEmployee(context) || !data.includeInactive;
+
+  const conditions: string[] = ["workspace_id = ?"];
+  const params: unknown[] = [wsId];
+
+  if (data.type) {
+    if (!VALID_OPTION_TYPES.includes(data.type)) {
+      throw new Error(`Invalid option type: ${data.type}`);
+    }
+    conditions.push("type = ?");
+    params.push(data.type);
+  }
+
+  if (onlyActive) {
+    conditions.push("is_active = 1");
+  }
+
+  return query<LeadOption>(
+    `SELECT * FROM lead_options WHERE ${conditions.join(" AND ")} ORDER BY sort_order ASC, name ASC`,
+    params,
+  );
+}
+
+export const listLeadOptionsFn = createServerFn({ method: "GET" })
+  .middleware([requireMySqlAuth])
+  .validator(
+    (input: { workspaceId?: string | undefined; type?: LeadOptionType | undefined; includeInactive?: boolean | undefined }) => input,
+  )
+  .handler(async ({ data, context }) => listLeadOptionsCore(context, data));
+
+export async function createLeadOptionCore(
+  context: CrmServerAuthContext,
+  data: { workspaceId?: string | undefined; type: LeadOptionType; name: string },
+): Promise<LeadOption> {
+  if (context.role !== "owner" && context.role !== "super_admin") {
+    throw new Error("Unauthorized: Only workspace Owners can create lead options.");
+  }
+  const wsId = getTargetWorkspaceId(data.workspaceId, context);
+
+  if (!VALID_OPTION_TYPES.includes(data.type)) {
+    throw new Error(`Invalid lead option type: ${data.type}`);
+  }
+
+  const name = (data.name || "").trim();
+  if (!name) {
+    throw new Error("Option name cannot be empty.");
+  }
+  if (name.length > 128) {
+    throw new Error("Option name cannot exceed 128 characters.");
+  }
+
+  // Unique name within workspace + type (case-insensitive)
+  const existing = await queryOne<LeadOption>(
+    "SELECT id FROM lead_options WHERE workspace_id = ? AND type = ? AND LOWER(name) = LOWER(?) LIMIT 1",
+    [wsId, data.type, name],
+  );
+  if (existing) {
+    throw new Error(`An option named "${name}" already exists for this category.`);
+  }
+
+  const sortOrderRow = await queryOne<{ next_order: number }>(
+    "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order FROM lead_options WHERE workspace_id = ? AND type = ?",
+    [wsId, data.type],
+  );
+  const sortOrder = sortOrderRow?.next_order ?? 1;
+
+  const id = uuid();
+  await execute(
+    `INSERT INTO lead_options (id, workspace_id, type, name, stable_key, is_system, is_active, sort_order, created_by, updated_by)
+     VALUES (?, ?, ?, ?, NULL, 0, 1, ?, ?, ?)`,
+    [id, wsId, data.type, name, sortOrder, context.userId, context.userId],
+  );
+
+  await execute(
+    `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+     VALUES (?, ?, ?, ?, 'LEAD_OPTION_CREATED', 'lead_option', ?, ?)`,
+    [
+      uuid(),
+      wsId,
+      context.userId,
+      context.role,
+      id,
+      JSON.stringify({ type: data.type, name, sort_order: sortOrder }),
+    ],
+  );
+
+  return (await queryOne<LeadOption>("SELECT * FROM lead_options WHERE id = ?", [id]))!;
+}
+
+export const createLeadOptionFn = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .validator((input: { workspaceId?: string | undefined; type: LeadOptionType; name: string }) => input)
+  .handler(async ({ data, context }) => createLeadOptionCore(context, data));
+
+export async function updateLeadOptionCore(
+  context: CrmServerAuthContext,
+  data: { id: string; name?: string; sort_order?: number },
+): Promise<LeadOption> {
+  if (context.role !== "owner" && context.role !== "super_admin") {
+    throw new Error("Unauthorized: Only workspace Owners can edit lead options.");
+  }
+  const wsId = getTargetWorkspaceId(undefined, context);
+
+  const option = await queryOne<LeadOption>("SELECT * FROM lead_options WHERE id = ?", [data.id]);
+  if (!option) throw new Error("Lead option not found.");
+  if (context.role !== "super_admin" && option.workspace_id !== wsId) {
+    throw new Error("FORBIDDEN: Cross-workspace access denied.");
+  }
+
+  let newName = option.name;
+  if (data.name !== undefined) {
+    newName = data.name.trim();
+    if (!newName) throw new Error("Option name cannot be empty.");
+    if (newName.length > 128) throw new Error("Option name cannot exceed 128 characters.");
+
+    const dup = await queryOne<LeadOption>(
+      "SELECT id FROM lead_options WHERE workspace_id = ? AND type = ? AND LOWER(name) = LOWER(?) AND id != ? LIMIT 1",
+      [option.workspace_id, option.type, newName, option.id],
+    );
+    if (dup) {
+      throw new Error(`An option named "${newName}" already exists for this category.`);
+    }
+  }
+
+  const newSortOrder = data.sort_order !== undefined ? Number(data.sort_order) : option.sort_order;
+
+  await execute(
+    "UPDATE lead_options SET name = ?, sort_order = ?, updated_by = ? WHERE id = ?",
+    [newName, newSortOrder, context.userId, option.id],
+  );
+
+  await execute(
+    `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+     VALUES (?, ?, ?, ?, 'LEAD_OPTION_UPDATED', 'lead_option', ?, ?)`,
+    [
+      uuid(),
+      option.workspace_id,
+      context.userId,
+      context.role,
+      option.id,
+      JSON.stringify({
+        type: option.type,
+        old_name: option.name,
+        new_name: newName,
+        old_sort_order: option.sort_order,
+        new_sort_order: newSortOrder,
+      }),
+    ],
+  );
+
+  return (await queryOne<LeadOption>("SELECT * FROM lead_options WHERE id = ?", [option.id]))!;
+}
+
+export const updateLeadOptionFn = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .validator((input: { id: string; name?: string; sort_order?: number }) => input)
+  .handler(async ({ data, context }) => updateLeadOptionCore(context, data));
+
+export async function setLeadOptionActiveCore(
+  context: CrmServerAuthContext,
+  data: { id: string; isActive: boolean },
+): Promise<LeadOption> {
+  if (context.role !== "owner" && context.role !== "super_admin") {
+    throw new Error("Unauthorized: Only workspace Owners can activate/deactivate lead options.");
+  }
+  const wsId = getTargetWorkspaceId(undefined, context);
+
+  const option = await queryOne<LeadOption>("SELECT * FROM lead_options WHERE id = ?", [data.id]);
+  if (!option) throw new Error("Lead option not found.");
+  if (context.role !== "super_admin" && option.workspace_id !== wsId) {
+    throw new Error("FORBIDDEN: Cross-workspace access denied.");
+  }
+
+  const newActive = data.isActive ? 1 : 0;
+  await execute("UPDATE lead_options SET is_active = ?, updated_by = ? WHERE id = ?", [
+    newActive,
+    context.userId,
+    option.id,
+  ]);
+
+  const action = data.isActive ? "LEAD_OPTION_REACTIVATED" : "LEAD_OPTION_DEACTIVATED";
+  await execute(
+    `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+     VALUES (?, ?, ?, ?, ?, 'lead_option', ?, ?)`,
+    [
+      uuid(),
+      option.workspace_id,
+      context.userId,
+      context.role,
+      action,
+      option.id,
+      JSON.stringify({ type: option.type, name: option.name, is_active: Boolean(newActive) }),
+    ],
+  );
+
+  return (await queryOne<LeadOption>("SELECT * FROM lead_options WHERE id = ?", [option.id]))!;
+}
+
+export const setLeadOptionActiveFn = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .validator((input: { id: string; isActive: boolean }) => input)
+  .handler(async ({ data, context }) => setLeadOptionActiveCore(context, data));
+
+export async function deleteLeadOptionCore(
+  context: CrmServerAuthContext,
+  data: { id: string },
+): Promise<{ ok: boolean }> {
+  if (context.role !== "owner" && context.role !== "super_admin") {
+    throw new Error("Unauthorized: Only workspace Owners can delete lead options.");
+  }
+  const wsId = getTargetWorkspaceId(undefined, context);
+
+  const option = await queryOne<LeadOption>("SELECT * FROM lead_options WHERE id = ?", [data.id]);
+  if (!option) throw new Error("Lead option not found.");
+  if (context.role !== "super_admin" && option.workspace_id !== wsId) {
+    throw new Error("FORBIDDEN: Cross-workspace access denied.");
+  }
+
+  if (option.is_system) {
+    throw new Error("System options cannot be deleted. You can deactivate them instead.");
+  }
+
+  // Check if any leads reference this option
+  const refCount = await queryOne<{ total: number }>(
+    `SELECT COUNT(*) AS total FROM leads WHERE workspace_id = ? AND (
+      source_option_id = ? OR
+      location_option_id = ? OR
+      purpose_option_id = ? OR
+      possession_timeline_option_id = ? OR
+      transaction_timeline_option_id = ? OR
+      phase_option_id = ?
+    )`,
+    [option.workspace_id, option.id, option.id, option.id, option.id, option.id, option.id],
+  );
+
+  if (refCount && refCount.total > 0) {
+    throw new Error(
+      `This option is referenced by ${refCount.total} lead(s) and cannot be deleted. Please deactivate it instead to preserve historical records.`,
+    );
+  }
+
+  await execute("DELETE FROM lead_options WHERE id = ?", [option.id]);
+
+  await execute(
+    `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+     VALUES (?, ?, ?, ?, 'LEAD_OPTION_DELETED', 'lead_option', ?, ?)`,
+    [
+      uuid(),
+      option.workspace_id,
+      context.userId,
+      context.role,
+      option.id,
+      JSON.stringify({ type: option.type, name: option.name }),
+    ],
+  );
+
+  return { ok: true };
+}
+
+export const deleteLeadOptionFn = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .validator((input: { id: string }) => input)
+  .handler(async ({ data, context }) => deleteLeadOptionCore(context, data));
+
+export async function deleteLeadCore(
+  context: CrmServerAuthContext,
+  data: { id: string },
+): Promise<{ ok: boolean }> {
+  checkDeleteRole(context);
+  const wsId = getTargetWorkspaceId(undefined, context);
+  if (context.role !== "super_admin") {
+    await execute("DELETE FROM leads WHERE id = ? AND workspace_id = ?", [data.id, wsId]);
+  } else {
+    await execute("DELETE FROM leads WHERE id = ?", [data.id]);
+  }
+  return { ok: true };
+}
 
 export const deleteLeadFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string }) => input)
-  .handler(async ({ data, context }) => {
-    checkDeleteRole(context);
-    const wsId = getTargetWorkspaceId(undefined, context);
-    if (context.role !== "super_admin") {
-      await execute("DELETE FROM leads WHERE id = ? AND workspace_id = ?", [data.id, wsId]);
-    }
-    return { ok: true };
-  });
+  .handler(async ({ data, context }) => deleteLeadCore(context, data));
 
 export const convertLeadToCustomerFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])

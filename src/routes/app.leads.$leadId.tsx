@@ -491,6 +491,11 @@ function LeadDetailView({ lead }: { lead: Lead }) {
                     ? formatMoney(lead.budget, (lead.currency ?? workspace.currency) as any)
                     : "Not specified",
                 ],
+                ["Location", lead.location_name ?? "Not specified"],
+                ["Purpose", lead.purpose_name ?? "Not specified"],
+                ["Possession timeline", lead.possession_timeline_name ?? "Not specified"],
+                ["Transaction timeline", lead.transaction_timeline_name ?? "Not specified"],
+                ["Phase", lead.phase_name ?? "Not specified"],
                 ["Assigned to", assignedMember ? assignedMember.full_name : "Unassigned"],
                 [
                   "Assigned at",
@@ -527,7 +532,7 @@ function LeadDetailView({ lead }: { lead: Lead }) {
           {/* Source & Attribution */}
           <SectionCard title="Source & attribution">
             <div className="flex flex-wrap gap-2">
-              <StatusBadge label={lead.source} tone="info" />
+              <StatusBadge label={lead.source_option_name || lead.source} tone="info" />
               {lead.campaign && <StatusBadge label={`Campaign: ${lead.campaign}`} tone="neutral" />}
               {lead.external_id && (
                 <StatusBadge label={`External ID: ${lead.external_id}`} tone="neutral" />

@@ -8,6 +8,8 @@ import type {
   Customer,
   Property,
   Lead,
+  LeadOption,
+  LeadOptionType,
   LeadActivity,
   Task,
   CalendarEvent,
@@ -63,6 +65,11 @@ import {
   createLeadFn,
   updateLeadFn,
   deleteLeadFn,
+  listLeadOptionsFn,
+  createLeadOptionFn,
+  updateLeadOptionFn,
+  setLeadOptionActiveFn,
+  deleteLeadOptionFn,
   convertLeadToCustomerFn,
   listLeadActivityFn,
   logLeadActivityFn,
@@ -124,6 +131,8 @@ export type {
   Customer,
   Property,
   Lead,
+  LeadOption,
+  LeadOptionType,
   LeadActivity,
   Task,
   CalendarEvent,
@@ -208,6 +217,7 @@ export const qk = {
   property: (id: string) => ["property", id] as const,
   leads: (ws: string) => ["leads", ws] as const,
   lead: (id: string) => ["lead", id] as const,
+  leadOptions: (ws: string, type?: string) => ["lead-options", ws, type || "all"] as const,
   leadActivity: (id: string) => ["lead-activity", id] as const,
   tasks: (ws: string) => ["tasks", ws] as const,
   events: (ws: string) => ["events", ws] as const,
@@ -305,6 +315,49 @@ export async function updateLead(id: string, patch: Partial<Lead>): Promise<Lead
 
 export async function deleteLead(id: string): Promise<void> {
   await deleteLeadFn({ data: { id } });
+}
+
+/* -------------------------------- lead options ----------------------------- */
+
+export async function listLeadOptions(
+  workspaceId?: string,
+  type?: LeadOptionType,
+  includeInactive?: boolean,
+): Promise<LeadOption[]> {
+  const data: { workspaceId?: string | undefined; type?: LeadOptionType | undefined; includeInactive?: boolean | undefined } = {
+    workspaceId,
+    type,
+    includeInactive,
+  };
+  return listLeadOptionsFn({ data });
+}
+
+export async function createLeadOption(
+  workspaceId: string | undefined,
+  type: LeadOptionType,
+  name: string,
+): Promise<LeadOption> {
+  const data: { workspaceId?: string | undefined; type: LeadOptionType; name: string } = {
+    workspaceId,
+    type,
+    name,
+  };
+  return createLeadOptionFn({ data });
+}
+
+export async function updateLeadOption(
+  id: string,
+  patch: { name?: string; sort_order?: number },
+): Promise<LeadOption> {
+  return updateLeadOptionFn({ data: { id, ...patch } });
+}
+
+export async function setLeadOptionActive(id: string, isActive: boolean): Promise<LeadOption> {
+  return setLeadOptionActiveFn({ data: { id, isActive } });
+}
+
+export async function deleteLeadOption(id: string): Promise<void> {
+  await deleteLeadOptionFn({ data: { id } });
 }
 
 export async function convertLeadToCustomer(

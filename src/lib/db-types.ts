@@ -119,6 +119,30 @@ export interface Property {
   updated_at: string;
 }
 
+/* -------------------------------- lead_options ----------------------------- */
+export type LeadOptionType =
+  | "source"
+  | "location"
+  | "purpose"
+  | "possession_timeline"
+  | "transaction_timeline"
+  | "phase";
+
+export interface LeadOption {
+  id: string;
+  workspace_id: string;
+  type: LeadOptionType;
+  name: string;
+  stable_key: string | null;
+  is_system: boolean | number;
+  is_active: boolean | number;
+  sort_order: number;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /* ----------------------------------- leads --------------------------------- */
 export interface Lead {
   id: string;
@@ -127,6 +151,12 @@ export interface Lead {
   phone: string | null;
   email: string | null;
   source: string;
+  source_option_id?: string | null;
+  location_option_id?: string | null;
+  purpose_option_id?: string | null;
+  possession_timeline_option_id?: string | null;
+  transaction_timeline_option_id?: string | null;
+  phase_option_id?: string | null;
   campaign: string | null;
   external_id: string | null;
   status: string;
@@ -145,6 +175,14 @@ export interface Lead {
   converted_at: string | null;
   created_at: string;
   updated_at: string;
+  // Resolved option names & stable identity
+  source_option_name?: string | null;
+  source_stable_key?: string | null;
+  location_name?: string | null;
+  purpose_name?: string | null;
+  possession_timeline_name?: string | null;
+  transaction_timeline_name?: string | null;
+  phase_name?: string | null;
 }
 
 /* ----------------------------- lead_activities ----------------------------- */

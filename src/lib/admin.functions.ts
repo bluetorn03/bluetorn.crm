@@ -11,6 +11,7 @@ import {
   isValidWorkspaceCode,
   PLATFORM_WORKSPACE_CODE,
 } from "@/lib/auth-identity";
+import { ensureDefaultLeadOptionsInternal } from "./crm.functions";
 
 type BootstrapInput = {
   userCode: string;
@@ -112,6 +113,9 @@ export const bootstrapPlatform = createServerFn({ method: "POST" })
       [uuid(), userId, data.fullName.trim(), userId],
     );
 
+    // Seed default lead options for platform workspace
+    await ensureDefaultLeadOptionsInternal(platformWs.id, userId);
+
     return { ok: true, workspaceCode: PLATFORM_WORKSPACE_CODE, userCode };
   });
 
@@ -191,6 +195,9 @@ export const adminCreateWorkspace = createServerFn({ method: "POST" })
        VALUES (?, ?, ?, 'workspace.created', 'workspace', ?, ?)`,
       [uuid(), wsId, context.userId, wsId, JSON.stringify({ code, owner_user_code: ownerCode })],
     );
+
+    // Seed default lead options automatically for new workspace
+    await ensureDefaultLeadOptionsInternal(wsId, context.userId);
 
     return { workspaceId: wsId, code, ownerUserCode: ownerCode };
   });
