@@ -129,7 +129,11 @@ async function run() {
   const { migrateTeamChatV1 } = await import("./migrate-team-chat-v1.mjs");
   await migrateTeamChatV1(conn);
 
-  // 6. Verify tables list
+  // 6. Team Chat Groups V1.1 Migration (chat_conversations group columns, chat_conversation_members)
+  console.log("\nRunning Team Chat Groups V1.1 migrations...");
+  await import("./migrate-team-chat-groups.mjs");
+
+  // 7. Verify tables list
   const [tables] = await conn.query("SHOW TABLES");
   console.log("\nTables currently present in database:");
   for (const row of tables) {

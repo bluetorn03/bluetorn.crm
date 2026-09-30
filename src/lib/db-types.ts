@@ -369,14 +369,42 @@ export interface Notification {
 }
 
 /* --------------------------- chat_conversations ---------------------------- */
+export type ChatConversationType = "direct" | "group";
+export type ChatGroupStatus = "active" | "archived";
+
 export interface ChatConversation {
   id: string;
   workspace_id: string;
-  user1_id: string;
-  user2_id: string;
+  type?: ChatConversationType | undefined;
+  title?: string | null | undefined;
+  description?: string | null | undefined;
+  owner_id?: string | null | undefined;
+  status?: ChatGroupStatus | undefined;
+  user1_id?: string | null | undefined;
+  user2_id?: string | null | undefined;
   last_message_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/* ----------------------- chat_conversation_members ------------------------ */
+export interface ChatConversationMember {
+  id: string;
+  conversation_id: string;
+  workspace_id: string;
+  user_id: string;
+  role: "owner" | "member";
+  joined_at: string;
+  left_at?: string | null | undefined;
+  status: "active" | "left" | "removed";
+  last_read_at?: string | null | undefined;
+  created_at: string;
+  updated_at: string;
+  user_code?: string | undefined;
+  full_name?: string | undefined;
+  job_title?: string | null | undefined;
+  avatar_url?: string | null | undefined;
+  is_active?: boolean | undefined;
 }
 
 /* ------------------------------ chat_messages ------------------------------ */
@@ -385,12 +413,16 @@ export interface ChatMessage {
   workspace_id: string;
   conversation_id: string;
   sender_id: string;
-  receiver_id: string;
+  receiver_id: string | null;
   body: string;
   is_read: boolean | number;
   read_at: string | null;
   created_at: string;
   expires_at: string;
+  sender_name?: string | null | undefined;
+  sender_code?: string | null | undefined;
+  sender_avatar?: string | null | undefined;
+  sender_is_active?: boolean | undefined;
 }
 
 export interface ChatParticipant {
@@ -406,14 +438,22 @@ export interface ChatParticipant {
 export interface ChatConversationSummary {
   id: string;
   workspace_id: string;
-  participant: ChatParticipant;
+  type: ChatConversationType;
+  title?: string | null | undefined;
+  description?: string | null | undefined;
+  owner_id?: string | null | undefined;
+  status?: ChatGroupStatus | undefined;
+  memberCount?: number | undefined;
+  participant?: ChatParticipant | null | undefined;
   lastMessage: {
     id: string;
     body: string;
     sender_id: string;
+    sender_name?: string | null | undefined;
     created_at: string;
     is_read: boolean;
   } | null;
   unreadCount: number;
   updated_at: string;
 }
+

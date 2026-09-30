@@ -22,6 +22,7 @@ import type {
   ChatMessage,
   ChatConversationSummary,
   ChatParticipant,
+  ChatConversationMember,
 } from "./db-types";
 
 import {
@@ -33,7 +34,17 @@ import {
   listAvailableChatUsersFn,
   getWorkspaceRetentionPolicyFn,
   updateWorkspaceRetentionPolicyFn,
-} from "./chat.functions";
+  createChatGroupFn,
+  getGroupMembersFn,
+  addGroupMembersFn,
+  removeGroupMemberFn,
+  leaveChatGroupFn,
+  renameChatGroupFn,
+  archiveChatGroupFn,
+  restoreChatGroupFn,
+  deleteChatGroupFn,
+  listArchivedChatGroupsFn,
+} from "./chat.functions.ts";
 
 import {
   listMembersFn,
@@ -214,6 +225,8 @@ export const qk = {
   chatUnreadCount: () => ["chat", "unread-count"] as const,
   chatAvailableUsers: () => ["chat", "available-users"] as const,
   chatRetentionPolicy: (workspaceId?: string) => ["chat", "retention-policy", workspaceId || ""] as const,
+  chatGroupMembers: (conversationId: string) => ["chat", "group-members", conversationId] as const,
+  chatArchivedGroups: () => ["chat", "archived-groups"] as const,
 };
 
 /* -------------------------------- members --------------------------------- */
@@ -566,16 +579,18 @@ export async function listChatConversations(): Promise<ChatConversationSummary[]
 
 export async function getChatMessages(conversationId: string): Promise<{
   conversation: ChatConversation;
-  participant: ChatParticipant;
+  participant?: ChatParticipant | null | undefined;
   messages: ChatMessage[];
   retentionDays: number;
+  memberCount?: number | undefined;
+  isOwner?: boolean | undefined;
 }> {
-  return getChatMessagesFn({ data: { conversationId } });
+  return getChatMessagesFn({ data: { conversationId } }) as any;
 }
 
 export async function sendChatMessage(input: {
-  conversationId?: string;
-  recipientId?: string;
+  conversationId?: string | undefined;
+  recipientId?: string | undefined;
   body: string;
 }): Promise<{ message: ChatMessage; conversationId: string }> {
   return sendChatMessageFn({ data: input });
@@ -613,4 +628,59 @@ export async function updateWorkspaceRetentionPolicy(input: {
 }> {
   return updateWorkspaceRetentionPolicyFn({ data: input });
 }
+
+export async function createChatGroup(input: {
+  title: string;
+  description?: string | undefined;
+  memberIds: string[];
+}): Promise<{ conversationId: string; title: string }> {
+  return createChatGroupFn({ data: input });
+}
+
+export async function getGroupMembers(conversationId: string): Promise<ChatConversationMember[]> {
+  return getGroupMembersFn({ data: { conversationId } });
+}
+
+export async function addGroupMembers(input: {
+  conversationId: string;
+  userIds: string[];
+}): Promise<{ success: boolean; addedCount: number }> {
+  return addGroupMembersFn({ data: input });
+}
+
+export async function removeGroupMember(input: {
+  conversationId: string;
+  targetUserId: string;
+}): Promise<{ success: boolean }> {
+  return removeGroupMemberFn({ data: input });
+}
+
+export async function leaveChatGroup(conversationId: string): Promise<{ success: boolean }> {
+  return leaveChatGroupFn({ data: { conversationId } });
+}
+
+export async function renameChatGroup(input: {
+  conversationId: string;
+  title: string;
+  description?: string | undefined;
+}): Promise<{ success: boolean; title: string }> {
+  return renameChatGroupFn({ data: input });
+}
+
+export async function archiveChatGroup(conversationId: string): Promise<{ success: boolean }> {
+  return archiveChatGroupFn({ data: { conversationId } });
+}
+
+export async function restoreChatGroup(conversationId: string): Promise<{ success: boolean }> {
+  return restoreChatGroupFn({ data: { conversationId } });
+}
+
+export async function deleteChatGroup(conversationId: string): Promise<{ success: boolean }> {
+  return deleteChatGroupFn({ data: { conversationId } });
+}
+
+export async function listArchivedChatGroups(): Promise<ChatConversationSummary[]> {
+  return listArchivedChatGroupsFn();
+}
+
 
