@@ -64,7 +64,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useSession } from "@/hooks/use-session";
-import { initials } from "@/lib/format";
+import {
+  initials,
+  formatChatMessageTime,
+  formatChatLastMessageTime,
+  formatChatDateDivider,
+} from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   listChatConversations,
@@ -112,38 +117,11 @@ export const Route = createFileRoute("/app/chat")({
   component: TeamChatPage,
 });
 
-function formatMessageTime(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "";
-  }
-}
-
-function formatMessageDate(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-
-    if (d.toDateString() === today.toDateString()) {
-      return "Today";
-    }
-    if (d.toDateString() === yesterday.toDateString()) {
-      return "Yesterday";
-    }
-    return d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
-  } catch {
-    return "";
-  }
-}
-
 export function TeamChatPage() {
   const searchParams = Route.useSearch();
   const queryClient = useQueryClient();
-  const { user: currentUser, dbRole, isViewingAs } = useSession();
+  const { user: currentUser, workspace, dbRole, isViewingAs } = useSession();
+  const timezone = workspace?.timezone;
 
   const isOwner = dbRole === "owner" || dbRole === "super_admin";
 
@@ -442,7 +420,7 @@ export function TeamChatPage() {
     let currentGroup: ChatMessage[] = [];
 
     for (const msg of activeChatData.messages) {
-      const msgDate = formatMessageDate(msg.created_at);
+      const msgDate = formatChatDateDivider(msg.created_at, timezone);
       if (msgDate !== currentDate) {
         if (currentGroup.length > 0) {
           groups.push({ date: currentDate, messages: currentGroup });
@@ -457,7 +435,7 @@ export function TeamChatPage() {
       groups.push({ date: currentDate, messages: currentGroup });
     }
     return groups;
-  }, [activeChatData?.messages]);
+  }, [activeChatData?.messages, timezone]);
 
   const activeConv = activeChatData?.conversation;
   const activeParticipant = activeChatData?.participant;
@@ -641,7 +619,7 @@ export function TeamChatPage() {
                                   <span className="truncate text-sm font-semibold">{c.title}</span>
                                   {c.lastMessage && (
                                     <span className="shrink-0 text-[10px] text-muted-foreground">
-                                      {formatMessageTime(c.lastMessage.created_at)}
+                                      {formatChatLastMessageTime(c.lastMessage.created_at, timezone)}
                                     </span>
                                   )}
                                 </div>
@@ -737,7 +715,7 @@ export function TeamChatPage() {
                                   </span>
                                   {c.lastMessage && (
                                     <span className="shrink-0 text-[10px] text-muted-foreground">
-                                      {formatMessageTime(c.lastMessage.created_at)}
+                                      {formatChatLastMessageTime(c.lastMessage.created_at, timezone)}
                                     </span>
                                   )}
                                 </div>
@@ -1107,7 +1085,7 @@ export function TeamChatPage() {
                               </div>
 
                               <div className="mt-1 flex items-center gap-1 px-1 text-[10px] text-muted-foreground">
-                                <span>{formatMessageTime(m.created_at)}</span>
+                                <span>{formatChatMessageTime(m.created_at, timezone)}</span>
                                 {isMe && (
                                   <span>
                                     {m.is_read ? (

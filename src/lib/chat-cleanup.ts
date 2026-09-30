@@ -27,7 +27,7 @@ export async function cleanupExpiredChatMessages(batchSize = 1000): Promise<Clea
     while (true) {
       // Indexed by idx_chat_msg_expires
       const result = await execute(
-        "DELETE FROM chat_messages WHERE expires_at <= NOW() LIMIT ?",
+        "DELETE FROM chat_messages WHERE expires_at <= UTC_TIMESTAMP() LIMIT ?",
         [batchSize],
       );
 
@@ -80,7 +80,7 @@ export async function applyRetentionReduction(
 
   // 2. Immediately delete messages that are now expired
   const deleteRes = await execute(
-    "DELETE FROM chat_messages WHERE workspace_id = ? AND expires_at <= NOW()",
+    "DELETE FROM chat_messages WHERE workspace_id = ? AND expires_at <= UTC_TIMESTAMP()",
     [workspaceId],
   );
 

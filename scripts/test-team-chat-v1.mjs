@@ -453,7 +453,7 @@ async function main() {
     const testExpiredId = "test-expired-msg-" + Date.now();
     await pool.query(
       `INSERT INTO chat_messages (id, workspace_id, conversation_id, sender_id, receiver_id, body, is_read, created_at, expires_at)
-       VALUES (?, ?, ?, ?, ?, 'This message is expired', 0, NOW() - INTERVAL 10 DAY, NOW() - INTERVAL 2 HOUR)`,
+       VALUES (?, ?, ?, ?, ?, 'This message is expired', 0, UTC_TIMESTAMP() - INTERVAL 10 DAY, UTC_TIMESTAMP() - INTERVAL 2 HOUR)`,
       [testExpiredId, wsJayshreeId, convId, ownerProfile.id, emp1Profile.id],
     );
 

@@ -185,7 +185,7 @@ export async function listChatConversationsCore(
         const lastMsg = await queryOne<ChatMessage>(
           `SELECT id, body, sender_id, created_at, is_read
            FROM chat_messages
-           WHERE conversation_id = ? AND workspace_id = ? AND expires_at > NOW()
+           WHERE conversation_id = ? AND workspace_id = ? AND expires_at > UTC_TIMESTAMP()
            ORDER BY created_at DESC
            LIMIT 1`,
           [conv.id, workspaceId],
@@ -194,7 +194,7 @@ export async function listChatConversationsCore(
         const unreadRow = await queryOne<{ unread_count: number }>(
           `SELECT COUNT(*) as unread_count
            FROM chat_messages
-           WHERE conversation_id = ? AND workspace_id = ? AND receiver_id = ? AND is_read = 0 AND expires_at > NOW()`,
+           WHERE conversation_id = ? AND workspace_id = ? AND receiver_id = ? AND is_read = 0 AND expires_at > UTC_TIMESTAMP()`,
           [conv.id, workspaceId, userId],
         );
 
@@ -234,7 +234,7 @@ export async function listChatConversationsCore(
         `SELECT m.id, m.body, m.sender_id, m.created_at, m.is_read, p.full_name as sender_name
          FROM chat_messages m
          LEFT JOIN profiles p ON m.sender_id = p.id
-         WHERE m.conversation_id = ? AND m.workspace_id = ? AND m.expires_at > NOW() AND m.created_at >= ?
+         WHERE m.conversation_id = ? AND m.workspace_id = ? AND m.expires_at > UTC_TIMESTAMP() AND m.created_at >= ?
          ORDER BY m.created_at DESC
          LIMIT 1`,
         [conv.id, workspaceId, conv.member_joined_at],
@@ -247,7 +247,7 @@ export async function listChatConversationsCore(
          WHERE conversation_id = ? AND workspace_id = ? AND sender_id != ?
            AND created_at >= ?
            AND created_at > COALESCE(?, ?)
-           AND expires_at > NOW()`,
+           AND expires_at > UTC_TIMESTAMP()`,
         [
           conv.id,
           workspaceId,
@@ -358,7 +358,7 @@ export async function getChatMessagesCore(
 
     // Mark group messages read by updating member's last_read_at
     await execute(
-      "UPDATE chat_conversation_members SET last_read_at = NOW() WHERE conversation_id = ? AND user_id = ?",
+      "UPDATE chat_conversation_members SET last_read_at = UTC_TIMESTAMP() WHERE conversation_id = ? AND user_id = ?",
       [data.conversationId, userId],
     );
 
@@ -375,7 +375,7 @@ export async function getChatMessagesCore(
               p.full_name as sender_name, p.user_code as sender_code, p.avatar_url as sender_avatar, p.is_active as sender_is_active
        FROM chat_messages m
        LEFT JOIN profiles p ON m.sender_id = p.id
-       WHERE m.conversation_id = ? AND m.workspace_id = ? AND m.expires_at > NOW() AND m.created_at >= ?
+       WHERE m.conversation_id = ? AND m.workspace_id = ? AND m.expires_at > UTC_TIMESTAMP() AND m.created_at >= ?
        ORDER BY m.created_at ASC`,
       [data.conversationId, workspaceId, member.joined_at],
     );
@@ -409,8 +409,8 @@ export async function getChatMessagesCore(
     // Mark unread messages directed to current user as read
     await execute(
       `UPDATE chat_messages
-       SET is_read = 1, read_at = NOW()
-       WHERE conversation_id = ? AND receiver_id = ? AND is_read = 0 AND expires_at > NOW()`,
+       SET is_read = 1, read_at = UTC_TIMESTAMP()
+       WHERE conversation_id = ? AND receiver_id = ? AND is_read = 0 AND expires_at > UTC_TIMESTAMP()`,
       [data.conversationId, userId],
     );
 
@@ -418,7 +418,7 @@ export async function getChatMessagesCore(
     const messages = await query<ChatMessage>(
       `SELECT id, workspace_id, conversation_id, sender_id, receiver_id, body, is_read, read_at, created_at, expires_at
        FROM chat_messages
-       WHERE conversation_id = ? AND workspace_id = ? AND expires_at > NOW()
+       WHERE conversation_id = ? AND workspace_id = ? AND expires_at > UTC_TIMESTAMP()
        ORDER BY created_at ASC`,
       [data.conversationId, workspaceId],
     );
@@ -478,7 +478,7 @@ export async function getChatUnreadCountCore(
   const directRow = await queryOne<{ count: number }>(
     `SELECT COUNT(*) as count
      FROM chat_messages
-     WHERE workspace_id = ? AND receiver_id = ? AND is_read = 0 AND expires_at > NOW()`,
+     WHERE workspace_id = ? AND receiver_id = ? AND is_read = 0 AND expires_at > UTC_TIMESTAMP()`,
     [workspaceId, userId],
   );
 
@@ -491,7 +491,7 @@ export async function getChatUnreadCountCore(
      WHERE m.workspace_id = ? AND m.sender_id != ?
        AND m.created_at >= cm.joined_at
        AND m.created_at > COALESCE(cm.last_read_at, cm.joined_at)
-       AND m.expires_at > NOW()`,
+       AND m.expires_at > UTC_TIMESTAMP()`,
     [userId, workspaceId, userId],
   );
 
@@ -652,7 +652,7 @@ export async function sendChatMessageCore(
       convId = uuid();
       await execute(
         `INSERT INTO chat_conversations (id, workspace_id, type, user1_id, user2_id, last_message_at)
-         VALUES (?, ?, 'direct', ?, ?, NOW())`,
+         VALUES (?, ?, 'direct', ?, ?, UTC_TIMESTAMP())`,
         [convId, workspaceId, u1, u2],
       );
     }
@@ -681,19 +681,19 @@ export async function sendChatMessageCore(
 
   await execute(
     `INSERT INTO chat_messages (id, workspace_id, conversation_id, sender_id, receiver_id, body, is_read, created_at, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, 0, NOW(), DATE_ADD(NOW(), INTERVAL ? DAY))`,
+     VALUES (?, ?, ?, ?, ?, ?, 0, UTC_TIMESTAMP(), DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? DAY))`,
     [messageId, workspaceId, convId, userId, targetRecipientId, data.body, retentionDays],
   );
 
   await execute(
-    "UPDATE chat_conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = ?",
+    "UPDATE chat_conversations SET last_message_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = ?",
     [convId],
   );
 
   // If group, update sender's last_read_at
   if (isGroup) {
     await execute(
-      "UPDATE chat_conversation_members SET last_read_at = NOW() WHERE conversation_id = ? AND user_id = ?",
+      "UPDATE chat_conversation_members SET last_read_at = UTC_TIMESTAMP() WHERE conversation_id = ? AND user_id = ?",
       [convId, userId],
     );
   }
@@ -755,14 +755,14 @@ export async function markConversationReadCore(
 
   if (conv.type === "group") {
     await execute(
-      "UPDATE chat_conversation_members SET last_read_at = NOW() WHERE conversation_id = ? AND user_id = ? AND status = 'active'",
+      "UPDATE chat_conversation_members SET last_read_at = UTC_TIMESTAMP() WHERE conversation_id = ? AND user_id = ? AND status = 'active'",
       [data.conversationId, userId],
     );
   } else {
     if (conv.user1_id !== userId && conv.user2_id !== userId) return { success: false };
     await execute(
       `UPDATE chat_messages
-       SET is_read = 1, read_at = NOW()
+       SET is_read = 1, read_at = UTC_TIMESTAMP()
        WHERE conversation_id = ? AND receiver_id = ? AND is_read = 0`,
       [data.conversationId, userId],
     );
@@ -865,7 +865,7 @@ export async function createChatGroupCore(
     // Insert conversation
     await conn.query(
       `INSERT INTO chat_conversations (id, workspace_id, type, title, description, owner_id, status, created_at)
-       VALUES (?, ?, 'group', ?, ?, ?, 'active', NOW())`,
+       VALUES (?, ?, 'group', ?, ?, ?, 'active', UTC_TIMESTAMP())`,
       [conversationId, workspaceId, title, desc, userId],
     );
 
@@ -874,7 +874,7 @@ export async function createChatGroupCore(
       const memberRole = mid === userId ? "owner" : "member";
       await conn.query(
         `INSERT INTO chat_conversation_members (id, conversation_id, workspace_id, user_id, role, joined_at, status)
-         VALUES (?, ?, ?, ?, ?, NOW(), 'active')`,
+         VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(), 'active')`,
         [uuid(), conversationId, workspaceId, mid, memberRole],
       );
     }
@@ -883,7 +883,7 @@ export async function createChatGroupCore(
     const retentionDays = await getWorkspaceRetentionDays(workspaceId);
     await conn.query(
       `INSERT INTO chat_messages (id, workspace_id, conversation_id, sender_id, receiver_id, body, is_read, created_at, expires_at)
-       VALUES (?, ?, ?, ?, NULL, ?, 0, NOW(), DATE_ADD(NOW(), INTERVAL ? DAY))`,
+       VALUES (?, ?, ?, ?, NULL, ?, 0, UTC_TIMESTAMP(), DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? DAY))`,
       [
         uuid(),
         workspaceId,
@@ -895,7 +895,7 @@ export async function createChatGroupCore(
     );
 
     await conn.query(
-      "UPDATE chat_conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = ?",
+      "UPDATE chat_conversations SET last_message_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = ?",
       [conversationId],
     );
   });
@@ -1058,7 +1058,7 @@ export async function addGroupMembersCore(
           // Re-activate with fresh joined_at so they only see messages from now on
           await conn.query(
             `UPDATE chat_conversation_members
-             SET status = 'active', role = 'member', joined_at = NOW(), left_at = NULL, updated_at = NOW()
+             SET status = 'active', role = 'member', joined_at = UTC_TIMESTAMP(), left_at = NULL, updated_at = UTC_TIMESTAMP()
              WHERE id = ?`,
             [existing.id],
           );
@@ -1067,7 +1067,7 @@ export async function addGroupMembersCore(
       } else {
         await conn.query(
           `INSERT INTO chat_conversation_members (id, conversation_id, workspace_id, user_id, role, joined_at, status)
-           VALUES (?, ?, ?, ?, 'member', NOW(), 'active')`,
+           VALUES (?, ?, ?, ?, 'member', UTC_TIMESTAMP(), 'active')`,
           [uuid(), data.conversationId, workspaceId, mid],
         );
         addedCount++;
@@ -1150,7 +1150,7 @@ export async function removeGroupMemberCore(
 
   await execute(
     `UPDATE chat_conversation_members
-     SET status = 'removed', left_at = NOW(), updated_at = NOW()
+     SET status = 'removed', left_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
      WHERE conversation_id = ? AND user_id = ?`,
     [data.conversationId, data.targetUserId],
   );
@@ -1218,7 +1218,7 @@ export async function leaveChatGroupCore(
 
   await execute(
     `UPDATE chat_conversation_members
-     SET status = 'left', left_at = NOW(), updated_at = NOW()
+     SET status = 'left', left_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
      WHERE conversation_id = ? AND user_id = ?`,
     [data.conversationId, userId],
   );
@@ -1285,7 +1285,7 @@ export async function renameChatGroupCore(
 
   const desc = data.description?.trim() || null;
   await execute(
-    "UPDATE chat_conversations SET title = ?, description = ?, updated_at = NOW() WHERE id = ?",
+    "UPDATE chat_conversations SET title = ?, description = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?",
     [title, desc, data.conversationId],
   );
 
@@ -1355,7 +1355,7 @@ export async function archiveChatGroupCore(
   }
 
   await execute(
-    "UPDATE chat_conversations SET status = 'archived', updated_at = NOW() WHERE id = ?",
+    "UPDATE chat_conversations SET status = 'archived', updated_at = UTC_TIMESTAMP() WHERE id = ?",
     [data.conversationId],
   );
 
@@ -1425,7 +1425,7 @@ export async function restoreChatGroupCore(
   }
 
   await execute(
-    "UPDATE chat_conversations SET status = 'active', updated_at = NOW() WHERE id = ?",
+    "UPDATE chat_conversations SET status = 'active', updated_at = UTC_TIMESTAMP() WHERE id = ?",
     [data.conversationId],
   );
 
