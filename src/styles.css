@@ -58,7 +58,7 @@
 
 :root {
   --radius: 0.75rem;
-  --background: oklch(0.985 0.004 190);
+  --background: oklch(0.965 0.006 200);
   --foreground: oklch(0.21 0.02 220);
   --surface: oklch(1 0 0);
   --card: oklch(1 0 0);
@@ -151,11 +151,14 @@
   * {
     border-color: var(--color-border);
   }
+  html,
   body {
+    background-color: #eff5f6;
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
   }
   h1,
   h2,
