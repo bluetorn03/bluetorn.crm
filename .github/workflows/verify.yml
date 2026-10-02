@@ -1,0 +1,38 @@
+name: Local & PR Quality Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  verify:
+    name: Verify Quality & Build
+    runs-on: ubuntu-latest
+
+    # Quality gate only — NEVER expose production credentials or secrets
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (v22)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install Exact Dependencies
+        run: npm ci
+
+      - name: Run Quality Gate Verification
+        run: npm run verify
+        env:
+          NODE_ENV: test
+          DB_HOST: localhost
+          DB_PORT: 3306
+          DB_NAME: bluetorn_crm_ci
+          DB_USER: root
+          DB_PASSWORD: ""

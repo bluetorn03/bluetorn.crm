@@ -9,6 +9,11 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "start": "node .output/server/index.mjs",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "node scripts/db-migrate.mjs",
+    "test:migrations": "node scripts/test-migration-engine.mjs",
+    "verify": "node scripts/verify-local.mjs",
+    "setup:hooks": "node scripts/setup-hooks.mjs",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
