@@ -53,6 +53,7 @@ import {
 } from "@/lib/crm-api";
 import { useSession } from "@/hooks/use-session";
 import { formatMoney, formatDate, relativeTime } from "@/lib/format";
+import { AmountInWords } from "@/components/common/AmountInWords";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/finance/invoices/$invoiceId")({
@@ -669,6 +670,16 @@ function InvoiceDetailContent() {
                         {formatMoney(balance, currency)}
                       </span>
                     </div>
+
+                    {inv.total > 0 && (
+                      <div className="pt-2 border-t border-border">
+                        <AmountInWords
+                          amount={inv.total}
+                          currency={currency}
+                          label="Amount in words:"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 

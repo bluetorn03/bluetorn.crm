@@ -48,6 +48,7 @@ import {
 import { useSession } from "@/hooks/use-session";
 import { formatMoney, formatDate, relativeTime } from "@/lib/format";
 import { toast } from "sonner";
+import { MoneyInput } from "@/components/common/MoneyInput";
 import type { Payment } from "@/lib/db-types";
 
 export const Route = createFileRoute("/app/finance/payments")({
@@ -225,15 +226,17 @@ function PaymentsContent() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="payAmount">Amount ({workspace.currency}) *</Label>
-                  <Input
+                  <MoneyInput
                     id="payAmount"
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    placeholder="0"
+                    allowDecimals
+                    currency={workspace.currency}
+                    placeholder="0.00"
                     value={form.amount}
-                    onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                    onChange={(numericVal) =>
+                      setForm({ ...form, amount: numericVal > 0 ? String(numericVal) : "" })
+                    }
                     required
+                    showAmountInWords
                   />
                 </div>
                 <div className="space-y-1.5">

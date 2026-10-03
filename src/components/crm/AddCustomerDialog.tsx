@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { createCustomer, listMembers, customerTypes, customerStatuses, qk } from "@/lib/crm-api";
+import { MoneyInput } from "@/components/common/MoneyInput";
 import { useSession } from "@/hooks/use-session";
 import { toast } from "sonner";
 
@@ -181,13 +182,15 @@ export function AddCustomerDialog({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="custValue">Value ({workspace.currency})</Label>
-                <Input
+                <MoneyInput
                   id="custValue"
-                  type="number"
-                  min="0"
-                  placeholder="0"
+                  currency={workspace.currency}
+                  placeholder="e.g. 50,00,000"
                   value={form.value}
-                  onChange={(e) => setForm({ ...form, value: e.target.value })}
+                  onChange={(numericVal) =>
+                    setForm({ ...form, value: numericVal > 0 ? String(numericVal) : "" })
+                  }
+                  showAmountInWords
                 />
               </div>
             </div>

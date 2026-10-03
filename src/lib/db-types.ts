@@ -38,6 +38,7 @@ export interface Workspace {
   default_invoice_terms?: string | null;
   seat_limit: number;
   chat_retention_days?: number;
+  audit_retention_days?: number;
   created_at: string;
   updated_at: string;
 }
@@ -384,10 +385,12 @@ export interface AuditLog {
   actor_id: string | null;
   actor_label: string | null;
   action: string;
+  status?: string;
   entity_type: string | null;
   entity_id: string | null;
   metadata: string | null; // JSON string
   ip_address: string | null;
+  user_agent?: string | null;
   created_at: string;
 }
 

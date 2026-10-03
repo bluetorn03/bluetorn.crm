@@ -32,6 +32,8 @@ import {
 import { getWorkspaceMembersFn } from "@/lib/settings.functions";
 import { useSession } from "@/hooks/use-session";
 import { formatMoney } from "@/lib/format";
+import { MoneyInput } from "@/components/common/MoneyInput";
+import { AmountInWords } from "@/components/common/AmountInWords";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/finance/invoices/new")({
@@ -716,26 +718,26 @@ function NewInvoiceContent() {
 
                     <div className="space-y-1">
                       <Label className="lg:hidden text-xs">Rate</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
+                      <MoneyInput
+                        allowDecimals
+                        currency={currency}
+                        placeholder="0.00"
                         value={line.rate}
-                        onChange={(e) => updateLine(idx, { rate: parseFloat(e.target.value) || 0 })}
+                        onChange={(val) => updateLine(idx, { rate: val })}
                         required
+                        className="h-9 text-xs"
                       />
                     </div>
 
                     <div className="space-y-1">
                       <Label className="lg:hidden text-xs">Discount</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
+                      <MoneyInput
+                        allowDecimals
+                        currency={currency}
+                        placeholder="0.00"
                         value={line.discount}
-                        onChange={(e) =>
-                          updateLine(idx, { discount: parseFloat(e.target.value) || 0 })
-                        }
+                        onChange={(val) => updateLine(idx, { discount: val })}
+                        className="h-9 text-xs"
                       />
                     </div>
 
@@ -880,6 +882,15 @@ function NewInvoiceContent() {
                   </dd>
                 </div>
               </dl>
+
+              {calculated.grandTotal > 0 && (
+                <AmountInWords
+                  amount={calculated.grandTotal}
+                  currency={currency}
+                  className="mt-3"
+                  label="In words:"
+                />
+              )}
 
               <div className="mt-6 space-y-2.5">
                 <Button

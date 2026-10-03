@@ -7,6 +7,7 @@ import {
   Eye,
   EyeOff,
   FileText,
+  HardDrive,
   KeyRound,
   Landmark,
   LayoutDashboard,
@@ -14,11 +15,13 @@ import {
   MoreVertical,
   Pencil,
   Plus,
+  RefreshCw,
   ShieldCheck,
   UserCheck,
   UserX,
 } from "lucide-react";
 import { toast } from "sonner";
+import { runWorkspaceCleanup, getWorkspaceStorageUsage } from "@/lib/crm-api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SectionCard } from "@/components/common/SectionCard";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -154,7 +157,9 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
     defaultInvoiceNotes: "",
     defaultInvoiceTerms: "",
   });
+  const queryClient = useQueryClient();
   const [retentionDays, setRetentionDays] = useState(15);
+  const [auditRetentionDays, setAuditRetentionDays] = useState(180);
   const [loaded, setLoaded] = useState(false);
 
   useQuery({
@@ -187,10 +192,38 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
         if (data.chat_retention_days) {
           setRetentionDays(data.chat_retention_days);
         }
+        if (data.audit_retention_days) {
+          setAuditRetentionDays(data.audit_retention_days);
+        }
         setLoaded(true);
       }
       return data;
     },
+  });
+
+  const storageQuery = useQuery({
+    queryKey: ["workspace-storage-usage", workspace.id],
+    queryFn: () => getWorkspaceStorageUsage(),
+    enabled: Boolean(workspace.id),
+  });
+
+  const cleanupMutation = useMutation({
+    mutationFn: () => runWorkspaceCleanup(),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["workspace-storage-usage", workspace.id] });
+      queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      const total =
+        res.chatMessagesDeleted +
+        res.auditLogsPurged +
+        res.readNotificationsPurged +
+        res.unreadNotificationsPurged +
+        res.orphanedFilesCleaned;
+      toast.success(
+        `Maintenance cleanup completed! Purged ${total} expired records (${res.auditLogsPurged} audit logs, ${res.readNotificationsPurged} read notifications, ${res.unreadNotificationsPurged} unread notifications, ${res.chatMessagesDeleted} chat messages).`,
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const save = useMutation({
@@ -218,6 +251,7 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
             defaultPaymentTermsDays: Number(form.defaultPaymentTermsDays) || 14,
             defaultInvoiceNotes: form.defaultInvoiceNotes.trim() || null,
             defaultInvoiceTerms: form.defaultInvoiceTerms.trim() || null,
+            auditRetentionDays: Number(auditRetentionDays),
           },
         },
       });
@@ -437,17 +471,94 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
           </dl>
         </SectionCard>
 
-        <SectionCard title="Message Retention" description="Team Chat data policy.">
-          <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-3.5">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-foreground">Message retention</span>
-              <StatusBadge label={`${retentionDays} Days`} tone="brand" />
+        <SectionCard
+          title="Data Retention & Storage"
+          description="Workspace automated data lifecycle, storage measurement, and maintenance cleanup."
+        >
+          <div className="space-y-4">
+            {/* Audit Log Retention */}
+            <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground">Audit Log Retention</span>
+                <Select
+                  value={String(auditRetentionDays)}
+                  onValueChange={(val) => setAuditRetentionDays(Number(val))}
+                  disabled={!canEdit}
+                >
+                  <SelectTrigger className="h-8 w-36 text-xs font-medium">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="90">90 Days</SelectItem>
+                    <SelectItem value="180">180 Days (Default)</SelectItem>
+                    <SelectItem value="365">365 Days (1 Year)</SelectItem>
+                    <SelectItem value="730">730 Days (2 Years)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Security and operational audit events older than {auditRetentionDays} days are automatically purged.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Team Chat messages are automatically deleted after {retentionDays} days.
-              <br />
-              Workspace retention is managed by the system administrator.
-            </p>
+
+            {/* Chat Retention */}
+            <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground">Team Chat Retention</span>
+                <StatusBadge label={`${retentionDays} Days`} tone="brand" />
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Team Chat messages and transient attachments are retained for {retentionDays} days.
+              </p>
+            </div>
+
+            {/* Notification Retention */}
+            <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground">Notification Retention</span>
+                <span className="text-xs font-mono text-muted-foreground">Read: 30d / Unread: 90d</span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Read user notifications are automatically cleared after 30 days; unread after 90 days.
+              </p>
+            </div>
+
+            {/* Storage Usage Summary */}
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                  <HardDrive className="h-4 w-4 text-primary" />
+                  Workspace Storage Breakdown
+                </span>
+                <span className="text-xs font-semibold text-foreground">
+                  {storageQuery.data?.estimatedStorageFormatted ?? "Calculating..."}
+                </span>
+              </div>
+              {storageQuery.data && (
+                <div className="grid grid-cols-2 gap-2 pt-1 text-[11px] text-muted-foreground">
+                  <div>Property Media: <strong className="text-foreground">{storageQuery.data.propertyMediaCount}</strong> files</div>
+                  <div>Chat Messages: <strong className="text-foreground">{storageQuery.data.chatMessageCount}</strong> messages</div>
+                  <div>Audit Events: <strong className="text-foreground">{storageQuery.data.auditLogCount}</strong> records</div>
+                  <div>Notifications: <strong className="text-foreground">{storageQuery.data.notificationCount}</strong> records</div>
+                </div>
+              )}
+            </div>
+
+            {/* Manual Maintenance Run */}
+            {canEdit && (
+              <div className="pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs gap-1.5 h-8"
+                  onClick={() => cleanupMutation.mutate()}
+                  disabled={cleanupMutation.isPending}
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${cleanupMutation.isPending ? "animate-spin" : ""}`} />
+                  {cleanupMutation.isPending ? "Running Maintenance Cleanup..." : "Run Scheduled Retention Cleanup Now"}
+                </Button>
+              </div>
+            )}
           </div>
         </SectionCard>
       </div>

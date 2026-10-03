@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ImageUpload } from "@/components/common/ImageUpload";
+import { MoneyInput } from "@/components/common/MoneyInput";
 import {
   updateProperty,
   listMembers,
@@ -206,13 +207,15 @@ export function EditPropertyDialog({
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="editPropPrice">Price ({workspace.currency})</Label>
-                <Input
+                <MoneyInput
                   id="editPropPrice"
-                  type="number"
-                  min="0"
-                  placeholder="0"
+                  currency={workspace.currency}
+                  placeholder="e.g. 1,50,00,000"
                   value={form.price}
-                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  onChange={(numericVal) =>
+                    setForm({ ...form, price: numericVal > 0 ? String(numericVal) : "" })
+                  }
+                  showAmountInWords
                 />
               </div>
               <div className="space-y-1.5">

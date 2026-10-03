@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ImageUpload } from "@/components/common/ImageUpload";
+import { MoneyInput } from "@/components/common/MoneyInput";
 import { createProperty, listMembers, propertyTypes, propertyStatuses, qk } from "@/lib/crm-api";
 import { useSession } from "@/hooks/use-session";
 import { toast } from "sonner";
@@ -165,13 +166,15 @@ export function AddPropertyDialog({
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="propPrice">Price ({workspace.currency})</Label>
-                <Input
+                <MoneyInput
                   id="propPrice"
-                  type="number"
-                  min="0"
-                  placeholder="0"
+                  currency={workspace.currency}
+                  placeholder="e.g. 1,50,00,000"
                   value={form.price}
-                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  onChange={(numericVal) =>
+                    setForm({ ...form, price: numericVal > 0 ? String(numericVal) : "" })
+                  }
+                  showAmountInWords
                 />
               </div>
               <div className="space-y-1.5">

@@ -6,6 +6,7 @@ import {
   Home,
   LineChart,
   Settings,
+  Shield,
   Sparkles,
   Users,
   UserRound,
@@ -87,6 +88,7 @@ const baseGroups: NavGroup[] = [
       },
 
       { label: "Reports", to: "/app/reports", icon: LineChart, requires: "view.reports" },
+      { label: "Audit Logs", to: "/app/audit-logs", icon: Shield, requires: "view_audit_logs" },
       { label: "Settings", to: "/app/settings", icon: Settings },
     ],
   },
