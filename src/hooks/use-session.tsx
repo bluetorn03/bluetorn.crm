@@ -44,10 +44,14 @@ export type Permission =
   | "manage.team"
   | "manage.settings"
   | "view.allRecords"
-  | "manage.properties";
+  | "manage.properties"
+  | "view_audit_logs"
+  | "view.audit_logs";
 
 const matrix: Record<Role, Permission[]> = {
   Owner: [
+    "view_audit_logs",
+    "view.audit_logs",
     "finance.view",
     "finance.invoices.create",
     "finance.invoices.edit",
@@ -85,6 +89,8 @@ const matrix: Record<Role, Permission[]> = {
   Manager: ["view.reports", "manage.team", "view.allRecords", "manage.properties"],
   Employee: ["manage.properties"],
   "Super Admin": [
+    "view_audit_logs",
+    "view.audit_logs",
     "finance.view",
     "finance.invoices.create",
     "finance.invoices.edit",
@@ -363,6 +369,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           return (
             permissions.includes("finance.view") ||
             permissions.includes("view.finance")
+          );
+        }
+
+        if (perm === "view_audit_logs" || perm === "view.audit_logs") {
+          return (
+            permissions.includes("view_audit_logs") ||
+            permissions.includes("view.audit_logs") ||
+            (matrix[role]?.includes("view_audit_logs") ?? false)
           );
         }
 

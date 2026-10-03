@@ -107,19 +107,31 @@ import {
   getPlatformSettingsFn,
   savePlatformSettingsFn,
   listAuditLogsFn,
+  listWorkspaceAuditLogsFn,
   recordAuditFn,
+  runWorkspaceCleanupFn,
+  getWorkspaceStorageUsageFn,
   getDashboardDataFn,
   searchCrmFn,
   listNotificationsFn,
   unreadNotificationCountFn,
   markNotificationReadFn,
   markAllNotificationsReadFn,
+  deleteNotificationFn,
+  clearAllNotificationsFn,
   type Member,
   type PlatformSettings,
   type DashboardData,
   type SearchResult,
   type FinanceReportsData,
+  type AuditLogItem,
+  type AuditLogListResponse,
 } from "./crm.functions";
+
+import type {
+  CentralizedCleanupSummary,
+  WorkspaceStorageBreakdown,
+} from "./retention-cleanup";
 
 import {
   invoiceTotals,
@@ -148,6 +160,10 @@ export type {
   SearchResult,
   Notification,
   FinanceReportsData,
+  AuditLogItem,
+  AuditLogListResponse,
+  CentralizedCleanupSummary,
+  WorkspaceStorageBreakdown,
 };
 
 export type Activity = DashboardData["recentActivities"][number];
@@ -582,8 +598,36 @@ export async function listAuditLogs(
   return listAuditLogsFn({ data: params });
 }
 
+export async function listWorkspaceAuditLogs(params?: {
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  search?: string | undefined;
+  actorId?: string | undefined;
+  module?: string | undefined;
+  action?: string | undefined;
+  status?: string | undefined;
+  startDate?: string | undefined;
+  endDate?: string | undefined;
+}): Promise<AuditLogListResponse> {
+  const clean: Record<string, any> = {};
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined) clean[k] = v;
+    }
+  }
+  return listWorkspaceAuditLogsFn({ data: clean });
+}
+
 export async function recordAudit(input: Partial<AuditLog> & { action: string }): Promise<void> {
   await recordAuditFn({ data: input });
+}
+
+export async function runWorkspaceCleanup(): Promise<CentralizedCleanupSummary> {
+  return runWorkspaceCleanupFn();
+}
+
+export async function getWorkspaceStorageUsage(): Promise<WorkspaceStorageBreakdown> {
+  return getWorkspaceStorageUsageFn();
 }
 
 /* ------------------------------- dashboard -------------------------------- */
@@ -622,6 +666,14 @@ export async function markNotificationRead(id: string): Promise<void> {
 
 export async function markAllNotificationsRead(): Promise<void> {
   await markAllNotificationsReadFn();
+}
+
+export async function deleteNotification(id: string): Promise<void> {
+  await deleteNotificationFn({ data: { id } });
+}
+
+export async function clearAllNotifications(): Promise<void> {
+  await clearAllNotificationsFn();
 }
 
 /* --------------------------------- chat ----------------------------------- */

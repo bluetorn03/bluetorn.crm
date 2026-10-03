@@ -31,6 +31,7 @@ import {
   type Lead,
 } from "@/lib/crm-api";
 import { LeadOptionSelect } from "@/components/crm/LeadOptionSelect";
+import { MoneyInput } from "@/components/common/MoneyInput";
 import { useSession } from "@/hooks/use-session";
 import { toast } from "sonner";
 
@@ -292,13 +293,15 @@ export function EditLeadDialog({
 
               <div className="space-y-1.5">
                 <Label htmlFor="editLeadBudget">Budget ({workspace.currency})</Label>
-                <Input
+                <MoneyInput
                   id="editLeadBudget"
-                  type="number"
-                  min="0"
-                  placeholder="0"
+                  currency={workspace.currency}
+                  placeholder="e.g. 50,00,000"
                   value={form.budget}
-                  onChange={(e) => setForm({ ...form, budget: e.target.value })}
+                  onChange={(numericVal) =>
+                    setForm({ ...form, budget: numericVal > 0 ? String(numericVal) : "" })
+                  }
+                  showAmountInWords
                 />
               </div>
             </div>

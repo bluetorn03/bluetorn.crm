@@ -204,6 +204,20 @@ export const createCustomerFn = createServerFn({ method: "POST" })
       });
     }
 
+    // Audit log
+    await execute(
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata, status)
+       VALUES (?, ?, ?, ?, 'customer.created', 'customer', ?, ?, 'success')`,
+      [
+        uuid(),
+        wsId,
+        context.userId,
+        context.role,
+        id,
+        JSON.stringify({ name: data.name, type: data.type, status: data.status, value: data.value }),
+      ],
+    );
+
     return newCustomer;
   });
 
@@ -255,6 +269,25 @@ export const updateCustomerFn = createServerFn({ method: "POST" })
     }
     const updated = (await queryOne<Customer>("SELECT * FROM customers WHERE id = ?", [data.id]))!;
 
+    // Audit log
+    await execute(
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata, status)
+       VALUES (?, ?, ?, ?, 'customer.updated', 'customer', ?, ?, 'success')`,
+      [
+        uuid(),
+        wsId,
+        context.userId,
+        context.role,
+        data.id,
+        JSON.stringify({
+          name: updated.name,
+          changes: data.patch,
+          before: { status: existing.status, value: existing.value, assigned_to: existing.assigned_to },
+          after: { status: updated.status, value: updated.value, assigned_to: updated.assigned_to },
+        }),
+      ],
+    );
+
     // Notify if assignment changed
     if (data.patch.assigned_to && data.patch.assigned_to !== existing.assigned_to) {
       if (data.patch.assigned_to !== context.userId) {
@@ -280,11 +313,27 @@ export const deleteCustomerFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     checkDeleteRole(context);
     const wsId = getTargetWorkspaceId(undefined, context);
+    const existing = await queryOne<Customer>("SELECT id, name FROM customers WHERE id = ?", [data.id]);
     if (context.role !== "super_admin") {
       await execute("DELETE FROM customers WHERE id = ? AND workspace_id = ?", [data.id, wsId]);
     } else {
       await execute("DELETE FROM customers WHERE id = ?", [data.id]);
     }
+
+    // Audit log
+    await execute(
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata, status)
+       VALUES (?, ?, ?, ?, 'customer.deleted', 'customer', ?, ?, 'success')`,
+      [
+        uuid(),
+        wsId,
+        context.userId,
+        context.role,
+        data.id,
+        JSON.stringify({ name: existing?.name ?? data.id }),
+      ],
+    );
+
     return { ok: true };
   });
 
@@ -367,6 +416,20 @@ export const createPropertyFn = createServerFn({ method: "POST" })
       });
     }
 
+    // Audit log
+    await execute(
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata, status)
+       VALUES (?, ?, ?, ?, 'property.created', 'property', ?, ?, 'success')`,
+      [
+        uuid(),
+        wsId,
+        context.userId,
+        context.role,
+        id,
+        JSON.stringify({ name: data.name, location: data.location, type: data.type, status: data.status, price: data.price }),
+      ],
+    );
+
     return newProperty;
   });
 
@@ -418,6 +481,25 @@ export const updatePropertyFn = createServerFn({ method: "POST" })
     }
     const updated = (await queryOne<Property>("SELECT * FROM properties WHERE id = ?", [data.id]))!;
 
+    // Audit log
+    await execute(
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata, status)
+       VALUES (?, ?, ?, ?, 'property.updated', 'property', ?, ?, 'success')`,
+      [
+        uuid(),
+        wsId,
+        context.userId,
+        context.role,
+        data.id,
+        JSON.stringify({
+          name: updated.name,
+          changes: data.patch,
+          before: { status: existing.status, price: existing.price, assigned_to: existing.assigned_to },
+          after: { status: updated.status, price: updated.price, assigned_to: updated.assigned_to },
+        }),
+      ],
+    );
+
     // Notify if assignment changed
     if (data.patch.assigned_to && data.patch.assigned_to !== existing.assigned_to) {
       if (data.patch.assigned_to !== context.userId) {
@@ -443,11 +525,27 @@ export const deletePropertyFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     checkDeleteRole(context);
     const wsId = getTargetWorkspaceId(undefined, context);
+    const existing = await queryOne<Property>("SELECT id, name FROM properties WHERE id = ?", [data.id]);
     if (context.role !== "super_admin") {
       await execute("DELETE FROM properties WHERE id = ? AND workspace_id = ?", [data.id, wsId]);
     } else {
       await execute("DELETE FROM properties WHERE id = ?", [data.id]);
     }
+
+    // Audit log
+    await execute(
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata, status)
+       VALUES (?, ?, ?, ?, 'property.deleted', 'property', ?, ?, 'success')`,
+      [
+        uuid(),
+        wsId,
+        context.userId,
+        context.role,
+        data.id,
+        JSON.stringify({ name: existing?.name ?? data.id }),
+      ],
+    );
+
     return { ok: true };
   });
 
@@ -802,6 +900,20 @@ export async function createLeadCore(
     }
   }
 
+  // Audit log
+  await execute(
+    `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata, status)
+     VALUES (?, ?, ?, ?, 'lead.created', 'lead', ?, ?, 'success')`,
+    [
+      uuid(),
+      wsId,
+      context.userId,
+      context.role,
+      id,
+      JSON.stringify({ name: data.name, status: candidateLead.status, budget: candidateLead.budget, source: candidateLead.source }),
+    ],
+  );
+
   return newLead;
 }
 
@@ -953,6 +1065,25 @@ export async function updateLeadCore(
       });
     }
   }
+
+  // Audit log
+  await execute(
+    `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata, status)
+     VALUES (?, ?, ?, ?, 'lead.updated', 'lead', ?, ?, 'success')`,
+    [
+      uuid(),
+      wsId,
+      context.userId,
+      context.role,
+      data.id,
+      JSON.stringify({
+        name: updatedLead.name,
+        changes: data.patch,
+        before: { status: existingLead.status, budget: existingLead.budget, assigned_to: existingLead.assigned_to },
+        after: { status: updatedLead.status, budget: updatedLead.budget, assigned_to: updatedLead.assigned_to },
+      }),
+    ],
+  );
 
   return updatedLead;
 }
@@ -1240,11 +1371,27 @@ export async function deleteLeadCore(
 ): Promise<{ ok: boolean }> {
   checkDeleteRole(context);
   const wsId = getTargetWorkspaceId(undefined, context);
+  const existing = await queryOne<Lead>("SELECT id, name FROM leads WHERE id = ?", [data.id]);
   if (context.role !== "super_admin") {
     await execute("DELETE FROM leads WHERE id = ? AND workspace_id = ?", [data.id, wsId]);
   } else {
     await execute("DELETE FROM leads WHERE id = ?", [data.id]);
   }
+
+  // Audit log
+  await execute(
+    `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata, status)
+     VALUES (?, ?, ?, ?, 'lead.deleted', 'lead', ?, ?, 'success')`,
+    [
+      uuid(),
+      wsId,
+      context.userId,
+      context.role,
+      data.id,
+      JSON.stringify({ name: existing?.name ?? data.id }),
+    ],
+  );
+
   return { ok: true };
 }
 
@@ -1441,6 +1588,20 @@ export const convertLeadToCustomerFn = createServerFn({ method: "POST" })
             createdBy: context.userId,
           }).catch(() => {});
         }
+
+        // Audit log
+        await conn.execute(
+          `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata, status)
+           VALUES (?, ?, ?, ?, 'lead.converted', 'lead', ?, ?, 'success')`,
+          [
+            uuid(),
+            lead.workspace_id,
+            context.userId ?? "system",
+            context.role ?? "user",
+            lead.id,
+            JSON.stringify({ lead_name: lead.name, customer_id: customer.id, customer_name: customer.name, is_new: isNew }),
+          ],
+        );
 
         return { customer, alreadyConverted: false, isNew };
       });
@@ -2970,39 +3131,164 @@ export const savePlatformSettingsFn = createServerFn({ method: "POST" })
 
 /* --------------------------------- audit ---------------------------------- */
 
+export type AuditLogItem = AuditLog & {
+  actor_name: string | null;
+  actor_email: string | null;
+};
+
+export type AuditLogListResponse = {
+  items: AuditLogItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  modules: string[];
+  actors: { id: string; name: string; email: string | null }[];
+};
+
+export const listWorkspaceAuditLogsFn = createServerFn({ method: "GET" })
+  .middleware([requireMySqlAuth])
+  .validator(
+    (
+      input:
+        | {
+            page?: number;
+            pageSize?: number;
+            search?: string;
+            actorId?: string;
+            module?: string;
+            action?: string;
+            status?: string;
+            startDate?: string;
+            endDate?: string;
+          }
+        | undefined,
+    ) => input ?? {},
+  )
+  .handler(async ({ data, context }): Promise<AuditLogListResponse> => {
+    await assertPermission(context, "view_audit_logs");
+    const wsId = getTargetWorkspaceId(undefined, context);
+
+    const conditions: string[] = ["a.workspace_id = ?"];
+    const vals: unknown[] = [wsId];
+
+    if (data.actorId && data.actorId !== "all") {
+      conditions.push("a.actor_id = ?");
+      vals.push(data.actorId);
+    }
+
+    if (data.module && data.module !== "all") {
+      conditions.push("a.entity_type = ?");
+      vals.push(data.module);
+    }
+
+    if (data.action && data.action !== "all") {
+      conditions.push("a.action = ?");
+      vals.push(data.action);
+    }
+
+    if (data.status && data.status !== "all") {
+      conditions.push("a.status = ?");
+      vals.push(data.status);
+    }
+
+    if (data.startDate) {
+      conditions.push("a.created_at >= ?");
+      vals.push(`${data.startDate} 00:00:00`);
+    }
+
+    if (data.endDate) {
+      conditions.push("a.created_at <= ?");
+      vals.push(`${data.endDate} 23:59:59`);
+    }
+
+    if (data.search && data.search.trim()) {
+      const q = `%${data.search.trim()}%`;
+      conditions.push(
+        "(a.action LIKE ? OR a.entity_type LIKE ? OR a.entity_id LIKE ? OR a.actor_label LIKE ? OR a.metadata LIKE ? OR p.full_name LIKE ? OR p.email LIKE ?)",
+      );
+      vals.push(q, q, q, q, q, q, q);
+    }
+
+    const where = `WHERE ${conditions.join(" AND ")}`;
+
+    // Total count
+    const countRow = await queryOne<{ c: number }>(
+      `SELECT COUNT(*) as c FROM audit_logs a LEFT JOIN profiles p ON a.actor_id = p.id ${where}`,
+      vals,
+    );
+    const total = countRow?.c ?? 0;
+
+    const page = Math.max(1, Number(data.page || 1));
+    const pageSize = Math.min(100, Math.max(10, Number(data.pageSize || 25)));
+    const totalPages = Math.ceil(total / pageSize) || 1;
+    const offset = (page - 1) * pageSize;
+
+    const items = await query<AuditLogItem>(
+      `SELECT a.*, p.full_name as actor_name, p.email as actor_email
+       FROM audit_logs a
+       LEFT JOIN profiles p ON a.actor_id = p.id
+       ${where}
+       ORDER BY a.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...vals, pageSize, offset],
+    );
+
+    // Fetch distinct modules and actors for filters in this workspace
+    const rawModules = await query<{ entity_type: string }>(
+      "SELECT DISTINCT entity_type FROM audit_logs WHERE workspace_id = ? AND entity_type IS NOT NULL AND entity_type != '' ORDER BY entity_type ASC",
+      [wsId],
+    );
+    const modules = rawModules.map((m) => m.entity_type);
+
+    const actors = await query<{ id: string; name: string; email: string | null }>(
+      `SELECT DISTINCT a.actor_id as id, COALESCE(p.full_name, a.actor_label, 'System') as name, p.email
+       FROM audit_logs a
+       LEFT JOIN profiles p ON a.actor_id = p.id
+       WHERE a.workspace_id = ? AND a.actor_id IS NOT NULL
+       ORDER BY name ASC`,
+      [wsId],
+    );
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages,
+      modules,
+      actors,
+    };
+  });
+
 export const listAuditLogsFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .validator((input: { workspaceId?: string; limit?: number } | undefined) => input ?? {})
-  .handler(async ({ data }): Promise<AuditLog[]> => {
-    const conditions: string[] = [];
-    const vals: unknown[] = [];
-    if (data.workspaceId) {
-      conditions.push("workspace_id = ?");
-      vals.push(data.workspaceId);
-    }
-    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-    const limit = data.limit ?? 200;
-    vals.push(limit);
+  .handler(async ({ data, context }): Promise<AuditLog[]> => {
+    await assertPermission(context, "view_audit_logs");
+    const wsId = getTargetWorkspaceId(data.workspaceId, context);
+    const limit = Math.min(500, Math.max(1, data.limit ?? 200));
     return query<AuditLog>(
-      `SELECT * FROM audit_logs ${where} ORDER BY created_at DESC LIMIT ?`,
-      vals,
+      "SELECT * FROM audit_logs WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?",
+      [wsId, limit],
     );
   });
 
 export const recordAuditFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: Partial<AuditLog> & { action: string }) => input)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     try {
       const id = uuid();
+      const wsId = data.workspace_id || context.workspaceId;
       await execute(
-        `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata, ip_address)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata, ip_address, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
-          data.workspace_id ?? null,
-          data.actor_id ?? null,
-          data.actor_label ?? null,
+          wsId ?? null,
+          data.actor_id || context.userId,
+          data.actor_label || context.role,
           data.action,
           data.entity_type ?? null,
           data.entity_id ?? null,
@@ -3012,12 +3298,35 @@ export const recordAuditFn = createServerFn({ method: "POST" })
               : JSON.stringify(data.metadata)
             : null,
           data.ip_address ?? null,
+          data.status ?? "success",
         ],
       );
     } catch (err) {
       console.warn("audit log failed", err instanceof Error ? err.message : err);
     }
     return { ok: true };
+  });
+
+/* -------------------------- retention & cleanup --------------------------- */
+
+export const runWorkspaceCleanupFn = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .handler(async ({ context }) => {
+    const realRole = context.realRole || context.role;
+    if (realRole !== "owner" && realRole !== "super_admin") {
+      throw new Error("FORBIDDEN: Only workspace Owner can trigger maintenance cleanup.");
+    }
+    const wsId = getTargetWorkspaceId(undefined, context);
+    const { runCentralizedCleanup } = await import("./retention-cleanup");
+    return runCentralizedCleanup({ workspaceId: wsId });
+  });
+
+export const getWorkspaceStorageUsageFn = createServerFn({ method: "GET" })
+  .middleware([requireMySqlAuth])
+  .handler(async ({ context }) => {
+    const wsId = getTargetWorkspaceId(undefined, context);
+    const { getWorkspaceStorageUsage } = await import("./retention-cleanup");
+    return getWorkspaceStorageUsage(wsId);
   });
 
 /* ------------------------------- dashboard -------------------------------- */
@@ -3370,19 +3679,21 @@ export const listNotificationsFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .validator((input: { limit?: number } | undefined) => input ?? {})
   .handler(async ({ data, context }): Promise<Notification[]> => {
-    const limit = data.limit ?? 50;
+    const limit = Math.min(100, Math.max(1, data.limit ?? 50));
+    const wsId = getTargetWorkspaceId(undefined, context);
     return query<Notification>(
-      "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
-      [context.userId, limit],
+      "SELECT * FROM notifications WHERE user_id = ? AND workspace_id = ? ORDER BY created_at DESC LIMIT ?",
+      [context.userId, wsId, limit],
     );
   });
 
 export const unreadNotificationCountFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .handler(async ({ context }): Promise<{ count: number }> => {
+    const wsId = getTargetWorkspaceId(undefined, context);
     const row = await queryOne<{ c: number }>(
-      "SELECT COUNT(*) as c FROM notifications WHERE user_id = ? AND is_read = 0",
-      [context.userId],
+      "SELECT COUNT(*) as c FROM notifications WHERE user_id = ? AND workspace_id = ? AND is_read = 0",
+      [context.userId, wsId],
     );
     return { count: row?.c ?? 0 };
   });
@@ -3391,9 +3702,11 @@ export const markNotificationReadFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string }) => input)
   .handler(async ({ data, context }) => {
-    await execute("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?", [
+    const wsId = getTargetWorkspaceId(undefined, context);
+    await execute("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ? AND workspace_id = ?", [
       data.id,
       context.userId,
+      wsId,
     ]);
     return { ok: true };
   });
@@ -3401,8 +3714,34 @@ export const markNotificationReadFn = createServerFn({ method: "POST" })
 export const markAllNotificationsReadFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .handler(async ({ context }) => {
-    await execute("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0", [
+    const wsId = getTargetWorkspaceId(undefined, context);
+    await execute("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND workspace_id = ? AND is_read = 0", [
       context.userId,
+      wsId,
+    ]);
+    return { ok: true };
+  });
+
+export const deleteNotificationFn = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .validator((input: { id: string }) => input)
+  .handler(async ({ data, context }) => {
+    const wsId = getTargetWorkspaceId(undefined, context);
+    await execute("DELETE FROM notifications WHERE id = ? AND user_id = ? AND workspace_id = ?", [
+      data.id,
+      context.userId,
+      wsId,
+    ]);
+    return { ok: true };
+  });
+
+export const clearAllNotificationsFn = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .handler(async ({ context }) => {
+    const wsId = getTargetWorkspaceId(undefined, context);
+    await execute("DELETE FROM notifications WHERE user_id = ? AND workspace_id = ?", [
+      context.userId,
+      wsId,
     ]);
     return { ok: true };
   });

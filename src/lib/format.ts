@@ -18,6 +18,63 @@ export function formatMoney(amount: number, currency: CurrencyCode = "INR", comp
 }
 
 /**
+ * Formats a raw number or numeric string using the Indian numbering system:
+ * 1000       -> "1,000"
+ * 100000     -> "1,00,000"
+ * 1000000    -> "10,00,000"
+ * 10000000   -> "1,00,00,000"
+ * Preserves decimals if present and enabled.
+ */
+export function formatIndianNumber(
+  val: string | number | null | undefined,
+  allowDecimals = false,
+): string {
+  if (val == null || val === "") return "";
+  const raw = String(val).trim();
+  if (!raw) return "";
+
+  // Split into integer and decimal parts
+  const hasDecimal = raw.includes(".");
+  const parts = raw.split(".");
+  let intPart = (parts[0] ?? "").replace(/\D/g, "");
+
+  // Prevent multiple leading zeroes
+  if (intPart.length > 1 && intPart.startsWith("0")) {
+    intPart = intPart.replace(/^0+/, "") || "0";
+  }
+
+  let formattedInt = "";
+  if (intPart.length <= 3) {
+    formattedInt = intPart;
+  } else {
+    const lastThree = intPart.substring(intPart.length - 3);
+    const otherDigits = intPart.substring(0, intPart.length - 3);
+    const withCommas = otherDigits.replace(/\B(?=(\d{2})+(?!\d))/g, ",");
+    formattedInt = `${withCommas},${lastThree}`;
+  }
+
+  if (allowDecimals && hasDecimal) {
+    const decPart = (parts[1] ?? "").replace(/\D/g, "").slice(0, 2);
+    return `${formattedInt}.${decPart}`;
+  }
+
+  return formattedInt;
+}
+
+/**
+ * Parses an Indian or standard comma-formatted string back into a raw numeric value.
+ * e.g. "1,00,00,000" -> 10000000
+ * e.g. "1,00,000.50" -> 100000.5
+ */
+export function parseIndianNumber(val: string | number | null | undefined): number {
+  if (val == null || val === "") return 0;
+  if (typeof val === "number") return isNaN(val) ? 0 : val;
+  const cleaned = String(val).replace(/,/g, "").trim();
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+}
+
+/**
  * Normalizes an IANA timezone string.
  * Falls back to "UTC" if timezone is missing, invalid, or unrecognized.
  */

@@ -25,6 +25,7 @@ export type WorkspaceSettingsData = {
   default_invoice_notes: string | null;
   default_invoice_terms: string | null;
   chat_retention_days?: number;
+  audit_retention_days?: number;
 };
 
 export type WorkspaceMemberItem = {
@@ -46,7 +47,8 @@ export const getWorkspaceSettingsFn = createServerFn({ method: "GET" })
     const ws = await queryOne<Workspace>(
       `SELECT name, legal_name, contact_email, contact_phone, address, logo_url,
               gstin, pan, state, state_code, website, bank_name, bank_account_no, bank_account_name, bank_ifsc,
-              invoice_prefix, default_payment_terms_days, default_invoice_notes, default_invoice_terms, chat_retention_days
+              invoice_prefix, default_payment_terms_days, default_invoice_notes, default_invoice_terms, chat_retention_days,
+              audit_retention_days
        FROM workspaces WHERE id = ? LIMIT 1`,
       [data.workspaceId],
     );
@@ -72,6 +74,7 @@ export const getWorkspaceSettingsFn = createServerFn({ method: "GET" })
       default_invoice_notes: (ws as any).default_invoice_notes ?? null,
       default_invoice_terms: (ws as any).default_invoice_terms ?? null,
       chat_retention_days: Number(ws.chat_retention_days ?? 15),
+      audit_retention_days: Number((ws as any).audit_retention_days ?? 180),
     };
   });
 
@@ -100,6 +103,7 @@ export const updateWorkspaceSettingsFn = createServerFn({ method: "POST" })
         defaultPaymentTermsDays?: number;
         defaultInvoiceNotes?: string | null;
         defaultInvoiceTerms?: string | null;
+        auditRetentionDays?: number;
       };
     }) => input,
   )
@@ -116,12 +120,19 @@ export const updateWorkspaceSettingsFn = createServerFn({ method: "POST" })
     }
 
     const p = data.patch;
+    const auditRetention = p.auditRetentionDays !== undefined ? Number(p.auditRetentionDays) : 180;
+    const allowedAuditDays = [90, 180, 365, 730];
+    if (!allowedAuditDays.includes(auditRetention)) {
+      throw new Error("Invalid audit retention policy. Allowed values: 90, 180, 365, or 730 days.");
+    }
+
     await execute(
       `UPDATE workspaces SET 
         name = ?, legal_name = ?, contact_email = ?, contact_phone = ?, address = ?, logo_url = ?,
         gstin = ?, pan = ?, state = ?, state_code = ?, website = ?, bank_name = ?,
         bank_account_no = ?, bank_account_name = ?, bank_ifsc = ?, invoice_prefix = ?,
-        default_payment_terms_days = ?, default_invoice_notes = ?, default_invoice_terms = ?
+        default_payment_terms_days = ?, default_invoice_notes = ?, default_invoice_terms = ?,
+        audit_retention_days = ?
        WHERE id = ?`,
       [
         p.name.trim(),
@@ -143,14 +154,15 @@ export const updateWorkspaceSettingsFn = createServerFn({ method: "POST" })
         p.defaultPaymentTermsDays ?? 14,
         p.defaultInvoiceNotes?.trim() || null,
         p.defaultInvoiceTerms?.trim() || null,
+        auditRetention,
         data.workspaceId,
       ],
     );
 
     // Audit log
     await execute(
-      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'success')`,
       [
         (await import("./db")).uuid(),
         data.workspaceId,
@@ -159,7 +171,7 @@ export const updateWorkspaceSettingsFn = createServerFn({ method: "POST" })
         "workspace.profile_update",
         "workspace",
         data.workspaceId,
-        JSON.stringify({ name: p.name, gstin: p.gstin }),
+        JSON.stringify({ name: p.name, gstin: p.gstin, auditRetentionDays: auditRetention }),
       ],
     );
 
