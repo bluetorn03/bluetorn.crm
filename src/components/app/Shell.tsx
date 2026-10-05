@@ -547,23 +547,40 @@ function ProfileMenu({
   onSignOut: () => void;
 }) {
   const { user, role, isSuperAdmin, workspace } = useSession();
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const showLogo = Boolean(workspace.logoUrl && failedUrl !== workspace.logoUrl);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="bg-primary text-primary-foreground ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-semibold"
-          aria-label="Profile menu"
+          className="ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-semibold overflow-hidden border border-border/80 hover:opacity-90 transition-opacity bg-primary text-primary-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-xs"
+          aria-label="Workspace & profile menu"
+          title={`${workspace.name || "Workspace"} · ${user.name}`}
         >
-          {initials(user.name)}
+          {showLogo ? (
+            <img
+              src={workspace.logoUrl!}
+              alt={workspace.name || "Workspace"}
+              className="h-full w-full object-cover"
+              onError={() => setFailedUrl(workspace.logoUrl)}
+            />
+          ) : (
+            <span>{initials(workspace.name || "Workspace")}</span>
+          )}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuLabel>
-          <p className="text-sm font-medium">{user.name}</p>
-          <p className="text-muted-foreground text-xs">{user.email || user.userCode}</p>
-          <p className="text-muted-foreground mt-1 text-[11px]">
-            {role}
-            {!isSuperAdmin && workspace.code !== "—" ? ` · ${workspace.code}` : ""}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-foreground truncate">{user.name}</p>
+            <span className="text-[10px] font-medium uppercase px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+              {role}
+            </span>
+          </div>
+          <p className="text-muted-foreground text-xs truncate mt-0.5">{user.email || user.userCode}</p>
+          <p className="text-primary font-medium mt-1 text-[11px] truncate">
+            {workspace.name}{workspace.code !== "—" ? ` (${workspace.code})` : ""}
           </p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireMySqlAuth, assertNotViewingAs } from "./auth-server";
+import { requireMySqlAuth, assertNotViewingAs, assertPermission } from "./auth-server";
 import { hashPassword, isSuperAdmin, canManageWorkspaceUsers } from "./server-utils";
-import { query, queryOne, execute, uuid } from "./db";
+import { query, queryOne, execute, transaction, uuid } from "./db";
+import { recordAuditEvent } from "./audit-logger";
 import type { Profile, UserRole, Workspace } from "./db-types";
 import {
   authIdentifierFor,
@@ -23,20 +24,21 @@ type BootstrapInput = {
 type WorkspaceInput = {
   code: string;
   name: string;
-  legalName?: string;
-  industry?: string;
-  plan?: string;
-  status?: "active" | "trial" | "suspended" | "inactive";
-  currency?: string;
-  timezone?: string;
-  contactEmail?: string;
-  contactPhone?: string;
-  seatLimit?: number;
+  legalName?: string | null | undefined;
+  industry?: string | null | undefined;
+  plan?: string | undefined;
+  status?: ("active" | "trial" | "suspended" | "inactive") | undefined;
+  currency?: string | undefined;
+  timezone?: string | undefined;
+  contactEmail?: string | null | undefined;
+  contactPhone?: string | null | undefined;
+  seatLimit?: number | undefined;
+  logoUrl?: string | null | undefined;
   owner: {
     userCode: string;
     fullName: string;
-    email?: string;
-    phone?: string;
+    email?: string | null | undefined;
+    phone?: string | null | undefined;
     password: string;
   };
 };
@@ -147,8 +149,8 @@ export const adminCreateWorkspace = createServerFn({ method: "POST" })
 
     const wsId = uuid();
     await execute(
-      `INSERT INTO workspaces (id, code, name, legal_name, industry, plan, status, currency, timezone, contact_email, contact_phone, seat_limit, chat_retention_days)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO workspaces (id, code, name, legal_name, industry, plan, status, currency, timezone, contact_email, contact_phone, seat_limit, chat_retention_days, logo_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         wsId,
         code,
@@ -163,6 +165,7 @@ export const adminCreateWorkspace = createServerFn({ method: "POST" })
         data.contactPhone?.trim() || null,
         data.seatLimit ?? 10,
         15,
+        data.logoUrl?.trim() || null,
       ],
     );
 
@@ -193,7 +196,18 @@ export const adminCreateWorkspace = createServerFn({ method: "POST" })
     await execute(
       `INSERT INTO audit_logs (id, workspace_id, actor_id, action, entity_type, entity_id, metadata)
        VALUES (?, ?, ?, 'workspace.created', 'workspace', ?, ?)`,
-      [uuid(), wsId, context.userId, wsId, JSON.stringify({ code, owner_user_code: ownerCode })],
+      [
+        uuid(),
+        wsId,
+        context.userId,
+        wsId,
+        JSON.stringify({
+          code,
+          owner_user_code: ownerCode,
+          name: data.name.trim(),
+          logo_url: data.logoUrl?.trim() || null,
+        }),
+      ],
     );
 
     // Seed default lead options automatically for new workspace
@@ -228,83 +242,102 @@ export const createWorkspaceUser = createServerFn({ method: "POST" })
     const isOwner = realRole === "owner";
 
     if (!isAdmin && !isOwner) {
-      throw new Error("FORBIDDEN: Only workspace Owner can add users.");
+      await assertPermission(context, "manage.team");
     }
 
     // Role escalation prevention
     if (!isAdmin && (data.role as string) === "owner") {
       throw new Error("FORBIDDEN: Only a platform Super Admin can assign the Owner role.");
     }
+    if (!isAdmin && !isOwner && data.role !== "employee") {
+      throw new Error("FORBIDDEN: You can only assign the Employee role.");
+    }
 
     // Workspace ID: ALWAYS take from authenticated session for workspace owners
     const targetWorkspaceId = isAdmin ? (data.workspaceId || context.workspaceId) : context.workspaceId;
     if (!targetWorkspaceId) throw new Error("Workspace is required.");
 
-    const workspace = await queryOne<Workspace>(
-      "SELECT id, code, seat_limit FROM workspaces WHERE id = ?",
-      [targetWorkspaceId],
-    );
-    if (!workspace) throw new Error("Workspace not found.");
-
-    const seatRow = await queryOne<{ cnt: number }>(
-      "SELECT COUNT(*) as cnt FROM profiles WHERE workspace_id = ?",
-      [workspace.id],
-    );
-    if ((seatRow?.cnt ?? 0) >= workspace.seat_limit) {
-      throw new Error(
-        `Seat limit reached (${workspace.seat_limit}). Ask Bluetorn to raise the plan limit.`,
-      );
-    }
-
     const userCode = canonicalUserCode(data.userCode);
-
-    // Check duplicate user_code in this workspace
-    const dup = await queryOne<Profile>(
-      "SELECT id FROM profiles WHERE workspace_id = ? AND user_code = ? LIMIT 1",
-      [workspace.id, userCode],
-    );
-    if (dup) throw new Error(`User ID "${userCode}" already exists in this workspace.`);
-
     const userId = uuid();
     const pwHash = await hashPassword(data.password);
-
-    await execute(
-      `INSERT INTO profiles (id, workspace_id, user_code, full_name, email, phone, job_title, password_hash)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        userId,
-        workspace.id,
-        userCode,
-        data.fullName.trim(),
-        data.email?.trim() || null,
-        data.phone?.trim() || null,
-        data.jobTitle?.trim() || null,
-        pwHash,
-      ],
-    );
-
     const roleId = uuid();
-    await execute("INSERT INTO user_roles (id, user_id, workspace_id, role) VALUES (?, ?, ?, ?)", [
-      roleId,
-      userId,
-      workspace.id,
-      data.role,
-    ]);
 
-    await execute(
-      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
-       VALUES (?, ?, ?, ?, 'user.created', 'profile', ?, ?)`,
-      [
-        uuid(),
-        workspace.id,
-        realUserId,
-        realRole,
+    const result = await transaction(async (conn) => {
+      // Row-level lock on workspace to prevent concurrent creation exceeding seat limit
+      const [wsRows] = await conn.execute<any[]>(
+        "SELECT id, code, seat_limit FROM workspaces WHERE id = ? FOR UPDATE",
+        [targetWorkspaceId],
+      );
+      const ws = wsRows[0];
+      if (!ws) throw new Error("Workspace not found.");
+
+      const [seatRows] = await conn.execute<any[]>(
+        "SELECT COUNT(*) as cnt FROM profiles WHERE workspace_id = ? AND is_active = 1",
+        [ws.id],
+      );
+      const activeCount = Number(seatRows[0]?.cnt ?? 0);
+      if (activeCount >= ws.seat_limit) {
+        throw new Error(
+          `Seat limit reached (${ws.seat_limit}). Ask Bluetorn to raise the plan limit.`,
+        );
+      }
+
+      // Check duplicate user_code in this workspace
+      const [dupRows] = await conn.execute<any[]>(
+        "SELECT id FROM profiles WHERE workspace_id = ? AND user_code = ? LIMIT 1",
+        [ws.id, userCode],
+      );
+      if (dupRows.length > 0) throw new Error(`User ID "${userCode}" already exists in this workspace.`);
+
+      await conn.execute(
+        `INSERT INTO profiles (id, workspace_id, user_code, full_name, email, phone, job_title, password_hash)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          userId,
+          ws.id,
+          userCode,
+          data.fullName.trim(),
+          data.email?.trim() || null,
+          data.phone?.trim() || null,
+          data.jobTitle?.trim() || null,
+          pwHash,
+        ],
+      );
+
+      await conn.execute("INSERT INTO user_roles (id, user_id, workspace_id, role) VALUES (?, ?, ?, ?)", [
+        roleId,
         userId,
-        JSON.stringify({ user_code: userCode, role: data.role }),
-      ],
-    );
+        ws.id,
+        data.role,
+      ]);
 
-    return { userId, userCode, workspaceCode: workspace.code };
+      return {
+        workspaceId: ws.id,
+        workspaceCode: ws.code,
+        seatLimit: ws.seat_limit,
+        activeCount: activeCount + 1,
+      };
+    });
+
+    await recordAuditEvent({
+      action: "user.created",
+      status: "success",
+      workspaceId: result.workspaceId,
+      actorId: realUserId,
+      actorLabel: realRole,
+      entityType: "profile",
+      entityId: userId,
+      summary: `User "${data.fullName.trim()}" (${userCode}) added with role "${data.role}"`,
+      metadata: {
+        user_code: userCode,
+        role: data.role,
+        full_name: data.fullName.trim(),
+        seats_used: result.activeCount,
+        seat_limit: result.seatLimit,
+      },
+    });
+
+    return { userId, userCode, workspaceCode: result.workspaceCode };
   });
 
 /** Activate/deactivate a workspace user. Super Admin, or Owner of that workspace. */
@@ -325,13 +358,16 @@ export const setUserActive = createServerFn({ method: "POST" })
     const isAdmin = realRole === "super_admin" || (await isSuperAdmin(realUserId));
     const isOwner = realRole === "owner";
 
-    const target = await queryOne<Profile>("SELECT id, workspace_id FROM profiles WHERE id = ?", [
-      data.userId,
-    ]);
+    const target = await queryOne<Profile>(
+      "SELECT id, workspace_id, user_code, full_name, is_active FROM profiles WHERE id = ?",
+      [data.userId],
+    );
     if (!target) throw new Error("User not found.");
 
-    if (!isAdmin && (!isOwner || context.workspaceId !== target.workspace_id)) {
-      throw new Error("FORBIDDEN: You do not have permission to change this user.");
+    if (!isAdmin && !isOwner) {
+      await assertPermission(context, "manage.team", target.workspace_id ?? undefined);
+    } else if (!isAdmin && context.workspaceId !== target.workspace_id) {
+      throw new Error("FORBIDDEN: Cross-workspace access denied.");
     }
 
     // Cannot deactivate an owner unless super_admin
@@ -342,23 +378,49 @@ export const setUserActive = createServerFn({ method: "POST" })
       throw new Error("FORBIDDEN: Workspace Owner accounts cannot be deactivated here.");
     }
 
-    await execute("UPDATE profiles SET is_active = ? WHERE id = ?", [
-      data.isActive ? 1 : 0,
-      data.userId,
-    ]);
-
-    await execute(
-      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id)
-       VALUES (?, ?, ?, ?, ?, 'profile', ?)`,
-      [
-        uuid(),
-        target.workspace_id,
-        realUserId,
-        realRole,
-        data.isActive ? "user.activated" : "user.deactivated",
+    // If reactivating an inactive user, verify workspace seat limit atomically with row lock
+    if (data.isActive && !target.is_active && target.workspace_id) {
+      await transaction(async (conn) => {
+        const [wsRows] = await conn.execute<any[]>(
+          "SELECT id, seat_limit FROM workspaces WHERE id = ? FOR UPDATE",
+          [target.workspace_id],
+        );
+        const ws = wsRows[0];
+        if (ws) {
+          const [cntRows] = await conn.execute<any[]>(
+            "SELECT COUNT(*) as cnt FROM profiles WHERE workspace_id = ? AND is_active = 1",
+            [target.workspace_id],
+          );
+          const activeCount = Number(cntRows[0]?.cnt ?? 0);
+          if (activeCount >= ws.seat_limit) {
+            throw new Error(
+              `Seat limit reached (${ws.seat_limit}). Cannot reactivate user. Ask Bluetorn to raise the plan limit.`,
+            );
+          }
+        }
+        await conn.execute("UPDATE profiles SET is_active = 1 WHERE id = ?", [data.userId]);
+      });
+    } else {
+      await execute("UPDATE profiles SET is_active = ? WHERE id = ?", [
+        data.isActive ? 1 : 0,
         data.userId,
-      ],
-    );
+      ]);
+    }
+
+    await recordAuditEvent({
+      action: data.isActive ? "user.reactivated" : "user.deactivated",
+      status: "success",
+      workspaceId: target.workspace_id,
+      actorId: realUserId,
+      actorLabel: realRole,
+      entityType: "profile",
+      entityId: data.userId,
+      summary: `User "${target.full_name || target.user_code}" (${target.user_code}) ${data.isActive ? "reactivated" : "deactivated"}`,
+      metadata: {
+        user_code: target.user_code,
+        is_active: data.isActive,
+      },
+    });
 
     return { ok: true };
   });
@@ -380,13 +442,16 @@ export const setUserPassword = createServerFn({ method: "POST" })
     const isAdmin = realRole === "super_admin" || (await isSuperAdmin(realUserId));
     const isOwner = realRole === "owner";
 
-    const target = await queryOne<Profile>("SELECT id, workspace_id FROM profiles WHERE id = ?", [
-      data.userId,
-    ]);
+    const target = await queryOne<Profile>(
+      "SELECT id, workspace_id, user_code, full_name FROM profiles WHERE id = ?",
+      [data.userId],
+    );
     if (!target) throw new Error("User not found.");
 
-    if (!isAdmin && (!isOwner || context.workspaceId !== target.workspace_id)) {
-      throw new Error("FORBIDDEN: You do not have permission to reset this password.");
+    if (!isAdmin && !isOwner) {
+      await assertPermission(context, "manage.team", target.workspace_id ?? undefined);
+    } else if (!isAdmin && context.workspaceId !== target.workspace_id) {
+      throw new Error("FORBIDDEN: Cross-workspace access denied.");
     }
 
     // Target cannot be an Owner unless caller is super_admin
@@ -400,11 +465,17 @@ export const setUserPassword = createServerFn({ method: "POST" })
     const pwHash = await hashPassword(data.password);
     await execute("UPDATE profiles SET password_hash = ? WHERE id = ?", [pwHash, data.userId]);
 
-    await execute(
-      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id)
-       VALUES (?, ?, ?, ?, 'user.password_reset', 'profile', ?)`,
-      [uuid(), target.workspace_id, realUserId, realRole, data.userId],
-    );
+    await recordAuditEvent({
+      action: "user.password_reset",
+      status: "success",
+      workspaceId: target.workspace_id,
+      actorId: realUserId,
+      actorLabel: realRole,
+      entityType: "profile",
+      entityId: data.userId,
+      summary: `Password reset for user "${target.full_name || target.user_code}" (${target.user_code})`,
+      metadata: { target_user_id: data.userId, user_code: target.user_code },
+    });
 
     return { ok: true };
   });
@@ -446,4 +517,75 @@ export const adminUpdateWorkspace = createServerFn({ method: "POST" })
       await execute(`UPDATE workspaces SET ${sets.join(", ")} WHERE id = ?`, vals);
     }
     return { ok: true };
+  });
+
+/** Super Admin updates workspace seat limit with server-side validation and audit logging. */
+export const adminUpdateSeatLimit = createServerFn({ method: "POST" })
+  .middleware([requireMySqlAuth])
+  .validator((input: { workspaceId: string; seatLimit: number }) => {
+    if (!input.workspaceId) throw new Error("Workspace is required.");
+    const limit = Number(input.seatLimit);
+    if (!Number.isInteger(limit) || limit < 1) {
+      throw new Error("Seat limit must be a positive whole number.");
+    }
+    return { workspaceId: input.workspaceId, seatLimit: limit };
+  })
+  .handler(async ({ data, context }) => {
+    const realRole = context.realRole || context.role;
+    const realUserId = context.realUserId || context.userId;
+    const isAdmin = realRole === "super_admin" || (await isSuperAdmin(realUserId));
+    if (!isAdmin) {
+      throw new Error("FORBIDDEN: Only platform Super Admins can modify workspace seat limits.");
+    }
+
+    return await transaction(async (conn) => {
+      const [wsRows] = await conn.execute<any[]>(
+        "SELECT id, name, code, seat_limit FROM workspaces WHERE id = ? FOR UPDATE",
+        [data.workspaceId],
+      );
+      const ws = wsRows[0];
+      if (!ws) throw new Error("Workspace not found.");
+
+      const [activeRows] = await conn.execute<any[]>(
+        "SELECT COUNT(*) as cnt FROM profiles WHERE workspace_id = ? AND is_active = 1",
+        [data.workspaceId],
+      );
+      const activeCount = Number(activeRows[0]?.cnt ?? 0);
+      const oldLimit = Number(ws.seat_limit);
+
+      if (data.seatLimit < activeCount) {
+        throw new Error(
+          `Cannot reduce seat limit to ${data.seatLimit}. Workspace currently has ${activeCount} active users.`,
+        );
+      }
+
+      await conn.execute("UPDATE workspaces SET seat_limit = ? WHERE id = ?", [
+        data.seatLimit,
+        data.workspaceId,
+      ]);
+
+      await recordAuditEvent({
+        action: "workspace.seat_limit_changed",
+        status: "success",
+        workspaceId: data.workspaceId,
+        actorId: realUserId,
+        actorLabel: "Super Admin",
+        entityType: "workspace",
+        entityId: data.workspaceId,
+        summary: `Seat limit changed from ${oldLimit} to ${data.seatLimit} for ${ws.name} (${ws.code})`,
+        before: { seat_limit: oldLimit, active_users: activeCount },
+        after: { seat_limit: data.seatLimit, active_users: activeCount },
+        metadata: {
+          workspace_code: ws.code,
+          active_users: activeCount,
+        },
+      });
+
+      return {
+        ok: true,
+        workspaceId: data.workspaceId,
+        seatLimit: data.seatLimit,
+        activeUsers: activeCount,
+      };
+    });
   });

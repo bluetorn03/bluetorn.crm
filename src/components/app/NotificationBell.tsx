@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -35,13 +35,25 @@ import {
   qk,
   type Notification,
 } from "@/lib/crm-api";
-import { relativeTime } from "@/lib/format";
+import { formatNotificationTime } from "@/lib/format";
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  // Centralized live relative timestamp ticker (updates every 30s while panel is open)
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!open) return;
+    setNow(Date.now());
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [open]);
 
   const countQuery = useQuery({
     queryKey: qk.notificationCount(),
@@ -204,7 +216,7 @@ export function NotificationBell() {
                         {n.title}
                       </p>
                       <span className="text-[10px] text-muted-foreground shrink-0">
-                        {relativeTime(n.created_at)}
+                        {formatNotificationTime(n.created_at, now)}
                       </span>
                     </div>
                     {n.message && (

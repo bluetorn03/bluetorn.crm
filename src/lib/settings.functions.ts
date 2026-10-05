@@ -1,8 +1,52 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireMySqlAuth, assertNotViewingAs } from "./auth-server";
-import { query, queryOne, execute } from "./db";
+import { requireMySqlAuth, assertNotViewingAs, assertPermission } from "./auth-server";
+import { query, queryOne, execute, uuid } from "./db";
 import { hashPassword } from "./server-utils";
+import { recordAuditEvent } from "./audit-logger";
 import type { Workspace, Profile, UserRole } from "./db-types";
+
+export type WorkspaceSeatSummary = {
+  seatLimit: number;
+  seatsUsed: number;
+  seatsAvailable: number;
+  totalMembers: number;
+  inactiveMembers: number;
+};
+
+export const getWorkspaceSeatSummaryFn = createServerFn({ method: "GET" })
+  .middleware([requireMySqlAuth])
+  .validator((input: { workspaceId: string }) => input)
+  .handler(async ({ data, context }): Promise<WorkspaceSeatSummary> => {
+    const wsId = context.role === "super_admin" ? (data.workspaceId || context.workspaceId) : context.workspaceId;
+    if (!wsId) throw new Error("Workspace is required.");
+    await assertPermission(context, "manage.team", wsId);
+
+    const workspace = await queryOne<Workspace>(
+      "SELECT id, seat_limit FROM workspaces WHERE id = ?",
+      [wsId],
+    );
+    if (!workspace) throw new Error("Workspace not found.");
+
+    const seatLimit = workspace.seat_limit || 10;
+
+    const [activeRow, totalRow] = await Promise.all([
+      queryOne<{ c: number }>("SELECT COUNT(*) as c FROM profiles WHERE workspace_id = ? AND is_active = 1", [wsId]),
+      queryOne<{ c: number }>("SELECT COUNT(*) as c FROM profiles WHERE workspace_id = ?", [wsId]),
+    ]);
+
+    const seatsUsed = activeRow?.c ?? 0;
+    const totalMembers = totalRow?.c ?? 0;
+    const seatsAvailable = Math.max(0, seatLimit - seatsUsed);
+    const inactiveMembers = Math.max(0, totalMembers - seatsUsed);
+
+    return {
+      seatLimit,
+      seatsUsed,
+      seatsAvailable,
+      totalMembers,
+      inactiveMembers,
+    };
+  });
 
 export type WorkspaceSettingsData = {
   name: string;
@@ -44,6 +88,7 @@ export const getWorkspaceSettingsFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .validator((input: { workspaceId: string }) => input)
   .handler(async ({ data, context }): Promise<WorkspaceSettingsData | null> => {
+    await assertPermission(context, "manage.settings", data.workspaceId);
     const ws = await queryOne<Workspace>(
       `SELECT name, legal_name, contact_email, contact_phone, address, logo_url,
               gstin, pan, state, state_code, website, bank_name, bank_account_no, bank_account_name, bank_ifsc,
@@ -109,15 +154,7 @@ export const updateWorkspaceSettingsFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     assertNotViewingAs(context, "Updating workspace settings");
-
-    // Only workspace Owner or Super Admin can edit workspace company profile
-    const realRole = context.realRole || context.role;
-    if (realRole !== "owner" && realRole !== "super_admin") {
-      throw new Error("FORBIDDEN: Only workspace Owner can update workspace settings.");
-    }
-    if (realRole !== "super_admin" && context.workspaceId !== data.workspaceId) {
-      throw new Error("FORBIDDEN: Cross-workspace update denied.");
-    }
+    await assertPermission(context, "manage.settings", data.workspaceId);
 
     const p = data.patch;
     const auditRetention = p.auditRetentionDays !== undefined ? Number(p.auditRetentionDays) : 180;
@@ -206,42 +243,86 @@ export const setUserPermissionsFn = createServerFn({ method: "POST" })
     if (realRole !== "super_admin" && context.workspaceId !== data.workspaceId) {
       throw new Error("FORBIDDEN: Cross-workspace permission update denied.");
     }
+    if (context.userId === data.userId && realRole !== "super_admin") {
+      throw new Error("FORBIDDEN: You cannot alter your own permissions.");
+    }
 
     const { transaction, uuid } = await import("./db");
 
+    let grantedList: string[] = [];
+    let revokedList: string[] = [];
+
     await transaction(async (conn) => {
-      // 1. Delete existing permissions for this user
+      // 1. Fetch current permissions for meaningful diff
+      const [existingRows] = await conn.execute(
+        "SELECT permission FROM user_permissions WHERE workspace_id = ? AND user_id = ?",
+        [data.workspaceId, data.userId],
+      );
+      const oldPerms = (existingRows as { permission: string }[]).map((r) => r.permission);
+      const newPerms = data.permissions.filter(Boolean).map((p) => p.trim());
+      grantedList = newPerms.filter((p) => !oldPerms.includes(p));
+      revokedList = oldPerms.filter((p) => !newPerms.includes(p));
+
+      // 2. Delete existing permissions for this user
       await conn.execute("DELETE FROM user_permissions WHERE workspace_id = ? AND user_id = ?", [
         data.workspaceId,
         data.userId,
       ]);
 
-      // 2. Insert new granted permissions
-      for (const perm of data.permissions) {
-        if (perm?.trim()) {
-          await conn.execute(
-            "INSERT INTO user_permissions (id, workspace_id, user_id, permission) VALUES (?, ?, ?, ?)",
-            [uuid(), data.workspaceId, data.userId, perm.trim()],
-          );
-        }
+      // 3. Insert new granted permissions
+      for (const perm of newPerms) {
+        await conn.execute(
+          "INSERT INTO user_permissions (id, workspace_id, user_id, permission) VALUES (?, ?, ?, ?)",
+          [uuid(), data.workspaceId, data.userId, perm],
+        );
       }
-
-      // 3. Log audit event
-      await conn.execute(
-        `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          uuid(),
-          data.workspaceId,
-          context.realUserId || context.userId,
-          realRole,
-          "finance.permission_change",
-          "user_permissions",
-          data.userId,
-          JSON.stringify({ permissions: data.permissions }),
-        ],
-      );
     });
+
+    // 4. Log audit event
+    await recordAuditEvent({
+      action: "user.permission_change",
+      status: "success",
+      workspaceId: data.workspaceId,
+      actorId: context.realUserId || context.userId,
+      actorLabel: realRole,
+      entityType: "user_permissions",
+      entityId: data.userId,
+      summary: `User permissions updated (${grantedList.length} granted, ${revokedList.length} revoked)`,
+      metadata: {
+        target_user_id: data.userId,
+        granted: grantedList,
+        revoked: revokedList,
+        total_permissions: data.permissions.length,
+      },
+    });
+
+    // 5. Notify the employee of access update
+    if (grantedList.length > 0 || revokedList.length > 0) {
+      const grantedFormatted = grantedList.map((p) => p.replace(/_/g, " ").replace(/\./g, " → ")).join(", ");
+      const revokedFormatted = revokedList.map((p) => `${p.replace(/_/g, " ").replace(/\./g, " → ")} removed`).join(", ");
+      const messageParts = [
+        grantedList.length > 0 ? `Granted: ${grantedFormatted}` : null,
+        revokedList.length > 0 ? `Revoked: ${revokedFormatted}` : null,
+      ].filter(Boolean);
+
+      try {
+        const notifId = uuid();
+        await execute(
+          `INSERT INTO notifications (id, workspace_id, user_id, type, title, message, entity_type, entity_id, created_by, created_at)
+           VALUES (?, ?, ?, 'permission_updated', 'Your access was updated', ?, 'user_permissions', ?, ?, UTC_TIMESTAMP())`,
+          [
+            notifId,
+            data.workspaceId,
+            data.userId,
+            messageParts.join(" · "),
+            data.userId,
+            "Workspace Owner",
+          ],
+        );
+      } catch (err: any) {
+        console.warn("[Notifications] Failed to notify employee of permission update:", err?.message);
+      }
+    }
 
     return { ok: true };
   });
@@ -250,6 +331,7 @@ export const getWorkspaceMembersFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .validator((input: { workspaceId: string }) => input)
   .handler(async ({ data, context }): Promise<WorkspaceMemberItem[]> => {
+    await assertPermission(context, "manage.team", data.workspaceId);
     const [profiles, roles] = await Promise.all([
       query<Profile>(
         "SELECT id, user_code, full_name, email, phone, job_title, is_active, last_login_at FROM profiles WHERE workspace_id = ? ORDER BY created_at ASC",
@@ -286,6 +368,11 @@ export const updateSelfProfileFn = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data, context }) => {
+    const existing = await queryOne<Profile>(
+      "SELECT id, full_name, email, phone, whatsapp_phone, job_title FROM profiles WHERE id = ?",
+      [context.userId],
+    );
+
     await execute(
       "UPDATE profiles SET full_name = ?, email = ?, phone = ?, whatsapp_phone = ?, job_title = ? WHERE id = ?",
       [
@@ -297,6 +384,29 @@ export const updateSelfProfileFn = createServerFn({ method: "POST" })
         context.userId,
       ],
     );
+
+    const updated = await queryOne<Profile>(
+      "SELECT id, full_name, email, phone, whatsapp_phone, job_title FROM profiles WHERE id = ?",
+      [context.userId],
+    );
+
+    await recordAuditEvent({
+      action: "user.profile_update",
+      status: "success",
+      workspaceId: context.workspaceId,
+      actorId: context.userId,
+      actorLabel: context.role,
+      entityType: "profile",
+      entityId: context.userId,
+      summary: `User "${data.fullName.trim()}" updated their account profile`,
+      before: existing,
+      after: updated,
+      metadata: {
+        full_name: data.fullName.trim(),
+        email: data.email?.trim() || null,
+      },
+    });
+
     return { ok: true };
   });
 
@@ -311,6 +421,19 @@ export const changeSelfPasswordFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const pwHash = await hashPassword(data.password);
     await execute("UPDATE profiles SET password_hash = ? WHERE id = ?", [pwHash, context.userId]);
+
+    await recordAuditEvent({
+      action: "user.password_change",
+      status: "success",
+      workspaceId: context.workspaceId,
+      actorId: context.userId,
+      actorLabel: context.role,
+      entityType: "profile",
+      entityId: context.userId,
+      summary: "User updated their account password",
+      metadata: { target_user_id: context.userId },
+    });
+
     return { ok: true };
   });
 
@@ -337,14 +460,10 @@ export const updateWorkspaceEmployeeFn = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data, context }) => {
-    assertNotViewingAs(context, "Editing employee profile");
-
+    await assertPermission(context, "manage.team");
     const realRole = context.realRole || context.role;
-    if (realRole !== "owner" && realRole !== "super_admin") {
-      throw new Error("FORBIDDEN: Only workspace Owner can edit employees.");
-    }
 
-    const { queryOne, execute, uuid } = await import("./db");
+    const { queryOne, execute } = await import("./db");
     const employee = await queryOne<Profile>(
       "SELECT id, workspace_id, user_code, full_name, email, phone, job_title FROM profiles WHERE id = ? LIMIT 1",
       [data.userId],
@@ -376,33 +495,27 @@ export const updateWorkspaceEmployeeFn = createServerFn({ method: "POST" })
       ],
     );
 
-    // Audit log
-    await execute(
-      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
-       VALUES (?, ?, ?, ?, 'employee.updated', 'profile', ?, ?)`,
-      [
-        uuid(),
-        employee.workspace_id,
-        context.realUserId || context.userId,
-        realRole,
-        employee.id,
-        JSON.stringify({
-          user_code: employee.user_code,
-          before: {
-            full_name: employee.full_name,
-            email: employee.email,
-            phone: employee.phone,
-            job_title: employee.job_title,
-          },
-          after: {
-            full_name: data.fullName.trim(),
-            email: data.email?.trim() || null,
-            phone: data.phone?.trim() || null,
-            job_title: data.jobTitle?.trim() || null,
-          },
-        }),
-      ],
+    const updated = await queryOne<Profile>(
+      "SELECT id, workspace_id, user_code, full_name, email, phone, job_title FROM profiles WHERE id = ? LIMIT 1",
+      [data.userId],
     );
+
+    // Audit log
+    await recordAuditEvent({
+      action: "employee.updated",
+      status: "success",
+      workspaceId: employee.workspace_id,
+      actorId: context.realUserId || context.userId,
+      actorLabel: realRole,
+      entityType: "profile",
+      entityId: employee.id,
+      summary: `Employee profile "${employee.full_name}" (${employee.user_code}) updated`,
+      before: employee,
+      after: updated,
+      metadata: {
+        user_code: employee.user_code,
+      },
+    });
 
     return { ok: true };
   });

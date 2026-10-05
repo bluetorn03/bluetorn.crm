@@ -50,7 +50,7 @@ export const adminListWorkspaces = createServerFn({ method: "GET" })
     const workspaces = await query<Workspace>("SELECT * FROM workspaces ORDER BY created_at DESC");
 
     const seatRows = await query<{ workspace_id: string; cnt: number }>(
-      "SELECT workspace_id, COUNT(*) as cnt FROM profiles WHERE workspace_id IS NOT NULL GROUP BY workspace_id",
+      "SELECT workspace_id, COUNT(*) as cnt FROM profiles WHERE workspace_id IS NOT NULL AND is_active = 1 GROUP BY workspace_id",
     );
     const seats = new Map(seatRows.map((r) => [r.workspace_id, r.cnt]));
 

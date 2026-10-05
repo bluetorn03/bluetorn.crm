@@ -6,7 +6,7 @@ import { PromoWall } from "@/components/app/PromoWall";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { loginAction } from "@/lib/auth.functions";
+import { loginAction, lookupPublicWorkspaceBranding } from "@/lib/auth.functions";
 import { getPlatformStatus } from "@/lib/admin.functions";
 import {
   canonicalUserCode,
@@ -53,6 +53,29 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<Alert | null>(null);
   const [needsSetup, setNeedsSetup] = useState(false);
+
+  const [branding, setBranding] = useState<{ found: boolean; name?: string; logoUrl?: string | null } | null>(null);
+  const [lookingUpBranding, setLookingUpBranding] = useState(false);
+
+  useEffect(() => {
+    const trimmed = workspaceCode.trim();
+    if (!trimmed || trimmed.length < 2) {
+      setBranding(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        setLookingUpBranding(true);
+        const res = await lookupPublicWorkspaceBranding({ data: { workspaceCode: trimmed } });
+        setBranding(res);
+      } catch {
+        setBranding({ found: false });
+      } finally {
+        setLookingUpBranding(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [workspaceCode]);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -207,6 +230,31 @@ function LoginPage() {
                 autoComplete="organization"
                 className="h-11 tracking-wide uppercase"
               />
+              {/* Workspace branding display */}
+              {branding?.found && branding.name && (
+                <div className="flex items-center gap-2.5 rounded-lg border border-primary/25 bg-primary/8 p-2.5 mt-1.5 animate-in fade-in duration-200">
+                  {branding.logoUrl ? (
+                    <img
+                      src={branding.logoUrl}
+                      alt={branding.name}
+                      className="h-7 w-7 rounded-md object-cover border border-border shrink-0"
+                    />
+                  ) : (
+                    <div className="h-7 w-7 rounded-md bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0">
+                      {branding.name.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-foreground truncate">{branding.name}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">Verified Workspace</p>
+                  </div>
+                </div>
+              )}
+              {branding && !branding.found && workspaceCode.trim().length >= 3 && !lookingUpBranding && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Workspace not found
+                </p>
+              )}
               <p className="text-muted-foreground text-xs">
                 Bluetorn staff sign in with code{" "}
                 <span className="text-foreground font-medium">{PLATFORM_WORKSPACE_CODE}</span>.

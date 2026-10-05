@@ -48,7 +48,159 @@ import {
 import { useSession } from "@/hooks/use-session";
 import { listWorkspaceAuditLogs, type AuditLogItem } from "@/lib/crm-api";
 import { getWorkspaceSettingsFn } from "@/lib/settings.functions";
-import { formatDate, relativeTime } from "@/lib/format";
+import { formatAuditTimestamp, formatAuditRelativeTime, formatIndianNumber } from "@/lib/format";
+
+type FieldDiff = {
+  field: string;
+  label: string;
+  before: any;
+  after: any;
+};
+
+function humanizeFieldName(key: string): string {
+  const custom: Record<string, string> = {
+    user_code: "User ID",
+    full_name: "Full Name",
+    job_title: "Job Title",
+    is_active: "Active Status",
+    due_date: "Due Date",
+    follow_up_at: "Follow-up Date",
+    entity_type: "Module",
+    created_at: "Created At",
+    updated_at: "Updated At",
+    seat_limit: "Seat Limit",
+    currency_code: "Currency",
+    tax_rate: "Tax Rate (%)",
+  };
+  if (custom[key]) return custom[key];
+  return key
+    .replace(/_/g, " ")
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (str) => str.toUpperCase())
+    .trim();
+}
+
+function humanizeAction(action: string): string {
+  const map: Record<string, string> = {
+    "auth.login_success": "User Login (Success)",
+    "auth.login_failure": "Login Attempt Failed",
+    "auth.logout": "User Logout",
+    "auth.employee_view_enter": "Started Employee View",
+    "auth.employee_view_exit": "Exited Employee View",
+    "lead.created": "Lead Created",
+    "lead.updated": "Lead Updated",
+    "lead.deleted": "Lead Deleted",
+    "lead.converted": "Lead Converted",
+    "lead.assigned": "Lead Assigned",
+    "lead.follow_up_scheduled": "Follow-Up Scheduled",
+    "lead.follow_up_cleared": "Follow-Up Cleared",
+    "customer.created": "Customer Created",
+    "customer.updated": "Customer Updated",
+    "customer.deleted": "Customer Deleted",
+    "property.created": "Property Created",
+    "property.updated": "Property Updated",
+    "property.deleted": "Property Deleted",
+    "task.created": "Task Created",
+    "task.updated": "Task Updated",
+    "task.completed": "Task Completed",
+    "task.reopened": "Task Reopened",
+    "task.deleted": "Task Deleted",
+    "calendar.event_created": "Calendar Event Created",
+    "calendar.event_updated": "Calendar Event Updated",
+    "calendar.event_rescheduled": "Calendar Event Rescheduled",
+    "calendar.event_deleted": "Calendar Event Deleted",
+    "finance.invoice.created": "Invoice Created",
+    "finance.invoice.updated": "Invoice Updated",
+    "finance.invoice.issued": "Invoice Issued",
+    "finance.invoice.cancelled": "Invoice Cancelled",
+    "finance.payment.recorded": "Payment Recorded",
+    "finance.payment.reversed": "Payment Reversed",
+    "user.created": "Team Member Created",
+    "user.deactivated": "User Deactivated",
+    "user.reactivated": "User Reactivated",
+    "user.permission_change": "Permissions Changed",
+    "user.profile_update": "Profile Updated",
+    "user.password_change": "Password Changed",
+    "workspace.settings_update": "Workspace Settings Updated",
+    "lead_options.updated": "Lead Options Updated",
+  };
+  if (map[action]) return map[action];
+  return action
+    .replace(/_/g, " ")
+    .replace(/\./g, " · ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatValue(key: string, val: any): string {
+  if (val === null || val === undefined || val === "") return "—";
+  if (typeof val === "boolean") return val ? "Yes / Active" : "No / Inactive";
+  const lowerKey = key.toLowerCase();
+  if (
+    (lowerKey.includes("budget") ||
+      lowerKey.includes("amount") ||
+      lowerKey.includes("price") ||
+      lowerKey.includes("cost") ||
+      lowerKey.includes("revenue") ||
+      lowerKey.includes("total") ||
+      lowerKey.includes("balance")) &&
+    typeof val === "number"
+  ) {
+    return `₹${formatIndianNumber(val)}`;
+  }
+  if (typeof val === "object") {
+    try {
+      return JSON.stringify(val);
+    } catch {
+      return String(val);
+    }
+  }
+  return String(val);
+}
+
+function extractDiffs(metadata: any): FieldDiff[] {
+  if (!metadata || typeof metadata !== "object") return [];
+  const diffs: FieldDiff[] = [];
+
+  if (metadata.diff && typeof metadata.diff === "object" && !Array.isArray(metadata.diff)) {
+    for (const [k, v] of Object.entries(metadata.diff)) {
+      if (v && typeof v === "object") {
+        const item = v as any;
+        const b = item.before !== undefined ? item.before : item.old;
+        const a = item.after !== undefined ? item.after : item.new;
+        diffs.push({
+          field: k,
+          label: humanizeFieldName(k),
+          before: b,
+          after: a,
+        });
+      }
+    }
+  }
+
+  if (
+    diffs.length === 0 &&
+    metadata.before &&
+    metadata.after &&
+    typeof metadata.before === "object" &&
+    typeof metadata.after === "object"
+  ) {
+    const allKeys = Array.from(new Set([...Object.keys(metadata.before), ...Object.keys(metadata.after)]));
+    for (const k of allKeys) {
+      const b = metadata.before[k];
+      const a = metadata.after[k];
+      if (JSON.stringify(b) !== JSON.stringify(a)) {
+        diffs.push({
+          field: k,
+          label: humanizeFieldName(k),
+          before: b,
+          after: a,
+        });
+      }
+    }
+  }
+
+  return diffs;
+}
 
 export const Route = createFileRoute("/app/audit-logs")({
   head: () => ({
@@ -433,8 +585,7 @@ function AuditLogsPage() {
                           )}
                         </td>
                         <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">
-                          <div className="text-foreground">{formatDate(event.created_at)}</div>
-                          <div className="text-[10px] text-muted-foreground">{relativeTime(event.created_at)}</div>
+                          <div className="text-foreground font-medium">{formatAuditTimestamp(event.created_at)}</div>
                         </td>
                         <td className="py-3 px-4">
                           {event.status === "failed" ? (
@@ -506,139 +657,281 @@ function AuditLogsPage() {
       {/* Event Details Inspection Modal */}
       <Dialog open={Boolean(inspectEvent)} onOpenChange={(open) => !open && setInspectEvent(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          {inspectEvent && (
-            <>
-              <DialogHeader>
-                <div className="flex items-center justify-between pr-6">
-                  <DialogTitle className="text-base font-semibold flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-primary" />
-                    Audit Event Details
-                  </DialogTitle>
-                  <StatusBadge
-                    label={inspectEvent.action}
-                    tone={getActionBadgeTone(inspectEvent.action)}
-                  />
-                </div>
-                <DialogDescription className="text-xs text-muted-foreground">
-                  Recorded on {formatDate(inspectEvent.created_at)} ({relativeTime(inspectEvent.created_at)})
-                </DialogDescription>
-              </DialogHeader>
+          {inspectEvent && (() => {
+            const meta = parseMetadata(inspectEvent.metadata) || {};
+            const diffs = extractDiffs(meta);
+            const actorRole =
+              meta["actorRole"] || meta["role"] || (inspectEvent.actor_email?.includes("admin") ? "Admin" : "Team Member");
+            const recordTitle =
+              meta["lead_name"] ||
+              meta["task_title"] ||
+              meta["customer_name"] ||
+              meta["title"] ||
+              meta["invoice_no"] ||
+              meta["payment_number"] ||
+              meta["full_name"] ||
+              meta["user_code"];
 
-              <div className="space-y-4 pt-2 text-xs">
-                {/* Core Overview */}
-                <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted/30 p-3">
-                  <div>
-                    <span className="text-muted-foreground block text-[11px]">Actor (Who)</span>
-                    <strong className="text-foreground font-medium block">
-                      {inspectEvent.actor_name || inspectEvent.actor_label || "System"}
-                    </strong>
-                    {inspectEvent.actor_email && (
-                      <span className="text-muted-foreground text-[10px] block">{inspectEvent.actor_email}</span>
-                    )}
-                    {inspectEvent.actor_id && (
-                      <span className="font-mono text-[10px] text-muted-foreground block truncate">
-                        ID: {inspectEvent.actor_id}
-                      </span>
-                    )}
+            return (
+              <>
+                <DialogHeader className="border-b border-border pb-3">
+                  <div className="flex items-center justify-between pr-6">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-primary" />
+                      <DialogTitle className="text-base font-semibold">
+                        {humanizeAction(inspectEvent.action)}
+                      </DialogTitle>
+                    </div>
+                    <StatusBadge
+                      label={inspectEvent.action}
+                      tone={getActionBadgeTone(inspectEvent.action)}
+                    />
                   </div>
-                  <div>
-                    <span className="text-muted-foreground block text-[11px]">Record Target (What)</span>
-                    <strong className="text-foreground font-medium block capitalize">
-                      {inspectEvent.entity_type ? inspectEvent.entity_type.replace(/_/g, " ") : "Workspace"}
-                    </strong>
-                    {inspectEvent.entity_id && (
-                      <span className="font-mono text-[10px] text-muted-foreground block truncate">
-                        ID: {inspectEvent.entity_id}
-                      </span>
-                    )}
-                    <span className="block mt-1">
-                      Status:{" "}
-                      <strong className={inspectEvent.status === "failed" ? "text-destructive" : "text-success"}>
-                        {inspectEvent.status?.toUpperCase() || "SUCCESS"}
-                      </strong>
-                    </span>
-                  </div>
-                </div>
+                  <DialogDescription className="text-xs text-muted-foreground mt-1">
+                    Event ID: <code className="font-mono text-[11px] bg-muted px-1 py-0.5 rounded">{inspectEvent.id}</code>
+                  </DialogDescription>
+                </DialogHeader>
 
-                {/* Before vs After Diff if available */}
-                {(() => {
-                  const meta = parseMetadata(inspectEvent.metadata);
-                  if (!meta) return null;
-                  const hasDiff = meta["before"] !== undefined || meta["after"] !== undefined;
-                  if (!hasDiff) return null;
-
-                  return (
-                    <div className="space-y-1.5">
-                      <h4 className="font-medium text-foreground text-xs">State Changes (Before vs After)</h4>
-                      <div className="grid grid-cols-2 gap-2 rounded-lg border border-border p-3 bg-card">
-                        <div className="space-y-1">
-                          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                            Before
+                <div className="space-y-4 pt-2 text-xs">
+                  {/* Grid: WHO and WHAT HAPPENED */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* WHO */}
+                    <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        <User className="h-3.5 w-3.5 text-primary" />
+                        <span>Who</span>
+                      </div>
+                      <div className="space-y-1">
+                        <div>
+                          <span className="text-[11px] text-muted-foreground block">Name</span>
+                          <span className="font-medium text-foreground text-sm">
+                            {inspectEvent.actor_name || inspectEvent.actor_label || "System"}
                           </span>
-                          <pre className="font-mono text-[11px] p-2 bg-muted/40 rounded border border-border/60 overflow-x-auto text-muted-foreground">
-                            {JSON.stringify(meta["before"] ?? {}, null, 2)}
-                          </pre>
                         </div>
-                        <div className="space-y-1">
-                          <span className="text-[11px] font-semibold text-primary uppercase tracking-wider block">
-                            After
+                        <div>
+                          <span className="text-[11px] text-muted-foreground block">Email</span>
+                          <span className="text-foreground">
+                            {inspectEvent.actor_email || "System / Automated"}
                           </span>
-                          <pre className="font-mono text-[11px] p-2 bg-primary/5 rounded border border-primary/20 overflow-x-auto text-foreground">
-                            {JSON.stringify(meta["after"] ?? {}, null, 2)}
-                          </pre>
+                        </div>
+                        <div>
+                          <span className="text-[11px] text-muted-foreground block">Role</span>
+                          <span className="inline-block font-medium capitalize text-foreground bg-muted px-1.5 py-0.5 rounded text-[11px]">
+                            {actorRole}
+                          </span>
+                        </div>
+                        {inspectEvent.actor_id && (
+                          <div>
+                            <span className="text-[11px] text-muted-foreground block">Actor ID</span>
+                            <span className="font-mono text-[10px] text-muted-foreground truncate block" title={inspectEvent.actor_id}>
+                              {inspectEvent.actor_id}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* WHAT HAPPENED */}
+                    <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        <Activity className="h-3.5 w-3.5 text-primary" />
+                        <span>What Happened</span>
+                      </div>
+                      <div className="space-y-1">
+                        <div>
+                          <span className="text-[11px] text-muted-foreground block">Action</span>
+                          <span className="font-medium text-foreground">
+                            {humanizeAction(inspectEvent.action)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[11px] text-muted-foreground block">Module</span>
+                          <span className="font-medium capitalize text-foreground">
+                            {inspectEvent.entity_type ? inspectEvent.entity_type.replace(/_/g, " ") : "System"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[11px] text-muted-foreground block">Record</span>
+                          <div className="text-foreground font-medium">
+                            {recordTitle ? (
+                              <span>{recordTitle}</span>
+                            ) : inspectEvent.entity_id ? (
+                              <code className="font-mono text-[11px] text-muted-foreground bg-muted px-1 rounded truncate block max-w-full">
+                                {inspectEvent.entity_id}
+                              </code>
+                            ) : (
+                              <span className="text-muted-foreground">Workspace Level</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  );
-                })()}
-
-                {/* Metadata Payload */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-foreground text-xs flex items-center gap-1.5">
-                      <FileCode className="h-3.5 w-3.5 text-muted-foreground" />
-                      Event Metadata (Sanitized)
-                    </h4>
-                    {inspectEvent.metadata && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCopyJson(parseMetadata(inspectEvent.metadata))}
-                        className="h-6 text-[10px] gap-1 px-2"
-                      >
-                        {copiedJson ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
-                        {copiedJson ? "Copied" : "Copy JSON"}
-                      </Button>
-                    )}
                   </div>
-                  <pre className="font-mono text-[11px] p-3 rounded-lg border border-border bg-muted/30 overflow-x-auto max-h-56 leading-relaxed">
-                    {JSON.stringify(parseMetadata(inspectEvent.metadata) ?? {}, null, 2)}
-                  </pre>
-                </div>
 
-                {/* Request Metadata (IP, User Agent) */}
-                {(inspectEvent.ip_address || inspectEvent.user_agent) && (
-                  <div className="space-y-1.5 pt-1">
-                    <h4 className="font-medium text-foreground text-xs">Request Context</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-muted-foreground rounded-lg border border-border p-2.5 bg-muted/20">
-                      {inspectEvent.ip_address && (
-                        <div className="flex items-center gap-1.5">
-                          <Globe className="h-3.5 w-3.5 text-primary shrink-0" />
-                          <span className="font-mono">IP: {inspectEvent.ip_address}</span>
+                  {/* Grid: WHEN and RESULT */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* WHEN */}
+                    <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        <Clock className="h-3.5 w-3.5 text-primary" />
+                        <span>When</span>
+                      </div>
+                      <div className="space-y-1">
+                        <div>
+                          <span className="text-[11px] text-muted-foreground block">Date & Time (IST)</span>
+                          <span className="font-semibold text-foreground text-sm block">
+                            {formatAuditTimestamp(inspectEvent.created_at)}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">Timezone: Asia/Kolkata (IST)</span>
                         </div>
-                      )}
-                      {inspectEvent.user_agent && (
-                        <div className="flex items-center gap-1.5 truncate" title={inspectEvent.user_agent}>
-                          <Monitor className="h-3.5 w-3.5 text-primary shrink-0" />
-                          <span className="truncate">Client: {inspectEvent.user_agent}</span>
+                        <div>
+                          <span className="text-[11px] text-muted-foreground block">Relative</span>
+                          <span className="text-foreground">{formatAuditRelativeTime(inspectEvent.created_at)}</span>
                         </div>
-                      )}
+                      </div>
+                    </div>
+
+                    {/* RESULT */}
+                    <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                        <span>Result</span>
+                      </div>
+                      <div className="space-y-1">
+                        <div>
+                          <span className="text-[11px] text-muted-foreground block">Execution Status</span>
+                          {inspectEvent.status === "failed" ? (
+                            <span className="inline-flex items-center gap-1 font-semibold text-destructive text-sm mt-0.5">
+                              <XCircle className="h-4 w-4" /> Failed
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 font-semibold text-success text-sm mt-0.5">
+                              <CheckCircle2 className="h-4 w-4" /> Success
+                            </span>
+                          )}
+                        </div>
+                        {(meta["reason"] || meta["error"]) && (
+                          <div className="mt-1 rounded bg-destructive/10 border border-destructive/20 p-2">
+                            <span className="text-[10px] uppercase font-semibold text-destructive block mb-0.5">
+                              Reason / Error
+                            </span>
+                            <span className="text-destructive font-medium text-xs">{meta["reason"] || meta["error"]}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
-            </>
-          )}
+
+                  {/* CHANGES (Before / After Comparison) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <Layers className="h-3.5 w-3.5 text-primary" />
+                      <span>Changes</span>
+                    </div>
+
+                    {diffs.length > 0 ? (
+                      <div className="divide-y divide-border rounded-lg border border-border bg-card overflow-hidden">
+                        {diffs.map((d) => (
+                          <div key={d.field} className="p-3">
+                            <div className="font-semibold text-foreground text-xs mb-2">
+                              {d.label}
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="rounded-md bg-muted/40 p-2.5 border border-border/50">
+                                <span className="text-[10px] uppercase font-semibold text-muted-foreground block mb-1">
+                                  Before
+                                </span>
+                                <span className="font-mono text-muted-foreground text-xs break-words">
+                                  {formatValue(d.field, d.before)}
+                                </span>
+                              </div>
+                              <div className="rounded-md bg-primary/5 p-2.5 border border-primary/20">
+                                <span className="text-[10px] uppercase font-semibold text-primary block mb-1">
+                                  After
+                                </span>
+                                <span className="font-mono text-foreground font-semibold text-xs break-words">
+                                  {formatValue(d.field, d.after)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-border bg-card p-3">
+                        <p className="text-xs text-muted-foreground">
+                          {inspectEvent.action.includes("create") || inspectEvent.action.includes("record")
+                            ? "Initial creation event — record initialized with default and provided values."
+                            : inspectEvent.action.includes("delete") || inspectEvent.action.includes("cancel")
+                            ? "Deletion or cancellation event — record transitioned to inactive/removed state."
+                            : "Operation executed successfully. No field-level diff was required."}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* CONTEXT (IP, Browser / Device) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <Globe className="h-3.5 w-3.5 text-primary" />
+                      <span>Context</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-border bg-card p-3">
+                      <div>
+                        <span className="text-[11px] text-muted-foreground block">IP Address</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="font-mono text-xs text-foreground">
+                            {inspectEvent.ip_address || "Localhost / Internal"}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-muted-foreground block">Device / Browser</span>
+                        <div
+                          className="flex items-center gap-1.5 mt-0.5 truncate"
+                          title={inspectEvent.user_agent || "Direct Server / API"}
+                        >
+                          <Monitor className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-xs text-foreground truncate">
+                            {inspectEvent.user_agent || "Direct Server / API"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* TECHNICAL DETAILS ▼ (Collapsible) */}
+                  <details className="group rounded-lg border border-border bg-muted/20 p-3">
+                    <summary className="flex cursor-pointer items-center justify-between text-xs font-medium text-muted-foreground hover:text-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <FileCode className="h-3.5 w-3.5 text-primary" />
+                        Technical Details & Raw Payload
+                      </span>
+                      <span className="text-[11px] group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <div className="mt-3 space-y-2 pt-2 border-t border-border/50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-muted-foreground">Sanitized JSON payload</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopyJson(meta)}
+                          className="h-6 text-[10px] gap-1 px-2"
+                        >
+                          {copiedJson ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
+                          {copiedJson ? "Copied" : "Copy JSON"}
+                        </Button>
+                      </div>
+                      <pre className="font-mono text-[11px] p-3 rounded-lg border border-border bg-card overflow-x-auto max-h-56 leading-relaxed text-foreground">
+                        {JSON.stringify(meta, null, 2)}
+                      </pre>
+                    </div>
+                  </details>
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

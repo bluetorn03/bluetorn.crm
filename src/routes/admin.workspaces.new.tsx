@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ImageUpload } from "@/components/common/ImageUpload";
 import { adminCreateWorkspace } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/admin/workspaces/new")({
@@ -50,6 +51,7 @@ function AdminWorkspaceNew() {
     contactEmail: "",
     contactPhone: "",
     seatLimit: 10,
+    logoUrl: "",
     ownerUserCode: "",
     ownerFullName: "",
     ownerEmail: "",
@@ -75,6 +77,7 @@ function AdminWorkspaceNew() {
           contactEmail: form.contactEmail,
           contactPhone: form.contactPhone,
           seatLimit: Number(form.seatLimit) || 10,
+          logoUrl: form.logoUrl.trim() || undefined,
           owner: {
             userCode: form.ownerUserCode,
             fullName: form.ownerFullName,
@@ -202,6 +205,15 @@ function AdminWorkspaceNew() {
                 onChange={(e) => set("contactPhone", e.target.value)}
               />
             </Field>
+            <div className="sm:col-span-2 pt-2">
+              <ImageUpload
+                value={form.logoUrl}
+                onChange={(url) => set("logoUrl", url)}
+                workspaceId="platform"
+                label="Company Logo"
+                hint="Upload company logo (JPG, PNG, WebP) or enter an image URL. Automatically loaded into workspace headers, invoice branding, and login lookups."
+              />
+            </div>
           </div>
         </SectionCard>
 
