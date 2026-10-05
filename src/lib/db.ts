@@ -34,6 +34,9 @@ async function getPool(): Promise<Pool> {
   };
 
   _pool = createPool(config);
+  _pool.on("connection", (conn: any) => {
+    conn.query("SET time_zone = '+00:00'");
+  });
   return _pool;
 }
 

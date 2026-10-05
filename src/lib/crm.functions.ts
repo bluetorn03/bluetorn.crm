@@ -4,6 +4,8 @@ import { query, queryOne, execute, transaction, uuid } from "./db.ts";
 import { getDefaultQuickAddDueDateTime } from "./date-utils.ts";
 import { calculateLeadScore } from "./lead-scoring.ts";
 import { type InvoiceLineInput, invoiceTotals, computeInvoiceTotals } from "./invoice-calculations.ts";
+import { recordAuditEvent } from "./audit-logger.ts";
+import { convertIstDateToUtcBounds } from "./format.ts";
 import type {
   Customer,
   Property,
@@ -106,8 +108,8 @@ async function createNotificationInternal(opts: {
   try {
     const id = uuid();
     await execute(
-      `INSERT INTO notifications (id, workspace_id, user_id, type, title, message, entity_type, entity_id, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO notifications (id, workspace_id, user_id, type, title, message, entity_type, entity_id, created_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
       [
         id,
         opts.workspaceId,
@@ -1067,23 +1069,38 @@ export async function updateLeadCore(
   }
 
   // Audit log
-  await execute(
-    `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata, status)
-     VALUES (?, ?, ?, ?, 'lead.updated', 'lead', ?, ?, 'success')`,
-    [
-      uuid(),
-      wsId,
-      context.userId,
-      context.role,
-      data.id,
-      JSON.stringify({
-        name: updatedLead.name,
-        changes: data.patch,
-        before: { status: existingLead.status, budget: existingLead.budget, assigned_to: existingLead.assigned_to },
-        after: { status: updatedLead.status, budget: updatedLead.budget, assigned_to: updatedLead.assigned_to },
-      }),
-    ],
-  );
+  let action = "lead.updated";
+  let summary = `Lead "${updatedLead.name}" updated`;
+  if (data.patch.next_follow_up !== undefined && data.patch.next_follow_up !== existingLead.next_follow_up) {
+    if (data.patch.next_follow_up) {
+      action = "lead.follow_up_scheduled";
+      summary = `Follow-up scheduled for lead "${updatedLead.name}" at ${data.patch.next_follow_up}`;
+    } else {
+      action = "lead.follow_up_cleared";
+      summary = `Scheduled follow-up cleared for lead "${updatedLead.name}"`;
+    }
+  } else if (data.patch.status && data.patch.status !== existingLead.status) {
+    summary = `Lead "${updatedLead.name}" status changed from "${existingLead.status}" to "${updatedLead.status}"`;
+  } else if (data.patch.assigned_to && data.patch.assigned_to !== existingLead.assigned_to) {
+    summary = `Lead "${updatedLead.name}" reassigned`;
+  }
+
+  await recordAuditEvent({
+    action,
+    status: "success",
+    workspaceId: wsId,
+    actorId: context.userId,
+    actorLabel: context.role,
+    entityType: "lead",
+    entityId: data.id,
+    summary,
+    before: existingLead,
+    after: updatedLead,
+    metadata: {
+      name: updatedLead.name,
+      changes: data.patch,
+    },
+  });
 
   return updatedLead;
 }
@@ -1701,6 +1718,26 @@ export const createTaskFn = createServerFn({ method: "POST" })
     );
     const newTask = (await queryOne<Task>("SELECT * FROM tasks WHERE id = ?", [id]))!;
 
+    // Audit log
+    await recordAuditEvent({
+      action: "task.created",
+      status: "success",
+      workspaceId: wsId,
+      actorId: context.userId,
+      actorLabel: context.role,
+      entityType: "task",
+      entityId: id,
+      summary: `Task "${newTask.title}" created (${newTask.priority} priority, status: ${newTask.status})`,
+      after: newTask,
+      metadata: {
+        title: newTask.title,
+        status: newTask.status,
+        priority: newTask.priority,
+        due_at: newTask.due_at,
+        assigned_to: newTask.assigned_to,
+      },
+    });
+
     // Notify assigned employee when a task is assigned to them
     if (assignedTo && assignedTo !== context.userId) {
       await createNotificationInternal({
@@ -1763,6 +1800,33 @@ export const updateTaskFn = createServerFn({ method: "POST" })
     }
     const updated = (await queryOne<Task>("SELECT * FROM tasks WHERE id = ?", [data.id]))!;
 
+    // Audit log
+    let action = "task.updated";
+    if (data.patch.status === "Completed" && existing.status !== "Completed") {
+      action = "task.completed";
+    } else if (existing.status === "Completed" && data.patch.status && data.patch.status !== "Completed") {
+      action = "task.reopened";
+    } else if (data.patch.assigned_to !== undefined && data.patch.assigned_to !== existing.assigned_to) {
+      action = "task.assigned";
+    }
+
+    await recordAuditEvent({
+      action,
+      status: "success",
+      workspaceId: wsId,
+      actorId: context.userId,
+      actorLabel: context.role,
+      entityType: "task",
+      entityId: data.id,
+      summary: `Task "${updated.title}" updated (${action.replace("task.", "")})`,
+      before: existing,
+      after: updated,
+      metadata: {
+        title: updated.title,
+        changes: data.patch,
+      },
+    });
+
     // Notify if assignment changed
     if (data.patch.assigned_to && data.patch.assigned_to !== existing.assigned_to) {
       if (data.patch.assigned_to !== context.userId) {
@@ -1788,11 +1852,29 @@ export const deleteTaskFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     checkDeleteRole(context);
     const wsId = getTargetWorkspaceId(undefined, context);
+    const existing = await queryOne<Task>("SELECT * FROM tasks WHERE id = ?", [data.id]);
+
     if (context.role !== "super_admin") {
       await execute("DELETE FROM tasks WHERE id = ? AND workspace_id = ?", [data.id, wsId]);
     } else {
       await execute("DELETE FROM tasks WHERE id = ?", [data.id]);
     }
+
+    if (existing) {
+      await recordAuditEvent({
+        action: "task.deleted",
+        status: "success",
+        workspaceId: existing.workspace_id ?? wsId,
+        actorId: context.userId,
+        actorLabel: context.role,
+        entityType: "task",
+        entityId: data.id,
+        summary: `Task "${existing.title}" deleted`,
+        before: existing,
+        metadata: { title: existing.title },
+      });
+    }
+
     return { ok: true };
   });
 
@@ -1821,7 +1903,7 @@ export const createEventFn = createServerFn({ method: "POST" })
       },
     ) => input,
   )
-  .handler(async ({ data }): Promise<CalendarEvent> => {
+  .handler(async ({ data, context }): Promise<CalendarEvent> => {
     const id = uuid();
     await execute(
       `INSERT INTO calendar_events (id, workspace_id, title, type, status, start_at, end_at, location, notes, lead_id, customer_id, property_id, assigned_to, created_by)
@@ -1843,13 +1925,37 @@ export const createEventFn = createServerFn({ method: "POST" })
         data.created_by ?? null,
       ],
     );
-    return (await queryOne<CalendarEvent>("SELECT * FROM calendar_events WHERE id = ?", [id]))!;
+    const newEvent = (await queryOne<CalendarEvent>("SELECT * FROM calendar_events WHERE id = ?", [id]))!;
+
+    // Audit log
+    await recordAuditEvent({
+      action: "calendar.event_created",
+      status: "success",
+      workspaceId: data.workspace_id,
+      actorId: context.userId,
+      actorLabel: context.role,
+      entityType: "calendar_event",
+      entityId: id,
+      summary: `Calendar event "${data.title}" scheduled (${data.type ?? "Meeting"} at ${data.start_at})`,
+      after: newEvent,
+      metadata: {
+        title: data.title,
+        type: data.type ?? "Meeting",
+        start_at: data.start_at,
+        end_at: data.end_at,
+        assigned_to: data.assigned_to,
+      },
+    });
+
+    return newEvent;
   });
 
 export const updateEventFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string; patch: Partial<CalendarEvent> }) => input)
-  .handler(async ({ data }): Promise<CalendarEvent> => {
+  .handler(async ({ data, context }): Promise<CalendarEvent> => {
+    const existing = await queryOne<CalendarEvent>("SELECT * FROM calendar_events WHERE id = ?", [data.id]);
+
     const sets: string[] = [];
     const vals: unknown[] = [];
     for (const [key, val] of Object.entries(data.patch)) {
@@ -1863,16 +1969,58 @@ export const updateEventFn = createServerFn({ method: "POST" })
       ]))!;
     vals.push(data.id);
     await execute(`UPDATE calendar_events SET ${sets.join(", ")} WHERE id = ?`, vals);
-    return (await queryOne<CalendarEvent>("SELECT * FROM calendar_events WHERE id = ?", [
+    const updated = (await queryOne<CalendarEvent>("SELECT * FROM calendar_events WHERE id = ?", [
       data.id,
     ]))!;
+
+    // Audit log
+    let action = "calendar.event_updated";
+    if (data.patch.start_at && existing && data.patch.start_at !== existing.start_at) {
+      action = "calendar.event_rescheduled";
+    }
+
+    await recordAuditEvent({
+      action,
+      status: "success",
+      workspaceId: existing?.workspace_id ?? context.workspaceId,
+      actorId: context.userId,
+      actorLabel: context.role,
+      entityType: "calendar_event",
+      entityId: data.id,
+      summary: `Calendar event "${updated.title}" updated (${action.replace("calendar.", "")})`,
+      before: existing,
+      after: updated,
+      metadata: {
+        title: updated.title,
+        changes: data.patch,
+      },
+    });
+
+    return updated;
   });
 
 export const deleteEventFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string }) => input)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const existing = await queryOne<CalendarEvent>("SELECT * FROM calendar_events WHERE id = ?", [data.id]);
     await execute("DELETE FROM calendar_events WHERE id = ?", [data.id]);
+
+    if (existing) {
+      await recordAuditEvent({
+        action: "calendar.event_deleted",
+        status: "success",
+        workspaceId: existing.workspace_id ?? context.workspaceId,
+        actorId: context.userId,
+        actorLabel: context.role,
+        entityType: "calendar_event",
+        entityId: data.id,
+        summary: `Calendar event "${existing.title}" deleted`,
+        before: existing,
+        metadata: { title: existing.title },
+      });
+    }
+
     return { ok: true };
   }); /* --------------------------------- finance -------------------------------- */
 
@@ -3169,12 +3317,22 @@ export const listWorkspaceAuditLogsFn = createServerFn({ method: "GET" })
     await assertPermission(context, "view_audit_logs");
     const wsId = getTargetWorkspaceId(undefined, context);
 
+    const isSuperAdminViewer = context.role === "super_admin" || context.realRole === "super_admin";
+
     const conditions: string[] = ["a.workspace_id = ?"];
     const vals: unknown[] = [wsId];
 
     if (data.actorId && data.actorId !== "all") {
-      conditions.push("a.actor_id = ?");
-      vals.push(data.actorId);
+      const isMember = await queryOne<{ id: string }>(
+        "SELECT id FROM profiles WHERE id = ? AND workspace_id = ? LIMIT 1",
+        [data.actorId, wsId],
+      );
+      if (isMember) {
+        conditions.push("a.actor_id = ?");
+        vals.push(data.actorId);
+      } else {
+        conditions.push("1 = 0");
+      }
     }
 
     if (data.module && data.module !== "all") {
@@ -3194,12 +3352,12 @@ export const listWorkspaceAuditLogsFn = createServerFn({ method: "GET" })
 
     if (data.startDate) {
       conditions.push("a.created_at >= ?");
-      vals.push(`${data.startDate} 00:00:00`);
+      vals.push(convertIstDateToUtcBounds(data.startDate, false));
     }
 
     if (data.endDate) {
       conditions.push("a.created_at <= ?");
-      vals.push(`${data.endDate} 23:59:59`);
+      vals.push(convertIstDateToUtcBounds(data.endDate, true));
     }
 
     if (data.search && data.search.trim()) {
@@ -3225,27 +3383,37 @@ export const listWorkspaceAuditLogsFn = createServerFn({ method: "GET" })
     const offset = (page - 1) * pageSize;
 
     const items = await query<AuditLogItem>(
-      `SELECT a.*, p.full_name as actor_name, p.email as actor_email
+      `SELECT a.*,
+              CASE
+                WHEN p.workspace_id = ? THEN p.full_name
+                WHEN ? = 1 THEN p.full_name
+                ELSE COALESCE(a.actor_label, 'System')
+              END as actor_name,
+              CASE
+                WHEN p.workspace_id = ? THEN p.email
+                WHEN ? = 1 THEN p.email
+                ELSE NULL
+              END as actor_email
        FROM audit_logs a
        LEFT JOIN profiles p ON a.actor_id = p.id
        ${where}
        ORDER BY a.created_at DESC
        LIMIT ? OFFSET ?`,
-      [...vals, pageSize, offset],
+      [wsId, isSuperAdminViewer ? 1 : 0, wsId, isSuperAdminViewer ? 1 : 0, ...vals, pageSize, offset],
     );
 
-    // Fetch distinct modules and actors for filters in this workspace
+    // Fetch distinct modules for filters in this workspace
     const rawModules = await query<{ entity_type: string }>(
       "SELECT DISTINCT entity_type FROM audit_logs WHERE workspace_id = ? AND entity_type IS NOT NULL AND entity_type != '' ORDER BY entity_type ASC",
       [wsId],
     );
     const modules = rawModules.map((m) => m.entity_type);
 
+    // Strictly fetch workspace members for actor dropdown — NEVER expose platform Super Admin or cross-workspace users
     const actors = await query<{ id: string; name: string; email: string | null }>(
-      `SELECT DISTINCT a.actor_id as id, COALESCE(p.full_name, a.actor_label, 'System') as name, p.email
-       FROM audit_logs a
-       LEFT JOIN profiles p ON a.actor_id = p.id
-       WHERE a.workspace_id = ? AND a.actor_id IS NOT NULL
+      `SELECT p.id, p.full_name as name, p.email
+       FROM profiles p
+       WHERE p.workspace_id = ?
        ORDER BY name ASC`,
       [wsId],
     );

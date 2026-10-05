@@ -85,8 +85,8 @@ const matrix: Record<Role, Permission[]> = {
     "view.allRecords",
     "manage.properties",
   ],
-  // Finance is disabled by default for Manager and Employee
-  Manager: ["view.reports", "manage.team", "view.allRecords", "manage.properties"],
+  // Finance, Workspace, and Team are disabled by default for Manager and Employee
+  Manager: ["view.reports", "view.allRecords", "manage.properties"],
   Employee: ["manage.properties"],
   "Super Admin": [
     "view_audit_logs",

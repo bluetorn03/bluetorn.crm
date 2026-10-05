@@ -384,4 +384,51 @@ export const exitViewAsEmployeeFn = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/**
+ * Core query for minimal public workspace branding lookup.
+ * Returns only safe, public identity fields (name, logoUrl).
+ * Never exposes private fields, IDs, emails, billing, or platform internals.
+ */
+export async function lookupPublicWorkspaceBrandingCore(
+  rawWorkspaceCode: string | undefined | null,
+): Promise<{ found: boolean; name?: string; logoUrl?: string | null }> {
+  const trimmed = (rawWorkspaceCode ?? "").trim();
+  if (!trimmed || trimmed.length < 2) {
+    return { found: false };
+  }
+  const code = canonicalWorkspaceCode(trimmed);
+  if (!code) {
+    return { found: false };
+  }
+  if (code === PLATFORM_WORKSPACE_CODE) {
+    return { found: true, name: "Bluetorn Platform", logoUrl: null };
+  }
+
+  const row = await queryOne<{ name: string; logo_url: string | null; status: string }>(
+    "SELECT name, logo_url, status FROM workspaces WHERE code = ? LIMIT 1",
+    [code],
+  );
+  if (!row || !["active", "trial"].includes(row.status)) {
+    return { found: false };
+  }
+
+  return {
+    found: true,
+    name: row.name,
+    logoUrl: row.logo_url || null,
+  };
+}
+
+/**
+ * Public minimal workspace branding lookup for the login page.
+ */
+export const lookupPublicWorkspaceBranding = createServerFn({ method: "GET" })
+  .validator((input: { workspaceCode: string } | undefined) => {
+    return { workspaceCode: (input?.workspaceCode ?? "").trim() };
+  })
+  .handler(async ({ data }): Promise<{ found: boolean; name?: string; logoUrl?: string | null }> => {
+    return lookupPublicWorkspaceBrandingCore(data.workspaceCode);
+  });
+
+
 

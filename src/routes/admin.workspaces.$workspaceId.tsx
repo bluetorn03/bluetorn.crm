@@ -29,8 +29,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { adminGetWorkspace } from "@/lib/admin-queries.functions";
-import { createWorkspaceUser, setUserActive, setUserPassword } from "@/lib/admin.functions";
+import {
+  createWorkspaceUser,
+  setUserActive,
+  setUserPassword,
+  adminUpdateSeatLimit,
+} from "@/lib/admin.functions";
 import { updateWorkspaceRetentionPolicyFn } from "@/lib/chat.functions";
 import { formatDate, relativeTime } from "@/lib/format";
 
@@ -64,10 +76,14 @@ function AdminWorkspaceDetail() {
   const toggleActive = useServerFn(setUserActive);
   const resetPassword = useServerFn(setUserPassword);
   const updateRetention = useServerFn(updateWorkspaceRetentionPolicyFn);
+  const updateSeatLimit = useServerFn(adminUpdateSeatLimit);
 
   const [selectedRetention, setSelectedRetention] = useState<number | null>(null);
   const [reductionWarningOpen, setReductionWarningOpen] = useState(false);
   const [pendingRetention, setPendingRetention] = useState<number | null>(null);
+
+  const [seatModalOpen, setSeatModalOpen] = useState(false);
+  const [newSeatLimit, setNewSeatLimit] = useState<number>(10);
 
   const { data, isPending, error } = useQuery({
     queryKey: ["admin", "workspace", workspaceId],
@@ -85,6 +101,16 @@ function AdminWorkspaceDetail() {
   });
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["admin"] });
+
+  const seatLimitMutation = useMutation({
+    mutationFn: (limit: number) => updateSeatLimit({ data: { workspaceId, seatLimit: limit } }),
+    onSuccess: async (r) => {
+      toast.success(`Seat limit updated to ${r.seatLimit}.`);
+      setSeatModalOpen(false);
+      await refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const retentionMutation = useMutation({
     mutationFn: (days: number) => updateRetention({ data: { workspaceId, retentionDays: days } }),
@@ -168,6 +194,7 @@ function AdminWorkspaceDetail() {
   }
 
   const { workspace, members, activity } = data;
+  const activeCount = members.filter((m) => m.isActive).length;
 
   return (
     <div className="space-y-5">
@@ -195,7 +222,23 @@ function AdminWorkspaceDetail() {
               <Row label="Legal name" value={workspace.legalName ?? "—"} />
               <Row label="Currency" value={workspace.currency} />
               <Row label="Timezone" value={workspace.timezone} />
-              <Row label="Seats" value={`${members.length} / ${workspace.seatLimit}`} />
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground text-xs">Seats</dt>
+                <dd className="flex items-center gap-2 text-sm font-medium">
+                  <span>{activeCount} active / {workspace.seatLimit} limit</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => {
+                      setNewSeatLimit(workspace.seatLimit);
+                      setSeatModalOpen(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                </dd>
+              </div>
               <Row label="Contact" value={workspace.contactEmail ?? workspace.contactPhone ?? "—"} />
               <Row label="Created" value={formatDate(workspace.createdAt)} />
             </dl>
@@ -443,6 +486,65 @@ function AdminWorkspaceDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Seat Limit Dialog */}
+      <Dialog open={seatModalOpen} onOpenChange={setSeatModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Seat Limit</DialogTitle>
+            <DialogDescription>
+              Configure the maximum active user seats for this workspace.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2 text-sm">
+            <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted/40 p-3">
+              <div>
+                <span className="text-xs text-muted-foreground block">Current Active Users</span>
+                <span className="text-base font-semibold text-foreground">{activeCount}</span>
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground block">Current Seat Limit</span>
+                <span className="text-base font-semibold text-foreground">{workspace.seatLimit}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new-seat-limit">New Seat Limit</Label>
+              <Input
+                id="new-seat-limit"
+                type="number"
+                min={activeCount}
+                value={newSeatLimit}
+                onChange={(e) => setNewSeatLimit(Math.max(1, Number(e.target.value)))}
+                className="h-10 text-sm"
+              />
+              {newSeatLimit < activeCount && (
+                <p className="text-destructive text-xs">
+                  New seat limit cannot be lower than current active users ({activeCount}).
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSeatModalOpen(false)}
+              disabled={seatLimitMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={newSeatLimit < activeCount || seatLimitMutation.isPending}
+              onClick={() => seatLimitMutation.mutate(newSeatLimit)}
+            >
+              {seatLimitMutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+              Save Limit
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -356,6 +356,8 @@ export const PERMISSION_ALIASES: Record<string, string[]> = {
   "finance.settings.edit": ["finance.settings.edit", "settings.edit"],
   "view_audit_logs": ["view_audit_logs", "view.audit_logs", "audit_logs.view", "manage.audit_logs"],
   "view.audit_logs": ["view_audit_logs", "view.audit_logs", "audit_logs.view", "manage.audit_logs"],
+  "manage.settings": ["manage.settings", "settings.workspace.manage", "settings.view", "settings.edit", "manage_settings"],
+  "manage.team": ["manage.team", "team.manage", "manage_team", "settings.team.manage"],
 };
 
 /**

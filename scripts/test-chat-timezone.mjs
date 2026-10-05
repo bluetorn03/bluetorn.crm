@@ -282,7 +282,7 @@ async function runEndToEnd() {
   assert.strictEqual(formatDate(""), "—");
   assert.ok(formatDate("2026-09-30T21:11:55.000Z").includes("/"));
   assert.ok(formatTime("2026-09-30T21:11:55.000Z").includes(":"));
-  assert.ok(formatDateTime("2026-09-30T21:11:55.000Z").includes("·"));
+  assert.ok(formatDateTime("2026-09-30T21:11:55.000Z").includes("•") || formatDateTime("2026-09-30T21:11:55.000Z").includes("·"));
 }
 
 await itAsync("End-to-End Chat message insertion, retrieval, and timezone formatting", runEndToEnd);

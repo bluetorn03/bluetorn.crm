@@ -100,12 +100,34 @@ export function computeFieldDiff(
   return Object.keys(diffs).length > 0 ? diffs : null;
 }
 
+async function getClientContext(): Promise<{ ip: string | null; userAgent: string | null }> {
+  try {
+    const server = await import("@tanstack/react-start/server");
+    const ip = server.getRequestIP?.() || server.getRequestHeader?.("x-forwarded-for") || null;
+    const userAgent = server.getRequestHeader?.("user-agent") || null;
+    return {
+      ip: typeof ip === "string" ? ip.split(",")[0]?.trim() || null : null,
+      userAgent: typeof userAgent === "string" ? userAgent : null,
+    };
+  } catch {
+    return { ip: null, userAgent: null };
+  }
+}
+
 /**
  * Records an immutable audit log entry in MySQL.
  */
 export async function recordAuditEvent(input: LogAuditEventInput): Promise<string> {
   const id = uuid();
   const status = input.status || "success";
+
+  let ip = input.ipAddress ?? null;
+  let userAgent = input.userAgent ?? null;
+  if (!ip || !userAgent) {
+    const reqCtx = await getClientContext();
+    if (!ip) ip = reqCtx.ip;
+    if (!userAgent) userAgent = reqCtx.userAgent;
+  }
 
   // Build metadata JSON payload safely
   const meta: Record<string, any> = {
@@ -132,8 +154,8 @@ export async function recordAuditEvent(input: LogAuditEventInput): Promise<strin
 
   try {
     await execute(
-      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, status, entity_type, entity_id, metadata, ip_address, user_agent)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, status, entity_type, entity_id, metadata, ip_address, user_agent, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
       [
         id,
         input.workspaceId ?? null,
@@ -144,8 +166,8 @@ export async function recordAuditEvent(input: LogAuditEventInput): Promise<strin
         input.entityType ?? null,
         input.entityId ?? null,
         metaJson,
-        input.ipAddress ?? null,
-        input.userAgent ?? null,
+        ip,
+        userAgent,
       ],
     );
   } catch (err: any) {

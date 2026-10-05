@@ -16,8 +16,10 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Shield,
   ShieldCheck,
   UserCheck,
+  Users,
   UserX,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -60,12 +62,14 @@ import {
   getWorkspaceSettingsFn,
   updateWorkspaceSettingsFn,
   getWorkspaceMembersFn,
+  getWorkspaceSeatSummaryFn,
   getUserPermissionsFn,
   setUserPermissionsFn,
   updateWorkspaceEmployeeFn,
   updateSelfProfileFn,
   changeSelfPasswordFn,
   type WorkspaceMemberItem,
+  type WorkspaceSeatSummary,
 } from "@/lib/settings.functions";
 import { startViewAsEmployeeFn } from "@/lib/auth.functions";
 import { useSession } from "@/hooks/use-session";
@@ -96,37 +100,48 @@ type MemberRow = WorkspaceMemberItem;
 function SettingsPage() {
   const { workspace, user, role, can, refresh, isViewingAs } = useSession();
   const isOwner = role === "Owner" || role === "Super Admin";
-  const canManageTeam = can("manage.team") && isOwner && !isViewingAs;
-  const canManageSettings = can("manage.settings") && !isViewingAs;
+  const canManageTeam = (isOwner || can("manage.team")) && !isViewingAs;
+  const canManageSettings = (isOwner || can("manage.settings")) && !isViewingAs;
+
+  const defaultTab = canManageSettings ? "workspace" : canManageTeam ? "team" : "account";
+  const hasMultipleTabs = canManageSettings || canManageTeam;
 
   return (
     <div className="space-y-5">
       <PageHeader title="Settings" description={`${workspace.name} · ${workspace.code}`} />
 
-      <Tabs defaultValue="workspace">
-        <TabsList>
-          <TabsTrigger value="workspace">Workspace</TabsTrigger>
-          <TabsTrigger value="team">Team</TabsTrigger>
-          <TabsTrigger value="account">My account</TabsTrigger>
-        </TabsList>
+      {hasMultipleTabs ? (
+        <Tabs defaultValue={defaultTab}>
+          <TabsList>
+            {canManageSettings && <TabsTrigger value="workspace">Workspace</TabsTrigger>}
+            {canManageTeam && <TabsTrigger value="team">Team</TabsTrigger>}
+            <TabsTrigger value="account">My account</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="workspace" className="mt-4">
-          <WorkspaceTab canEdit={canManageSettings} onSaved={refresh} />
-        </TabsContent>
+          {canManageSettings && (
+            <TabsContent value="workspace" className="mt-4">
+              <WorkspaceTab canEdit={canManageSettings} onSaved={refresh} />
+            </TabsContent>
+          )}
 
-        <TabsContent value="team" className="mt-4">
-          <TeamTab
-            canManage={canManageTeam}
-            workspaceId={workspace.id}
-            currentUserId={user.id}
-            role={role}
-          />
-        </TabsContent>
+          {canManageTeam && (
+            <TabsContent value="team" className="mt-4">
+              <TeamTab
+                canManage={canManageTeam}
+                workspaceId={workspace.id}
+                currentUserId={user.id}
+                role={role}
+              />
+            </TabsContent>
+          )}
 
-        <TabsContent value="account" className="mt-4">
-          <AccountTab onSaved={refresh} />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="account" className="mt-4">
+            <AccountTab onSaved={refresh} />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <AccountTab onSaved={refresh} />
+      )}
     </div>
   );
 }
@@ -581,6 +596,7 @@ function TeamTab({
   const navigate = useNavigate();
   const { refresh } = useSession();
   const getMembers = useServerFn(getWorkspaceMembersFn);
+  const getSeatSummary = useServerFn(getWorkspaceSeatSummaryFn);
   const addUser = useServerFn(createWorkspaceUser);
   const toggleActive = useServerFn(setUserActive);
   const resetPassword = useServerFn(setUserPassword);
@@ -611,8 +627,21 @@ function TeamTab({
     queryFn: () => getMembers({ data: { workspaceId } }),
   });
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["workspace-members", workspaceId] });
+  const seatSummaryQuery = useQuery({
+    queryKey: ["workspace-seat-summary", workspaceId],
+    enabled: Boolean(workspaceId),
+    queryFn: () => getSeatSummary({ data: { workspaceId } }),
+  });
+
+  const seatData = seatSummaryQuery.data;
+  const isSeatLimitReached = (seatData?.seatsAvailable ?? 1) <= 0;
+
+  const invalidate = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["workspace-members", workspaceId] }),
+      queryClient.invalidateQueries({ queryKey: ["workspace-seat-summary", workspaceId] }),
+    ]);
+  };
 
   const isAddUserCodeValid = /^[a-z0-9][a-z0-9._-]{1,30}$/.test(form.userCode);
   const isAddEmailValid = !form.email || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email.trim());
@@ -703,22 +732,93 @@ function TeamTab({
   const list = members.data ?? [];
 
   return (
-    <SectionCard
-      title="Team members"
-      description="Everyone with access to this workspace."
-      action={
-        canManage && (
-          <Dialog open={addOpen} onOpenChange={(open) => (open ? handleOpenAdd() : setAddOpen(false))}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="mr-1.5 h-4 w-4" /> Add user
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add team member</DialogTitle>
-                <DialogDescription>Create login credentials for a new teammate.</DialogDescription>
-              </DialogHeader>
+    <div className="space-y-4">
+      {/* Team Seat Summary */}
+      {seatData && (
+        <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Team Seats</span>
+              </div>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-2xl font-bold tracking-tight text-foreground">
+                  {seatData.seatsUsed} / {seatData.seatLimit}
+                </span>
+                <span className="text-xs text-muted-foreground font-medium">Used</span>
+                <span className="text-muted-foreground">·</span>
+                <span
+                  className={`text-xs font-medium ${
+                    seatData.seatsAvailable === 0 ? "text-destructive font-semibold" : "text-success"
+                  }`}
+                >
+                  {seatData.seatsAvailable === 0
+                    ? "0 Seats Available"
+                    : `${seatData.seatsAvailable} Seat${seatData.seatsAvailable === 1 ? "" : "s"} Available`}
+                </span>
+              </div>
+            </div>
+            {seatData.inactiveMembers > 0 && (
+              <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-1.5 border border-border/50 self-start sm:self-auto">
+                <span className="font-medium text-foreground">{seatData.inactiveMembers}</span> inactive account
+                {seatData.inactiveMembers === 1 ? "" : "s"} (do not count toward active seat limit)
+              </div>
+            )}
+          </div>
+
+          {/* Progress Bar */}
+          <div className="mt-3 space-y-1.5">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={`h-full transition-all duration-300 ${
+                  seatData.seatsAvailable === 0
+                    ? "bg-destructive"
+                    : seatData.seatsAvailable <= 2
+                    ? "bg-amber-500"
+                    : "bg-primary"
+                }`}
+                style={{
+                  width: `${Math.min(100, Math.round((seatData.seatsUsed / seatData.seatLimit) * 100))}%`,
+                }}
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {seatData.seatsAvailable === 0
+                ? "All workspace seats are in use. Contact your administrator to increase the seat limit."
+                : `${seatData.seatsAvailable} out of ${seatData.seatLimit} seats currently available for active team members.`}
+            </p>
+          </div>
+        </div>
+      )}
+
+      <SectionCard
+        title="Team members"
+        description="Everyone with access to this workspace."
+        action={
+          canManage && (
+            <Dialog open={addOpen} onOpenChange={(open) => (open ? handleOpenAdd() : setAddOpen(false))}>
+              <DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  disabled={isSeatLimitReached}
+                  title={isSeatLimitReached ? "Workspace seat limit reached" : undefined}
+                >
+                  <Plus className="mr-1.5 h-4 w-4" /> Add user
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add team member</DialogTitle>
+                  <DialogDescription>Create login credentials for a new teammate.</DialogDescription>
+                </DialogHeader>
+                {isSeatLimitReached && (
+                  <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-xs text-destructive">
+                    <strong>Seat Limit Reached:</strong> All {seatData?.seatLimit} workspace seats are currently
+                    occupied by active team members. Deactivate an unused member or contact Super Admin to increase
+                    your plan limit.
+                  </div>
+                )}
               <div className="grid gap-3 py-2">
                 <Field
                   label="Full name *"
@@ -808,7 +908,8 @@ function TeamTab({
                     !isAddUserCodeValid ||
                     !isAddEmailValid ||
                     form.password.length < 8 ||
-                    create.isPending
+                    create.isPending ||
+                    isSeatLimitReached
                   }
                   onClick={() => create.mutate()}
                 >
@@ -877,9 +978,11 @@ function TeamTab({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuItem onClick={() => setPermissionsFor(m)}>
-                        <ShieldCheck className="mr-2 h-4 w-4 text-primary" /> Permissions
-                      </DropdownMenuItem>
+                      {(role === "Owner" || role === "Super Admin") && (
+                        <DropdownMenuItem onClick={() => setPermissionsFor(m)}>
+                          <ShieldCheck className="mr-2 h-4 w-4 text-primary" /> Permissions
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
                         onClick={() => {
                           setResetFor(m);
@@ -983,7 +1086,8 @@ function TeamTab({
         />
       )}
     </SectionCard>
-  );
+  </div>
+);
 }
 
 function EditEmployeeDialog({
@@ -1109,6 +1213,24 @@ function EditEmployeeDialog({
   );
 }
 
+const SECURITY_PERMISSIONS: { id: string; label: string; description: string }[] = [
+  {
+    id: "view_audit_logs",
+    label: "View Audit Logs",
+    description: "Access and inspect workspace audit trail, security events, and system mutation records",
+  },
+  {
+    id: "manage.settings",
+    label: "Workspace Settings",
+    description: "View and manage workspace profile, company details, branding, invoice settings and retention policies",
+  },
+  {
+    id: "manage.team",
+    label: "Team Management",
+    description: "View team members, invite employees, manage employee profiles, and activate/deactivate accounts",
+  },
+];
+
 const FINANCE_PERMISSIONS: { id: string; label: string; description: string }[] = [
   {
     id: "finance.view",
@@ -1204,7 +1326,7 @@ function PermissionsDialog({
       });
     },
     onSuccess: () => {
-      toast.success(`Finance permissions updated for ${member.full_name}`);
+      toast.success(`User permissions updated for ${member.full_name}`);
       onClose();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1216,7 +1338,7 @@ function PermissionsDialog({
         return prev.filter((p) => p !== permId);
       } else {
         const next = [...prev, permId];
-        if (!next.includes("finance.view")) {
+        if (permId.startsWith("finance.") && !next.includes("finance.view")) {
           next.push("finance.view");
         }
         return next;
@@ -1224,13 +1346,21 @@ function PermissionsDialog({
     });
   };
 
-  const grantAll = () => {
-    setSelected(FINANCE_PERMISSIONS.map((p) => p.id));
+  const grantAllFinance = () => {
+    setSelected((prev) => {
+      const financeIds = FINANCE_PERMISSIONS.map((p) => p.id);
+      return Array.from(new Set([...prev, ...financeIds]));
+    });
   };
 
-  const revokeAll = () => {
-    setSelected([]);
+  const revokeAllFinance = () => {
+    setSelected((prev) => {
+      const financeIds = new Set(FINANCE_PERMISSIONS.map((p) => p.id));
+      return prev.filter((id) => !financeIds.has(id));
+    });
   };
+
+  const totalPossible = SECURITY_PERMISSIONS.length + FINANCE_PERMISSIONS.length;
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -1238,61 +1368,99 @@ function PermissionsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" />
-            Finance Permissions · {member.full_name}
+            User Permissions · {member.full_name}
           </DialogTitle>
           <DialogDescription>
-            Configure granular finance access for user{" "}
-            <code className="bg-muted px-1 rounded">{member.user_code}</code> ({member.role}). By
-            default, employees have Finance disabled. All permissions are enforced server-side.
+            Configure granular access permissions for user{" "}
+            <code className="bg-muted px-1 rounded">{member.user_code}</code> ({member.role}). All permissions
+            are enforced server-side.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex items-center justify-between py-2 border-b border-border">
           <div className="text-xs text-muted-foreground">
-            {selected.length} of {FINANCE_PERMISSIONS.length} permissions granted
+            {selected.length} of {totalPossible} permissions granted
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={grantAll}>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={grantAllFinance}>
               Grant All Finance
             </Button>
             <Button
               size="sm"
               variant="ghost"
               className="h-7 text-xs text-destructive hover:text-destructive"
-              onClick={revokeAll}
+              onClick={revokeAllFinance}
             >
-              Revoke All
+              Revoke Finance
             </Button>
           </div>
         </div>
 
-        <div className="overflow-y-auto space-y-3 py-3 pr-1 flex-1">
+        <div className="overflow-y-auto space-y-4 py-3 pr-1 flex-1">
           {!loaded ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            FINANCE_PERMISSIONS.map((p) => {
-              const isChecked = selected.includes(p.id);
-              return (
-                <label
-                  key={p.id}
-                  className={`flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
-                    isChecked ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/40"
-                  }`}
-                >
-                  <Checkbox
-                    checked={isChecked}
-                    onCheckedChange={() => toggle(p.id)}
-                    className="mt-0.5"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground">{p.label}</p>
-                    <p className="text-xs text-muted-foreground">{p.description}</p>
-                  </div>
-                </label>
-              );
-            })
+            <>
+              {/* Security & Audit Section */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <Shield className="h-3.5 w-3.5 text-primary" />
+                  <span>Administration & Compliance</span>
+                </div>
+                {SECURITY_PERMISSIONS.map((p) => {
+                  const isChecked = selected.includes(p.id);
+                  return (
+                    <label
+                      key={p.id}
+                      className={`flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
+                        isChecked ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/40"
+                      }`}
+                    >
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={() => toggle(p.id)}
+                        className="mt-0.5"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground">{p.label}</p>
+                        <p className="text-xs text-muted-foreground">{p.description}</p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {/* Finance Section */}
+              <div className="space-y-2 pt-2 border-t border-border">
+                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <Landmark className="h-3.5 w-3.5 text-primary" />
+                  <span>Finance & Invoicing</span>
+                </div>
+                {FINANCE_PERMISSIONS.map((p) => {
+                  const isChecked = selected.includes(p.id);
+                  return (
+                    <label
+                      key={p.id}
+                      className={`flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
+                        isChecked ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/40"
+                      }`}
+                    >
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={() => toggle(p.id)}
+                        className="mt-0.5"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground">{p.label}</p>
+                        <p className="text-xs text-muted-foreground">{p.description}</p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
 
