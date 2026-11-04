@@ -152,7 +152,7 @@ export function TeamChatPage() {
   // Add Member to existing group Form State
   const [selectedNewMemberIds, setSelectedNewMemberIds] = useState<string[]>([]);
 
-  // 1. Fetch conversations list
+  // 1. Fetch conversations list (10s active poll, paused when tab is hidden)
   const {
     data: conversations = [],
     isLoading: convsLoading,
@@ -160,10 +160,11 @@ export function TeamChatPage() {
   } = useQuery({
     queryKey: qk.chatConversations(),
     queryFn: () => listChatConversations(),
-    refetchInterval: 3000,
+    refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 10000),
+    refetchOnWindowFocus: true,
   });
 
-  // 2. Fetch active conversation messages
+  // 2. Fetch active conversation messages (5s active poll, paused when tab is hidden)
   const {
     data: activeChatData,
     isLoading: messagesLoading,
@@ -172,7 +173,8 @@ export function TeamChatPage() {
     queryKey: qk.chatMessages(activeConvId ?? ""),
     queryFn: () => getChatMessages(activeConvId!),
     enabled: Boolean(activeConvId),
-    refetchInterval: 3000,
+    refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 5000),
+    refetchOnWindowFocus: true,
   });
 
   // 3. Fetch available users for "New Chat" and "Add Member" modals

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { AlertTriangle, Loader2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/common/EmptyState";
+import { formatErrorMessage, isCdnSecurityChallenge } from "@/lib/error-formatter";
 
 export function LoadingState({ label = "Loading…" }: { label?: string }) {
   return (
@@ -12,19 +13,28 @@ export function LoadingState({ label = "Loading…" }: { label?: string }) {
 }
 
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
-  const message = error instanceof Error ? error.message : "Something went wrong.";
+  const message = formatErrorMessage(error, "Something went wrong.");
+  const isSecurityChallenge = isCdnSecurityChallenge(error);
+
   return (
     <div className="border-destructive/30 bg-destructive/5 flex flex-col items-center gap-3 rounded-xl border px-6 py-12 text-center">
       <AlertTriangle className="text-destructive h-6 w-6" />
       <div>
         <p className="text-sm font-semibold">We couldn’t load this</p>
-        <p className="text-muted-foreground mt-1 text-sm">{message}</p>
+        <p className="text-muted-foreground mt-1 text-sm max-w-md">{message}</p>
       </div>
-      {onRetry && (
-        <Button size="sm" variant="outline" onClick={onRetry}>
-          Try again
-        </Button>
-      )}
+      <div className="flex items-center gap-2">
+        {onRetry && (
+          <Button size="sm" variant="outline" onClick={onRetry}>
+            Try again
+          </Button>
+        )}
+        {isSecurityChallenge && (
+          <Button size="sm" onClick={() => window.location.reload()}>
+            Refresh page
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
