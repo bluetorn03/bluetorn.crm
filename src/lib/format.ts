@@ -96,7 +96,7 @@ export function normalizeTimeZone(tz?: string | null, fallback = "UTC"): string 
  * - ISO 8601 strings (with or without 'Z')
  * - Date instances
  * - Numeric millisecond timestamps
- * 
+ *
  * Guarantees zero browser-local timezone drift when reading UTC timestamps.
  */
 export function parseDbUtcTimestamp(input: string | Date | number | null | undefined): Date | null {
@@ -196,7 +196,7 @@ export function formatDateTime(iso: string | Date | number, timeZone?: string | 
  * - 1–59 minutes future: "in 2m"
  * - 1–23 hours future: "in 1h"
  * - 1+ days future: "in 1d"
- * 
+ *
  * Never hides parsing errors with "just now".
  * Never uses static strings.
  */
@@ -474,4 +474,3 @@ export function initials(name: string) {
     .map((n) => n[0]?.toUpperCase())
     .join("");
 }
-

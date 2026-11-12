@@ -122,12 +122,7 @@ export interface Property {
 
 /* -------------------------------- lead_options ----------------------------- */
 export type LeadOptionType =
-  | "source"
-  | "location"
-  | "purpose"
-  | "possession_timeline"
-  | "transaction_timeline"
-  | "phase";
+  "source" | "location" | "purpose" | "possession_timeline" | "transaction_timeline" | "phase";
 
 export interface LeadOption {
   id: string;
@@ -497,4 +492,3 @@ export interface ChatConversationSummary {
   unreadCount: number;
   updated_at: string;
 }
-

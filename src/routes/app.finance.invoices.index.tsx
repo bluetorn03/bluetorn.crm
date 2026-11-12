@@ -130,9 +130,7 @@ function InvoicesContent() {
                           <td className="px-4 py-3.5">
                             <span
                               className={
-                                isOverdue
-                                  ? "text-destructive font-medium"
-                                  : "text-muted-foreground"
+                                isOverdue ? "text-destructive font-medium" : "text-muted-foreground"
                               }
                             >
                               {inv.due_date ? formatDate(inv.due_date) : "—"}

@@ -125,14 +125,17 @@ function ensureChatCleanupJob(): void {
     }
   }, 15000);
 
-  setInterval(async () => {
-    try {
-      const { cleanupExpiredChatMessages } = await import("./lib/chat-cleanup");
-      await cleanupExpiredChatMessages();
-    } catch (err) {
-      console.error("[Server Chat Cleanup] Interval run error:", err);
-    }
-  }, 30 * 60 * 1000);
+  setInterval(
+    async () => {
+      try {
+        const { cleanupExpiredChatMessages } = await import("./lib/chat-cleanup");
+        await cleanupExpiredChatMessages();
+      } catch (err) {
+        console.error("[Server Chat Cleanup] Interval run error:", err);
+      }
+    },
+    30 * 60 * 1000,
+  );
 }
 
 // Start background interval on server load
@@ -197,4 +200,3 @@ export default {
     }
   },
 };
-

@@ -27,7 +27,10 @@ export function isCdnSecurityChallenge(error: unknown): boolean {
   );
 }
 
-export function formatErrorMessage(error: unknown, fallback = "An unexpected error occurred."): string {
+export function formatErrorMessage(
+  error: unknown,
+  fallback = "An unexpected error occurred.",
+): string {
   if (!error) return fallback;
 
   if (isCdnSecurityChallenge(error)) {
@@ -79,7 +82,7 @@ export function formatErrorMessage(error: unknown, fallback = "An unexpected err
 export function safeToastError(
   error: unknown,
   fallback = "An unexpected error occurred.",
-  options?: Parameters<typeof toast.error>[1]
+  options?: Parameters<typeof toast.error>[1],
 ) {
   const isChallenge = isCdnSecurityChallenge(error);
   const msg = formatErrorMessage(error, fallback);

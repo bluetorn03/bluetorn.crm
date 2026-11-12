@@ -66,7 +66,11 @@ export function validateDatabaseConfig(overrides = {}) {
   const database = (overrides.database ?? process.env.DB_NAME ?? "bluetorn_crm").trim();
   const user = (overrides.user ?? process.env.DB_USER ?? "root").trim();
   const password = overrides.password ?? process.env.DB_PASSWORD ?? "";
-  const allowProd = (overrides.allowProduction ?? process.env.ALLOW_PRODUCTION_MIGRATIONS ?? "").trim();
+  const allowProd = (
+    overrides.allowProduction ??
+    process.env.ALLOW_PRODUCTION_MIGRATIONS ??
+    ""
+  ).trim();
   const allowDestructiveProd = (
     overrides.allowDestructiveProduction ??
     process.env.ALLOW_DESTRUCTIVE_PRODUCTION_MIGRATIONS ??

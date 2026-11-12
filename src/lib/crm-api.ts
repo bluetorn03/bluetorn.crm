@@ -128,16 +128,9 @@ import {
   type AuditLogListResponse,
 } from "./crm.functions";
 
-import type {
-  CentralizedCleanupSummary,
-  WorkspaceStorageBreakdown,
-} from "./retention-cleanup";
+import type { CentralizedCleanupSummary, WorkspaceStorageBreakdown } from "./retention-cleanup";
 
-import {
-  invoiceTotals,
-  computeInvoiceTotals,
-  type InvoiceLineInput,
-} from "./invoice-calculations";
+import { invoiceTotals, computeInvoiceTotals, type InvoiceLineInput } from "./invoice-calculations";
 
 export type {
   Customer,
@@ -250,7 +243,8 @@ export const qk = {
   chatMessages: (conversationId: string) => ["chat", "messages", conversationId] as const,
   chatUnreadCount: () => ["chat", "unread-count"] as const,
   chatAvailableUsers: () => ["chat", "available-users"] as const,
-  chatRetentionPolicy: (workspaceId?: string) => ["chat", "retention-policy", workspaceId || ""] as const,
+  chatRetentionPolicy: (workspaceId?: string) =>
+    ["chat", "retention-policy", workspaceId || ""] as const,
   chatGroupMembers: (conversationId: string) => ["chat", "group-members", conversationId] as const,
   chatArchivedGroups: () => ["chat", "archived-groups"] as const,
 };
@@ -340,7 +334,11 @@ export async function listLeadOptions(
   type?: LeadOptionType,
   includeInactive?: boolean,
 ): Promise<LeadOption[]> {
-  const data: { workspaceId?: string | undefined; type?: LeadOptionType | undefined; includeInactive?: boolean | undefined } = {
+  const data: {
+    workspaceId?: string | undefined;
+    type?: LeadOptionType | undefined;
+    includeInactive?: boolean | undefined;
+  } = {
     workspaceId,
     type,
     includeInactive,
@@ -445,9 +443,12 @@ export async function listInvoices(workspaceId: string): Promise<Invoice[]> {
   return listInvoicesFn({ data: { workspaceId } });
 }
 
-export async function getInvoice(
-  id: string,
-): Promise<{ invoice: Invoice; items: InvoiceItem[]; payments: Payment[]; activities?: any[] } | null> {
+export async function getInvoice(id: string): Promise<{
+  invoice: Invoice;
+  items: InvoiceItem[];
+  payments: Payment[];
+  activities?: any[];
+} | null> {
   return getInvoiceFn({ data: { id } });
 }
 
@@ -787,5 +788,3 @@ export async function deleteChatGroup(conversationId: string): Promise<{ success
 export async function listArchivedChatGroups(): Promise<ChatConversationSummary[]> {
   return listArchivedChatGroupsFn();
 }
-
-

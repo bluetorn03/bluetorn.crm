@@ -116,7 +116,8 @@ function AdminWorkspaceDetail() {
     mutationFn: (days: number) => updateRetention({ data: { workspaceId, retentionDays: days } }),
     onSuccess: async (r) => {
       toast.success(`Retention policy updated to ${r.retentionDays} days.`, {
-        description: r.deletedExpired > 0 ? `Cleaned up ${r.deletedExpired} expired messages.` : undefined,
+        description:
+          r.deletedExpired > 0 ? `Cleaned up ${r.deletedExpired} expired messages.` : undefined,
       });
       setReductionWarningOpen(false);
       setPendingRetention(null);
@@ -225,7 +226,9 @@ function AdminWorkspaceDetail() {
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-muted-foreground text-xs">Seats</dt>
                 <dd className="flex items-center gap-2 text-sm font-medium">
-                  <span>{activeCount} active / {workspace.seatLimit} limit</span>
+                  <span>
+                    {activeCount} active / {workspace.seatLimit} limit
+                  </span>
                   <Button
                     variant="outline"
                     size="sm"
@@ -239,7 +242,10 @@ function AdminWorkspaceDetail() {
                   </Button>
                 </dd>
               </div>
-              <Row label="Contact" value={workspace.contactEmail ?? workspace.contactPhone ?? "—"} />
+              <Row
+                label="Contact"
+                value={workspace.contactEmail ?? workspace.contactPhone ?? "—"}
+              />
               <Row label="Created" value={formatDate(workspace.createdAt)} />
             </dl>
           </SectionCard>
@@ -460,7 +466,9 @@ function AdminWorkspaceDetail() {
                 Reducing retention may permanently delete older Team Chat messages.
               </span>
               <span className="block text-muted-foreground">
-                Changing retention from {workspace.chatRetentionDays ?? 15} days to {pendingRetention} days will immediately make all messages older than {pendingRetention} days eligible for permanent deletion from MySQL.
+                Changing retention from {workspace.chatRetentionDays ?? 15} days to{" "}
+                {pendingRetention} days will immediately make all messages older than{" "}
+                {pendingRetention} days eligible for permanent deletion from MySQL.
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -504,7 +512,9 @@ function AdminWorkspaceDetail() {
               </div>
               <div>
                 <span className="text-xs text-muted-foreground block">Current Seat Limit</span>
-                <span className="text-base font-semibold text-foreground">{workspace.seatLimit}</span>
+                <span className="text-base font-semibold text-foreground">
+                  {workspace.seatLimit}
+                </span>
               </div>
             </div>
 
@@ -539,7 +549,9 @@ function AdminWorkspaceDetail() {
               disabled={newSeatLimit < activeCount || seatLimitMutation.isPending}
               onClick={() => seatLimitMutation.mutate(newSeatLimit)}
             >
-              {seatLimitMutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+              {seatLimitMutation.isPending && (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              )}
               Save Limit
             </Button>
           </div>

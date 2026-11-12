@@ -52,9 +52,7 @@ import {
   detectDestructiveOperations,
   validateDestructiveSafety,
 } from "./migration-engine/destructive.mjs";
-import {
-  acquireAdvisoryLock,
-} from "./migration-engine/lock.mjs";
+import { acquireAdvisoryLock } from "./migration-engine/lock.mjs";
 import {
   METADATA_TABLE_NAME,
   bootstrapMetadataTable,
@@ -63,9 +61,7 @@ import {
   verifyAppliedMigrationRow,
   verifyBaselineSchema,
 } from "./migration-engine/metadata.mjs";
-import {
-  runMigrationEngine,
-} from "./migration-engine/runner.mjs";
+import { runMigrationEngine } from "./migration-engine/runner.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -179,10 +175,7 @@ async function main() {
         "001_first_duplicate.sql": "SELECT 2;",
       });
       try {
-        assert.throws(
-          () => discoverMigrationFiles(dir),
-          /Duplicate migration version detected/,
-        );
+        assert.throws(() => discoverMigrationFiles(dir), /Duplicate migration version detected/);
       } finally {
         cleanup();
       }
@@ -445,7 +438,8 @@ async function main() {
               },
             });
           },
-          (err) => err.stage === "BASELINE" && err.message.includes("does not match expected 001–004"),
+          (err) =>
+            err.stage === "BASELINE" && err.message.includes("does not match expected 001–004"),
         );
       } finally {
         await rootConn.query(`DROP DATABASE IF EXISTS \`bluetorn_empty_baseline_test\``);
@@ -574,12 +568,9 @@ async function main() {
         const lock1 = await acquireAdvisoryLock(conn1, TEST_DB_NAME, 5);
         try {
           // conn2 tries to acquire same lock with 1s timeout -> should fail
-          await assert.rejects(
-            async () => {
-              await acquireAdvisoryLock(conn2, TEST_DB_NAME, 1);
-            },
-            /Unable to acquire advisory lock/,
-          );
+          await assert.rejects(async () => {
+            await acquireAdvisoryLock(conn2, TEST_DB_NAME, 1);
+          }, /Unable to acquire advisory lock/);
         } finally {
           await lock1.release();
         }
@@ -845,7 +836,9 @@ async function main() {
   }
 
   console.log("--------------------------------------------------");
-  console.log(`TOTAL TESTS: ${testsPassed + testsFailed} | PASSED: ${testsPassed} | FAILED: ${testsFailed}`);
+  console.log(
+    `TOTAL TESTS: ${testsPassed + testsFailed} | PASSED: ${testsPassed} | FAILED: ${testsFailed}`,
+  );
   console.log("==================================================");
 
   if (testsFailed > 0) {

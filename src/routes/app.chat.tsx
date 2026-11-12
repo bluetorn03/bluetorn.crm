@@ -58,11 +58,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useSession } from "@/hooks/use-session";
 import {
   initials,
@@ -111,7 +107,10 @@ export const Route = createFileRoute("/app/chat")({
       { title: "Team Chat · BLUETORN CRM" },
       { name: "description", content: "Direct and Group messaging across your workspace team." },
       { property: "og:title", content: "Team Chat · BLUETORN CRM" },
-      { property: "og:description", content: "Direct and Group messaging across your workspace team." },
+      {
+        property: "og:description",
+        content: "Direct and Group messaging across your workspace team.",
+      },
     ],
   }),
   component: TeamChatPage,
@@ -271,8 +270,7 @@ export function TeamChatPage() {
 
   // Add members mutation
   const addMembersMutation = useMutation({
-    mutationFn: (userIds: string[]) =>
-      addGroupMembers({ conversationId: activeConvId!, userIds }),
+    mutationFn: (userIds: string[]) => addGroupMembers({ conversationId: activeConvId!, userIds }),
     onSuccess: (res) => {
       toast.success(`${res.addedCount} member(s) added successfully.`);
       setSelectedNewMemberIds([]);
@@ -621,7 +619,10 @@ export function TeamChatPage() {
                                   <span className="truncate text-sm font-semibold">{c.title}</span>
                                   {c.lastMessage && (
                                     <span className="shrink-0 text-[10px] text-muted-foreground">
-                                      {formatChatLastMessageTime(c.lastMessage.created_at, timezone)}
+                                      {formatChatLastMessageTime(
+                                        c.lastMessage.created_at,
+                                        timezone,
+                                      )}
                                     </span>
                                   )}
                                 </div>
@@ -717,7 +718,10 @@ export function TeamChatPage() {
                                   </span>
                                   {c.lastMessage && (
                                     <span className="shrink-0 text-[10px] text-muted-foreground">
-                                      {formatChatLastMessageTime(c.lastMessage.created_at, timezone)}
+                                      {formatChatLastMessageTime(
+                                        c.lastMessage.created_at,
+                                        timezone,
+                                      )}
                                     </span>
                                   )}
                                 </div>
@@ -874,7 +878,7 @@ export function TeamChatPage() {
                           }`
                         : !activeParticipant?.is_active
                           ? "Deactivated Account"
-                          : activeParticipant?.job_title ?? "Active team member"}
+                          : (activeParticipant?.job_title ?? "Active team member")}
                     </p>
                   </div>
                 </div>
@@ -975,7 +979,8 @@ export function TeamChatPage() {
                 <div className="border-b border-destructive/20 bg-destructive/10 px-4 py-2 text-xs text-destructive flex items-center gap-2">
                   <UserX className="h-4 w-4 shrink-0" />
                   <span>
-                    This employee account is deactivated. Existing message history is preserved until its retention expiry, but new messages cannot be sent.
+                    This employee account is deactivated. Existing message history is preserved
+                    until its retention expiry, but new messages cannot be sent.
                   </span>
                 </div>
               )}
@@ -985,7 +990,8 @@ export function TeamChatPage() {
                 <div className="border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-xs text-amber-800 dark:text-amber-200 flex items-center gap-2">
                   <Archive className="h-4 w-4 shrink-0 text-amber-600" />
                   <span>
-                    This group is archived. Historical messages are preserved until retention expiry, but new messages cannot be sent.
+                    This group is archived. Historical messages are preserved until retention
+                    expiry, but new messages cannot be sent.
                   </span>
                 </div>
               )}
@@ -995,7 +1001,8 @@ export function TeamChatPage() {
                 <div className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2">
                   <Shield className="h-4 w-4 shrink-0" />
                   <span>
-                    You are in employee preview mode. Sending chat messages is disabled in read-only mode.
+                    You are in employee preview mode. Sending chat messages is disabled in read-only
+                    mode.
                   </span>
                 </div>
               )}
@@ -1172,7 +1179,8 @@ export function TeamChatPage() {
               </div>
               <h2 className="text-base font-semibold text-foreground">Bluetorn Team Chat</h2>
               <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-                Select a conversation from the left to start chatting, or start a new direct or group conversation.
+                Select a conversation from the left to start chatting, or start a new direct or
+                group conversation.
               </p>
               <Button
                 size="sm"
@@ -1255,7 +1263,9 @@ export function TeamChatPage() {
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-foreground">{u.full_name}</p>
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {u.full_name}
+                          </p>
                           <p className="truncate text-xs text-muted-foreground">
                             {u.job_title ?? u.role ?? u.user_code}
                           </p>
@@ -1285,7 +1295,8 @@ export function TeamChatPage() {
 
                 <div>
                   <label className="text-xs font-semibold text-foreground">
-                    Description <span className="text-muted-foreground font-normal">(Optional)</span>
+                    Description{" "}
+                    <span className="text-muted-foreground font-normal">(Optional)</span>
                   </label>
                   <Textarea
                     placeholder="Purpose or topic of this group chat"
@@ -1321,7 +1332,9 @@ export function TeamChatPage() {
                       <Checkbox checked disabled className="opacity-70" />
                       <div className="flex-1 truncate">
                         <span className="font-semibold">{currentUser.name}</span>
-                        <span className="ml-1 text-[10px] text-primary font-medium">(Owner / You)</span>
+                        <span className="ml-1 text-[10px] text-primary font-medium">
+                          (Owner / You)
+                        </span>
                       </div>
                     </div>
 
@@ -1476,7 +1489,7 @@ export function TeamChatPage() {
                             {isDeactivated ? (
                               <span className="text-destructive font-semibold">Deactivated</span>
                             ) : (
-                              m.job_title ?? m.user_code
+                              (m.job_title ?? m.user_code)
                             )}
                           </p>
                         </div>
@@ -1553,15 +1566,11 @@ export function TeamChatPage() {
                     <Button
                       type="button"
                       size="sm"
-                      disabled={
-                        selectedNewMemberIds.length === 0 || addMembersMutation.isPending
-                      }
+                      disabled={selectedNewMemberIds.length === 0 || addMembersMutation.isPending}
                       onClick={() => addMembersMutation.mutate(selectedNewMemberIds)}
                       className="gap-1.5 text-xs"
                     >
-                      {addMembersMutation.isPending && (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      )}
+                      {addMembersMutation.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
                       <UserPlus className="h-3.5 w-3.5" />
                       <span>Add Selected ({selectedNewMemberIds.length})</span>
                     </Button>
@@ -1657,8 +1666,9 @@ export function TeamChatPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Archive #{activeConv?.title}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Archiving hides this group from active conversations and prevents new messages from being sent.
-              Existing messages remain preserved until their scheduled retention expiry. You can restore this group at any time.
+              Archiving hides this group from active conversations and prevents new messages from
+              being sent. Existing messages remain preserved until their scheduled retention expiry.
+              You can restore this group at any time.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1683,7 +1693,8 @@ export function TeamChatPage() {
               Permanently Delete #{activeConv?.title}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This action is permanent and cannot be undone. All messages, membership records, and thread history for this group will be deleted from MySQL immediately.
+              This action is permanent and cannot be undone. All messages, membership records, and
+              thread history for this group will be deleted from MySQL immediately.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

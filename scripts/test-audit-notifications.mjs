@@ -294,7 +294,6 @@ try {
       assert(parsed instanceof Date && !isNaN(parsed.getTime()), "Must parse to valid Date");
     }
   });
-
 } finally {
   await pool.end();
 }

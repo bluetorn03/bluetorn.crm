@@ -254,7 +254,9 @@ export const createWorkspaceUser = createServerFn({ method: "POST" })
     }
 
     // Workspace ID: ALWAYS take from authenticated session for workspace owners
-    const targetWorkspaceId = isAdmin ? (data.workspaceId || context.workspaceId) : context.workspaceId;
+    const targetWorkspaceId = isAdmin
+      ? data.workspaceId || context.workspaceId
+      : context.workspaceId;
     if (!targetWorkspaceId) throw new Error("Workspace is required.");
 
     const userCode = canonicalUserCode(data.userCode);
@@ -287,7 +289,8 @@ export const createWorkspaceUser = createServerFn({ method: "POST" })
         "SELECT id FROM profiles WHERE workspace_id = ? AND user_code = ? LIMIT 1",
         [ws.id, userCode],
       );
-      if (dupRows.length > 0) throw new Error(`User ID "${userCode}" already exists in this workspace.`);
+      if (dupRows.length > 0)
+        throw new Error(`User ID "${userCode}" already exists in this workspace.`);
 
       await conn.execute(
         `INSERT INTO profiles (id, workspace_id, user_code, full_name, email, phone, job_title, password_hash)
@@ -304,12 +307,10 @@ export const createWorkspaceUser = createServerFn({ method: "POST" })
         ],
       );
 
-      await conn.execute("INSERT INTO user_roles (id, user_id, workspace_id, role) VALUES (?, ?, ?, ?)", [
-        roleId,
-        userId,
-        ws.id,
-        data.role,
-      ]);
+      await conn.execute(
+        "INSERT INTO user_roles (id, user_id, workspace_id, role) VALUES (?, ?, ?, ?)",
+        [roleId, userId, ws.id, data.role],
+      );
 
       return {
         workspaceId: ws.id,

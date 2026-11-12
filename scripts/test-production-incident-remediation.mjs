@@ -25,7 +25,11 @@ import {
   resetSigningKeyCacheForTesting,
   SESSION_MAX_AGE,
 } from "../src/lib/auth-server.ts";
-import { formatErrorMessage, isCdnSecurityChallenge, safeToastError } from "../src/lib/error-formatter.ts";
+import {
+  formatErrorMessage,
+  isCdnSecurityChallenge,
+  safeToastError,
+} from "../src/lib/error-formatter.ts";
 import { toast } from "sonner";
 import { query, queryOne } from "../src/lib/db.ts";
 
@@ -78,16 +82,19 @@ try {
     assert.match(valMissing.error, /missing or shorter than 32 characters/i);
   });
 
-  await testAsync("Production throws fatal error on getSigningKey when secret is missing", async () => {
-    let threw = false;
-    try {
-      await getSigningKey();
-    } catch (err) {
-      threw = true;
-      assert.match(err.message, /\[FATAL\] SESSION_SECRET/);
-    }
-    assert.equal(threw, true, "Should have thrown fatal error");
-  });
+  await testAsync(
+    "Production throws fatal error on getSigningKey when secret is missing",
+    async () => {
+      let threw = false;
+      try {
+        await getSigningKey();
+      } catch (err) {
+        threw = true;
+        assert.match(err.message, /\[FATAL\] SESSION_SECRET/);
+      }
+      assert.equal(threw, true, "Should have thrown fatal error");
+    },
+  );
 
   // Scenario 1B: Production with short SESSION_SECRET (< 32 chars)
   process.env.NODE_ENV = "production";
@@ -100,16 +107,19 @@ try {
     assert.match(valShort.error, /shorter than 32 characters/i);
   });
 
-  await testAsync("Production throws fatal error on getSigningKey when secret is too short", async () => {
-    let threw = false;
-    try {
-      await getSigningKey();
-    } catch (err) {
-      threw = true;
-      assert.match(err.message, /\[FATAL\] SESSION_SECRET/);
-    }
-    assert.equal(threw, true, "Should have thrown fatal error");
-  });
+  await testAsync(
+    "Production throws fatal error on getSigningKey when secret is too short",
+    async () => {
+      let threw = false;
+      try {
+        await getSigningKey();
+      } catch (err) {
+        threw = true;
+        assert.match(err.message, /\[FATAL\] SESSION_SECRET/);
+      }
+      assert.equal(threw, true, "Should have thrown fatal error");
+    },
+  );
 
   // Scenario 1C: Production with valid strong SESSION_SECRET (>= 32 chars)
   process.env.NODE_ENV = "production";
@@ -180,7 +190,7 @@ test("Tokens remain VALID across server restarts when stable SESSION_SECRET is c
   assert.equal(
     verifiedAfterRestart,
     sampleUserId,
-    "Stable secret must allow persistent session verification across restarts"
+    "Stable secret must allow persistent session verification across restarts",
   );
 });
 
@@ -235,7 +245,11 @@ function toB64Url(buf) {
 const expiredPayload = `${sampleUserId}:${oldTimestamp}:${toB64Url(nonce)}`;
 const expiredPayloadB64 = toB64Url(new TextEncoder().encode(expiredPayload));
 const key = await getSigningKey();
-const expiredSigBuf = await globalThis.crypto.subtle.sign("HMAC", key, new TextEncoder().encode(expiredPayloadB64));
+const expiredSigBuf = await globalThis.crypto.subtle.sign(
+  "HMAC",
+  key,
+  new TextEncoder().encode(expiredPayloadB64),
+);
 const expiredToken = `${expiredPayloadB64}.${toB64Url(expiredSigBuf)}`;
 
 const parsedExpired = await parseSessionToken(expiredToken);
@@ -289,7 +303,9 @@ test("Sanitizes upstream Nginx 502 HTML into clean error message", () => {
   assert.match(sanitized502, /temporary server or network error/i);
 });
 
-const secretLeakingError = new Error("Database auth failed for user=root password=SuperSecretPassword123 with token=abcdef");
+const secretLeakingError = new Error(
+  "Database auth failed for user=root password=SuperSecretPassword123 with token=abcdef",
+);
 const sanitizedSecrets = formatErrorMessage(secretLeakingError);
 test("Redacts passwords and secrets from error strings", () => {
   assert.ok(!sanitizedSecrets.includes("SuperSecretPassword123"));
@@ -351,7 +367,9 @@ test("safeToastError preserves standard error message without Refresh action", (
 const safeWrappedToastError = (message, data) => {
   const isChallenge = isCdnSecurityChallenge(message);
   const safeMessage =
-    typeof message === "string" || message instanceof Error || (typeof message === "object" && message !== null && "message" in message)
+    typeof message === "string" ||
+    message instanceof Error ||
+    (typeof message === "object" && message !== null && "message" in message)
       ? formatErrorMessage(message)
       : message;
 
@@ -393,7 +411,11 @@ test("MutationCache avoids duplicate toasts when mutation defines onError", () =
   };
 
   handleMutationError(mockMutationWithOnError);
-  assert.equal(globalToastFired, false, "Must not fire global toast when mutation has local onError");
+  assert.equal(
+    globalToastFired,
+    false,
+    "Must not fire global toast when mutation has local onError",
+  );
 
   handleMutationError(mockMutationWithoutOnError);
   assert.equal(globalToastFired, true, "Must fire safe toast when mutation lacks local onError");
@@ -405,7 +427,9 @@ toast.error = origToastError;
 
 console.log("\n[SECTION 5] Database Workspace Boundaries & Financial Consistency");
 
-const jayshreeWorkspace = await queryOne("SELECT id, name, code FROM workspaces WHERE code = 'JAYSHREE'");
+const jayshreeWorkspace = await queryOne(
+  "SELECT id, name, code FROM workspaces WHERE code = 'JAYSHREE'",
+);
 test("Jayshree workspace exists in local database", () => {
   assert.ok(jayshreeWorkspace);
   assert.equal(jayshreeWorkspace.code, "JAYSHREE");
@@ -414,7 +438,7 @@ test("Jayshree workspace exists in local database", () => {
 if (jayshreeWorkspace) {
   const invoices = await query(
     "SELECT id, workspace_id, invoice_number, total, status FROM invoices WHERE workspace_id = ?",
-    [jayshreeWorkspace.id]
+    [jayshreeWorkspace.id],
   );
   test("Invoices strictly match workspace_id tenant boundary", () => {
     for (const inv of invoices) {
@@ -425,7 +449,7 @@ if (jayshreeWorkspace) {
 
   const payments = await query(
     "SELECT id, workspace_id, amount, status FROM payments WHERE workspace_id = ?",
-    [jayshreeWorkspace.id]
+    [jayshreeWorkspace.id],
   );
   test("Payments strictly match workspace_id tenant boundary", () => {
     for (const p of payments) {

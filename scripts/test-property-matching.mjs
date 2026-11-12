@@ -218,7 +218,10 @@ test("5. Budget + Possession Timeline: Immediate", () => {
   // Prop-1 has immediate possession. Prop-2 is under construction (fails immediate).
   const matchedIds = res.matches.map((m) => m.property.id);
   assert(matchedIds.includes("prop-1"));
-  assert(!matchedIds.includes("prop-2"), "Prop-2 is under construction and must NOT match immediate possession");
+  assert(
+    !matchedIds.includes("prop-2"),
+    "Prop-2 is under construction and must NOT match immediate possession",
+  );
 });
 
 // 6. Budget + Transaction Timeline
@@ -241,7 +244,10 @@ test("7. Budget + Phase: Ready to move in", () => {
   const res = matchProperties(lead, mockProperties);
   const matchedIds = res.matches.map((m) => m.property.id);
   assert(matchedIds.includes("prop-1"));
-  assert(!matchedIds.includes("prop-2"), "Prop-2 is under construction, should be disqualified for Ready phase");
+  assert(
+    !matchedIds.includes("prop-2"),
+    "Prop-2 is under construction, should be disqualified for Ready phase",
+  );
 });
 
 // 8. All fields together
@@ -357,7 +363,10 @@ test("15. Workspace isolation: Cross-workspace properties NEVER match", () => {
   });
   const res = matchProperties(lead, mockProperties);
   const matchedWsIds = res.matches.map((m) => m.property.workspace_id);
-  assert(!matchedWsIds.includes("ws-2"), "Cross-workspace property (ws-2) must never match ws-1 lead!");
+  assert(
+    !matchedWsIds.includes("ws-2"),
+    "Cross-workspace property (ws-2) must never match ws-1 lead!",
+  );
 });
 
 // 16. Sold / unavailable properties excluded

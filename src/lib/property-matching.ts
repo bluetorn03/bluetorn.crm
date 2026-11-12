@@ -70,27 +70,100 @@ const PROPERTY_TYPES = ["apartment", "villa", "plot", "commercial", "office", "w
 const BHK_REGEX = /(\d)\s*(?:bhk|bed(?:room)?s?)/i;
 
 const NON_LOCATION_WORDS = new Set([
-  "bhk", "bed", "beds", "bedroom", "bedrooms",
-  "apartment", "flat", "villa", "plot", "commercial", "office", "warehouse", "shop", "showroom",
-  "house", "home", "floor", "facing", "sea", "road", "near", "with", "and", "or", "in", "at", "around",
-  "for", "the", "looking", "want", "need", "require", "requirement", "requirements",
-  "budget", "price", "max", "minimum", "maximum", "sqft", "sq", "ft", "area", "size",
-  "carpet", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
-  "no", "specified", "not", "any", "ready", "move", "possession",
-  "luxury", "luxurious", "spacious", "space", "prime", "urgent", "good", "best", "affordable",
-  "investment", "invest", "self", "use", "under", "construction", "immediate",
+  "bhk",
+  "bed",
+  "beds",
+  "bedroom",
+  "bedrooms",
+  "apartment",
+  "flat",
+  "villa",
+  "plot",
+  "commercial",
+  "office",
+  "warehouse",
+  "shop",
+  "showroom",
+  "house",
+  "home",
+  "floor",
+  "facing",
+  "sea",
+  "road",
+  "near",
+  "with",
+  "and",
+  "or",
+  "in",
+  "at",
+  "around",
+  "for",
+  "the",
+  "looking",
+  "want",
+  "need",
+  "require",
+  "requirement",
+  "requirements",
+  "budget",
+  "price",
+  "max",
+  "minimum",
+  "maximum",
+  "sqft",
+  "sq",
+  "ft",
+  "area",
+  "size",
+  "carpet",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "0",
+  "no",
+  "specified",
+  "not",
+  "any",
+  "ready",
+  "move",
+  "possession",
+  "luxury",
+  "luxurious",
+  "spacious",
+  "space",
+  "prime",
+  "urgent",
+  "good",
+  "best",
+  "affordable",
+  "investment",
+  "invest",
+  "self",
+  "use",
+  "under",
+  "construction",
+  "immediate",
 ]);
 
 function extractLocationKeywords(text: string): string[] {
   if (!text) return [];
 
   // 1. Try matching location phrases explicitly preceded by prepositions: "in <loc>", "at <loc>", "near <loc>", "around <loc>"
-  const prepRegex = /\b(?:in|at|near|around|towards)\s+([a-zA-Z0-9\s-]+?)(?=[,.;·/|]|$|\b(?:with|for|budget|having|under|urgent|within)\b)/gi;
+  const prepRegex =
+    /\b(?:in|at|near|around|towards)\s+([a-zA-Z0-9\s-]+?)(?=[,.;·/|]|$|\b(?:with|for|budget|having|under|urgent|within)\b)/gi;
   const keywords: string[] = [];
   let m: RegExpExecArray | null;
   while ((m = prepRegex.exec(text)) !== null) {
     const raw = m[1]?.trim() ?? "";
-    const words = raw.split(/\s+/).filter((w) => w.length > 2 && !NON_LOCATION_WORDS.has(w.toLowerCase()));
+    const words = raw
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !NON_LOCATION_WORDS.has(w.toLowerCase()));
     if (words.length > 0) {
       keywords.push(words.join(" "));
     }
@@ -182,7 +255,9 @@ export const MATCHING_RULES: MatchingContractRule[] = [
     isMatchable: true,
     evaluate: (lead, property, context) => {
       const canonicalLoc = (lead.location_name ?? "").trim().toLowerCase();
-      const keywords = canonicalLoc ? [canonicalLoc] : context.extractedLocationKeywords.map((k) => k.toLowerCase());
+      const keywords = canonicalLoc
+        ? [canonicalLoc]
+        : context.extractedLocationKeywords.map((k) => k.toLowerCase());
 
       if (keywords.length === 0) {
         return { active: false, matched: false, disqualified: false, scoreContribution: 0 };
@@ -201,7 +276,8 @@ export const MATCHING_RULES: MatchingContractRule[] = [
         (kw) =>
           combinedPropText.includes(kw) ||
           kw.includes(propLocation.split(",")[0]?.trim() ?? "") ||
-          (propLocation && kw.split(/[-–\s]+/).some((sub) => sub.length > 2 && propLocation.includes(sub))),
+          (propLocation &&
+            kw.split(/[-–\s]+/).some((sub) => sub.length > 2 && propLocation.includes(sub))),
       );
 
       if (matches) {
@@ -310,7 +386,8 @@ export const MATCHING_RULES: MatchingContractRule[] = [
 
       if (purpose === "investment") {
         // Any property can be an investment (especially commercial, plots, and apartments)
-        const isCommercialOrPlot = propType === "commercial" || propType === "office" || propType === "plot";
+        const isCommercialOrPlot =
+          propType === "commercial" || propType === "office" || propType === "plot";
         return {
           active: true,
           matched: true,
@@ -350,7 +427,8 @@ export const MATCHING_RULES: MatchingContractRule[] = [
 
       const desc = `${property.description ?? ""} ${property.name ?? ""}`.toLowerCase();
       const isReadyDesc = desc.includes("ready") || desc.includes("immediate");
-      const isUnderConstructionDesc = desc.includes("under construction") || desc.includes("launch");
+      const isUnderConstructionDesc =
+        desc.includes("under construction") || desc.includes("launch");
 
       if (phase.includes("ready")) {
         if (isUnderConstructionDesc && !isReadyDesc) {

@@ -48,7 +48,7 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
   const isSecurityChallenge = isCdnSecurityChallenge(error);
   const displayMsg = formatErrorMessage(
     error,
-    "Something went wrong on our end. You can try refreshing or head back home."
+    "Something went wrong on our end. You can try refreshing or head back home.",
   );
 
   return (
@@ -57,9 +57,7 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
           {isSecurityChallenge ? "Security Verification Required" : "This page didn't load"}
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {displayMsg}
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{displayMsg}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {

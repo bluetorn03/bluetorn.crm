@@ -34,7 +34,9 @@ export function getLockIdentifier(database) {
 export async function acquireAdvisoryLock(conn, database, timeoutSeconds = 10) {
   const lockName = getLockIdentifier(database);
 
-  console.log(`🔒 Acquiring migration advisory lock '${lockName}' (timeout: ${timeoutSeconds}s)...`);
+  console.log(
+    `🔒 Acquiring migration advisory lock '${lockName}' (timeout: ${timeoutSeconds}s)...`,
+  );
 
   const [rows] = await conn.query("SELECT GET_LOCK(?, ?) AS lock_status", [
     lockName,

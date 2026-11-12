@@ -14,8 +14,10 @@ import { formatIndianNumber, parseIndianNumber } from "@/lib/format";
 import { AmountInWords } from "@/components/common/AmountInWords";
 import { cn } from "@/lib/utils";
 
-export interface MoneyInputProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> {
+export interface MoneyInputProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  "value" | "onChange"
+> {
   /** The numeric source-of-truth value */
   value?: number | string | null;
   /** Emits numeric value and formatted string */

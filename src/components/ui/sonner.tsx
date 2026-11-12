@@ -10,7 +10,9 @@ if (typeof window !== "undefined") {
   toast.error = ((message: any, data?: any) => {
     const isChallenge = isCdnSecurityChallenge(message);
     const safeMessage =
-      typeof message === "string" || message instanceof Error || (typeof message === "object" && message !== null && "message" in message)
+      typeof message === "string" ||
+      message instanceof Error ||
+      (typeof message === "object" && message !== null && "message" in message)
         ? formatErrorMessage(message)
         : message;
 

@@ -46,12 +46,14 @@ export function validateSessionSecretConfig(): { ok: boolean; error?: string } {
     if (isProduction) {
       return {
         ok: false,
-        error: "SESSION_SECRET environment variable is missing or shorter than 32 characters. A stable SESSION_SECRET (minimum 32 characters) must be configured in Hostinger environment variables.",
+        error:
+          "SESSION_SECRET environment variable is missing or shorter than 32 characters. A stable SESSION_SECRET (minimum 32 characters) must be configured in Hostinger environment variables.",
       };
     }
     return {
       ok: true,
-      error: "SESSION_SECRET is unset or shorter than 32 characters. Using a development-only ephemeral in-memory signing key.",
+      error:
+        "SESSION_SECRET is unset or shorter than 32 characters. Using a development-only ephemeral in-memory signing key.",
     };
   }
   return { ok: true };
@@ -91,7 +93,7 @@ export async function getSigningKey(): Promise<CryptoKey> {
   // Production MUST NEVER silently fall back to an ephemeral random key
   if (isProduction) {
     throw new Error(
-      "[FATAL] SESSION_SECRET environment variable is missing or shorter than 32 characters in production. Configure a stable secret (min 32 chars) in Hostinger environment variables."
+      "[FATAL] SESSION_SECRET environment variable is missing or shorter than 32 characters in production. Configure a stable secret (min 32 chars) in Hostinger environment variables.",
     );
   }
 
@@ -100,7 +102,7 @@ export async function getSigningKey(): Promise<CryptoKey> {
     if (!_devWarnedOnce) {
       _devWarnedOnce = true;
       console.warn(
-        "[DEV ONLY] SESSION_SECRET env var is unset or shorter than 32 characters. Using ephemeral dev key. Sessions will invalidate on server restart."
+        "[DEV ONLY] SESSION_SECRET env var is unset or shorter than 32 characters. Using ephemeral dev key. Sessions will invalidate on server restart.",
       );
     }
     const randBytes = new Uint8Array(32);
@@ -149,7 +151,11 @@ export async function createSessionToken(userId: string): Promise<string> {
   globalThis.crypto.getRandomValues(nonce);
   const payload = `${userId}:${Date.now()}:${toBase64url(nonce)}`;
   const payloadB64 = toBase64url(new TextEncoder().encode(payload));
-  const sigBuf = await globalThis.crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payloadB64));
+  const sigBuf = await globalThis.crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(payloadB64),
+  );
   const sig = toBase64url(sigBuf);
   return `${payloadB64}.${sig}`;
 }
@@ -203,7 +209,11 @@ export async function createViewAsToken(
   const expiresAt = issuedAt + VIEW_AS_MAX_AGE * 1000;
   const payload = `${ownerUserId}:${employeeId}:${workspaceId}:${issuedAt}:${expiresAt}:${toBase64url(nonce)}`;
   const payloadB64 = toBase64url(new TextEncoder().encode(payload));
-  const sigBuf = await globalThis.crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payloadB64));
+  const sigBuf = await globalThis.crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(payloadB64),
+  );
   const sig = toBase64url(sigBuf);
   return `${payloadB64}.${sig}`;
 }
@@ -332,10 +342,9 @@ export const requireMySqlAuth = createMiddleware().server(async ({ next }) => {
     throw new Error("Unauthorized: Account is inactive or does not exist.");
   }
 
-  const role = await queryOne<UserRole>(
-    "SELECT role FROM user_roles WHERE user_id = ? LIMIT 1",
-    [userId],
-  );
+  const role = await queryOne<UserRole>("SELECT role FROM user_roles WHERE user_id = ? LIMIT 1", [
+    userId,
+  ]);
 
   const realRole = role?.role ?? "employee";
 
@@ -396,23 +405,56 @@ export const requireMySqlAuth = createMiddleware().server(async ({ next }) => {
 
 export const PERMISSION_ALIASES: Record<string, string[]> = {
   "finance.view": ["finance.view", "view.finance", "manage.finance"],
-  "finance.invoices.view": ["finance.invoices.view", "finance.view", "view.finance", "manage.finance"],
+  "finance.invoices.view": [
+    "finance.invoices.view",
+    "finance.view",
+    "view.finance",
+    "manage.finance",
+  ],
   "finance.invoices.create": ["finance.invoices.create", "create.invoice"],
   "finance.invoices.edit": ["finance.invoices.edit", "edit.invoice"],
   "finance.invoices.issue": ["finance.invoices.issue", "issue.invoice"],
   "finance.invoices.cancel": ["finance.invoices.cancel", "cancel.invoice"],
-  "finance.invoices.delete": ["finance.invoices.delete", "finance.invoices.cancel", "cancel.invoice"],
-  "finance.payments.view": ["finance.payments.view", "finance.view", "view.finance", "manage.finance"],
-  "finance.payments.record": ["finance.payments.record", "finance.payments.create", "record.payment"],
-  "finance.payments.create": ["finance.payments.create", "finance.payments.record", "record.payment"],
+  "finance.invoices.delete": [
+    "finance.invoices.delete",
+    "finance.invoices.cancel",
+    "cancel.invoice",
+  ],
+  "finance.payments.view": [
+    "finance.payments.view",
+    "finance.view",
+    "view.finance",
+    "manage.finance",
+  ],
+  "finance.payments.record": [
+    "finance.payments.record",
+    "finance.payments.create",
+    "record.payment",
+  ],
+  "finance.payments.create": [
+    "finance.payments.create",
+    "finance.payments.record",
+    "record.payment",
+  ],
   "finance.payments.edit": ["finance.payments.edit", "edit.payment"],
   "finance.payments.reverse": ["finance.payments.reverse", "reverse.payment"],
-  "finance.reports.view": ["finance.reports.view", "view.finance_reports", "view.reports", "manage.finance"],
+  "finance.reports.view": [
+    "finance.reports.view",
+    "view.finance_reports",
+    "view.reports",
+    "manage.finance",
+  ],
   "finance.settings.view": ["finance.settings.view", "settings.view"],
   "finance.settings.edit": ["finance.settings.edit", "settings.edit"],
-  "view_audit_logs": ["view_audit_logs", "view.audit_logs", "audit_logs.view", "manage.audit_logs"],
+  view_audit_logs: ["view_audit_logs", "view.audit_logs", "audit_logs.view", "manage.audit_logs"],
   "view.audit_logs": ["view_audit_logs", "view.audit_logs", "audit_logs.view", "manage.audit_logs"],
-  "manage.settings": ["manage.settings", "settings.workspace.manage", "settings.view", "settings.edit", "manage_settings"],
+  "manage.settings": [
+    "manage.settings",
+    "settings.workspace.manage",
+    "settings.view",
+    "settings.edit",
+    "manage_settings",
+  ],
   "manage.team": ["manage.team", "team.manage", "manage_team", "settings.team.manage"],
 };
 

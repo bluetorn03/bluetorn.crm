@@ -212,7 +212,9 @@ export function Shell({
                   <Eye className="h-3.5 w-3.5" />
                 </span>
                 <span className="truncate">
-                  Viewing as: <strong className="font-semibold text-foreground">{session.user.name}</strong> — Owner Preview
+                  Viewing as:{" "}
+                  <strong className="font-semibold text-foreground">{session.user.name}</strong> —
+                  Owner Preview
                 </span>
                 <span className="hidden sm:inline-flex items-center rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
                   Read-Only
@@ -299,9 +301,7 @@ function SidebarNavItem({
   const showOpen = isHoverOpen || isRouteOpen;
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isCurrent = item.to
-    ? isActive(item) || childActive(item)
-    : childActive(item);
+  const isCurrent = item.to ? isActive(item) || childActive(item) : childActive(item);
 
   const rowClass = cn(
     "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors",
@@ -358,11 +358,7 @@ function SidebarNavItem({
           : "text-sidebar-foreground/50 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
       );
       return (
-        <li
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-          className="relative"
-        >
+        <li onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className="relative">
           <div className="flex items-center">
             <Link to={item.to} className={linkClass}>
               <item.icon className="h-4 w-4 shrink-0" />
@@ -422,11 +418,7 @@ function SidebarNavItem({
     // ── CASE B: dropdown-only (no own page, e.g. Finance)
     // The entire row is a toggle button; clicking anywhere opens/closes the submenu.
     return (
-      <li
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        className="relative"
-      >
+      <li onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className="relative">
         <button
           type="button"
           onClick={(e) => {
@@ -578,9 +570,12 @@ function ProfileMenu({
               {role}
             </span>
           </div>
-          <p className="text-muted-foreground text-xs truncate mt-0.5">{user.email || user.userCode}</p>
+          <p className="text-muted-foreground text-xs truncate mt-0.5">
+            {user.email || user.userCode}
+          </p>
           <p className="text-primary font-medium mt-1 text-[11px] truncate">
-            {workspace.name}{workspace.code !== "—" ? ` (${workspace.code})` : ""}
+            {workspace.name}
+            {workspace.code !== "—" ? ` (${workspace.code})` : ""}
           </p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

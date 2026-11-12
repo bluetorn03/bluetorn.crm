@@ -86,9 +86,7 @@ async function run() {
     }
 
     // 2. Audit Logs: Purge per workspace retention policy (default 180 days)
-    const [workspaces] = await conn.query(
-      "SELECT id, audit_retention_days FROM workspaces",
-    );
+    const [workspaces] = await conn.query("SELECT id, audit_retention_days FROM workspaces");
 
     for (const ws of workspaces) {
       const days = Number(ws.audit_retention_days) || 180;

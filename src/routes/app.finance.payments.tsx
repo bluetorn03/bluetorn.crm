@@ -55,9 +55,15 @@ export const Route = createFileRoute("/app/finance/payments")({
   head: () => ({
     meta: [
       { title: "Payments · BLUETORN CRM" },
-      { name: "description", content: "Record, track and reconcile incoming payments against invoices." },
+      {
+        name: "description",
+        content: "Record, track and reconcile incoming payments against invoices.",
+      },
       { property: "og:title", content: "Payments · BLUETORN CRM" },
-      { property: "og:description", content: "Record, track and reconcile incoming payments against invoices." },
+      {
+        property: "og:description",
+        content: "Record, track and reconcile incoming payments against invoices.",
+      },
     ],
   }),
   component: PaymentsPage,
@@ -188,7 +194,9 @@ function PaymentsContent() {
               <DialogTitle className="flex items-center gap-2">
                 <DollarSign className="h-5 w-5 text-emerald-600" /> Record Client Payment
               </DialogTitle>
-              <DialogDescription>Record a payment and automatically reconcile against an invoice.</DialogDescription>
+              <DialogDescription>
+                Record a payment and automatically reconcile against an invoice.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-3">
               <div className="space-y-1.5">
@@ -214,7 +222,8 @@ function PaymentsContent() {
                           .filter((i) => i.status !== "Cancelled" && i.status !== "Paid")
                           .map((i) => (
                             <SelectItem key={i.id} value={i.id}>
-                              {i.invoice_number} · {i.customer_name || "Customer"} — {formatMoney(i.total, currency)}
+                              {i.invoice_number} · {i.customer_name || "Customer"} —{" "}
+                              {formatMoney(i.total, currency)}
                             </SelectItem>
                           ))}
                       </SelectContent>
@@ -312,7 +321,10 @@ function PaymentsContent() {
 
       {/* Payment Details Drawer/Modal */}
       {selectedPayment && (
-        <Dialog open={Boolean(selectedPayment)} onOpenChange={(o) => !o && setSelectedPayment(null)}>
+        <Dialog
+          open={Boolean(selectedPayment)}
+          onOpenChange={(o) => !o && setSelectedPayment(null)}
+        >
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle className="flex items-center justify-between">
@@ -323,7 +335,10 @@ function PaymentsContent() {
                 />
               </DialogTitle>
               <DialogDescription>
-                Transaction reference: <code className="bg-muted px-1 rounded font-mono">{selectedPayment.reference || "None"}</code>
+                Transaction reference:{" "}
+                <code className="bg-muted px-1 rounded font-mono">
+                  {selectedPayment.reference || "None"}
+                </code>
               </DialogDescription>
             </DialogHeader>
 
@@ -340,7 +355,9 @@ function PaymentsContent() {
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="p-2.5 rounded bg-muted/40 border border-border">
                   <p className="text-muted-foreground">Payment Date</p>
-                  <p className="font-semibold text-foreground mt-0.5">{formatDate(selectedPayment.paid_at)}</p>
+                  <p className="font-semibold text-foreground mt-0.5">
+                    {formatDate(selectedPayment.paid_at)}
+                  </p>
                 </div>
                 <div className="p-2.5 rounded bg-muted/40 border border-border">
                   <p className="text-muted-foreground">Payment Method</p>
@@ -348,7 +365,9 @@ function PaymentsContent() {
                 </div>
                 <div className="p-2.5 rounded bg-muted/40 border border-border">
                   <p className="text-muted-foreground">Customer</p>
-                  <p className="font-semibold text-foreground mt-0.5">{selectedPayment.customer_name || "—"}</p>
+                  <p className="font-semibold text-foreground mt-0.5">
+                    {selectedPayment.customer_name || "—"}
+                  </p>
                 </div>
                 <div className="p-2.5 rounded bg-muted/40 border border-border">
                   <p className="text-muted-foreground">Linked Invoice</p>
@@ -368,13 +387,17 @@ function PaymentsContent() {
 
               <div className="p-3 rounded-lg bg-muted/20 border border-border text-xs space-y-1 text-muted-foreground">
                 <p>
-                  <span className="font-medium text-foreground">Recorded By:</span> {selectedPayment.creator_name || "System"}
+                  <span className="font-medium text-foreground">Recorded By:</span>{" "}
+                  {selectedPayment.creator_name || "System"}
                 </p>
                 <p>
-                  <span className="font-medium text-foreground">Assigned To:</span> {selectedPayment.assignee_name || "—"}
+                  <span className="font-medium text-foreground">Assigned To:</span>{" "}
+                  {selectedPayment.assignee_name || "—"}
                 </p>
                 <p>
-                  <span className="font-medium text-foreground">Recorded At:</span> {formatDate(selectedPayment.created_at)} ({relativeTime(selectedPayment.created_at)})
+                  <span className="font-medium text-foreground">Recorded At:</span>{" "}
+                  {formatDate(selectedPayment.created_at)} (
+                  {relativeTime(selectedPayment.created_at)})
                 </p>
                 {selectedPayment.notes && (
                   <p className="pt-1 text-foreground">
@@ -390,7 +413,9 @@ function PaymentsContent() {
                     <XCircle className="h-4 w-4" /> This payment has been reversed
                   </p>
                   <p>Reason: {selectedPayment.reversal_reason || "Not specified"}</p>
-                  {selectedPayment.reversed_at && <p>Date: {formatDate(selectedPayment.reversed_at)}</p>}
+                  {selectedPayment.reversed_at && (
+                    <p>Date: {formatDate(selectedPayment.reversed_at)}</p>
+                  )}
                 </div>
               )}
             </div>

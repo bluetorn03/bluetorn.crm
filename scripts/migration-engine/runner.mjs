@@ -18,16 +18,9 @@ import {
   printSafeTargetSummary,
   rootDir,
 } from "./config.mjs";
-import {
-  discoverMigrationFiles,
-} from "./integrity.mjs";
-import {
-  detectDestructiveOperations,
-  validateDestructiveSafety,
-} from "./destructive.mjs";
-import {
-  acquireAdvisoryLock,
-} from "./lock.mjs";
+import { discoverMigrationFiles } from "./integrity.mjs";
+import { detectDestructiveOperations, validateDestructiveSafety } from "./destructive.mjs";
+import { acquireAdvisoryLock } from "./lock.mjs";
 import {
   METADATA_TABLE_NAME,
   bootstrapMetadataTable,
@@ -88,7 +81,9 @@ export async function runMigrationEngine(options = {}) {
     // ----------------------------------------------------
     currentStage = FAILURE_STAGES.DISCOVERY;
     const diskMigrations = discoverMigrationFiles(migrationsDir);
-    console.log(`📁 Discovered ${diskMigrations.length} migration file(s) in '${path.basename(migrationsDir)}':`);
+    console.log(
+      `📁 Discovered ${diskMigrations.length} migration file(s) in '${path.basename(migrationsDir)}':`,
+    );
     for (const m of diskMigrations) {
       console.log(`   - ${m.version}_${m.name}.sql [SHA-256: ${m.checksum.slice(0, 16)}...]`);
     }
@@ -107,7 +102,9 @@ export async function runMigrationEngine(options = {}) {
     // STAGE 3: Database Connection
     // ----------------------------------------------------
     currentStage = FAILURE_STAGES.DB_CONNECTION;
-    console.log(`Connecting to database '${dbConfig.database}' on ${dbConfig.host}:${dbConfig.port}...`);
+    console.log(
+      `Connecting to database '${dbConfig.database}' on ${dbConfig.host}:${dbConfig.port}...`,
+    );
     activeConnection = await mysql.createConnection({
       host: dbConfig.host,
       port: dbConfig.port,
@@ -156,7 +153,9 @@ export async function runMigrationEngine(options = {}) {
       console.log("\n--------------------------------------------------");
       console.log("📊 MIGRATION STATUS SUMMARY (--check)");
       console.log("--------------------------------------------------");
-      console.log(`Metadata table (${METADATA_TABLE_NAME}): ${hasMeta ? "Present" : "Not yet bootstrapped"}`);
+      console.log(
+        `Metadata table (${METADATA_TABLE_NAME}): ${hasMeta ? "Present" : "Not yet bootstrapped"}`,
+      );
       console.log(`Total migrations on disk:  ${diskMigrations.length}`);
       console.log(`Total migrations applied:  ${appliedMigrations.length}`);
       console.log(`Total migrations pending:  ${pending.length}`);
@@ -237,7 +236,9 @@ export async function runMigrationEngine(options = {}) {
       if (pending.length === 0) {
         console.log("No pending migrations to execute. Database is up to date.");
       } else {
-        console.log(`The following ${pending.length} migration(s) would be executed in sequential order:`);
+        console.log(
+          `The following ${pending.length} migration(s) would be executed in sequential order:`,
+        );
         for (let i = 0; i < pending.length; i++) {
           const m = pending[i];
           const destructive = detectDestructiveOperations(m.content);
@@ -245,7 +246,9 @@ export async function runMigrationEngine(options = {}) {
           console.log(`    File:        ${m.filePath}`);
           console.log(`    SHA-256:     ${m.checksum}`);
           console.log(`    Size:        ${m.content.length} bytes`);
-          console.log(`    Destructive: ${destructive.length > 0 ? `⚠️ YES (${destructive.length} detected)` : "None"}`);
+          console.log(
+            `    Destructive: ${destructive.length > 0 ? `⚠️ YES (${destructive.length} detected)` : "None"}`,
+          );
           if (destructive.length > 0) {
             for (const d of destructive) {
               console.log(`      - [${d.type}] ${d.description}`);
@@ -272,9 +275,7 @@ export async function runMigrationEngine(options = {}) {
 
       // Step 1: Verify historical files 001–004 exist in diskMigrations
       const historicalVersions = ["001", "002", "003", "004"];
-      const historicalFiles = diskMigrations.filter((m) =>
-        historicalVersions.includes(m.version),
-      );
+      const historicalFiles = diskMigrations.filter((m) => historicalVersions.includes(m.version));
 
       if (historicalFiles.length !== 4) {
         throw reportFailure(
@@ -346,7 +347,9 @@ export async function runMigrationEngine(options = {}) {
                 `Stored: ${recorded.checksum}, Disk: ${hf.checksum}`,
             );
           }
-          console.log(`✓ Baseline migration ${hf.version}_${hf.name}.sql already recorded and verified.`);
+          console.log(
+            `✓ Baseline migration ${hf.version}_${hf.name}.sql already recorded and verified.`,
+          );
         }
       }
 
@@ -357,7 +360,9 @@ export async function runMigrationEngine(options = {}) {
       }
 
       console.log("\n==================================================");
-      console.log(`🎉 Baseline complete! Newly registered: ${newlyRegistered}, Verified: ${4 - newlyRegistered}.`);
+      console.log(
+        `🎉 Baseline complete! Newly registered: ${newlyRegistered}, Verified: ${4 - newlyRegistered}.`,
+      );
       console.log("Future application migrations will safely start from 005_*.sql.");
       console.log("==================================================");
 
@@ -453,11 +458,7 @@ export async function runMigrationEngine(options = {}) {
     }
 
     // Step 6: Validate destructive migration safety
-    validateDestructiveSafety(
-      pending,
-      dbConfig.isProduction,
-      dbConfig.allowDestructiveProduction,
-    );
+    validateDestructiveSafety(pending, dbConfig.isProduction, dbConfig.allowDestructiveProduction);
 
     // Step 7: Execute strictly in sequential version order
     const successfullyApplied = [];
@@ -493,7 +494,9 @@ export async function runMigrationEngine(options = {}) {
       currentStage = FAILURE_STAGES.POST_VERIFICATION;
       await verifyAppliedMigrationRow(activeConnection, m.version, m.checksum);
 
-      console.log(`  ✓ Successfully applied and verified ${m.version}_${m.name}.sql (${executionTimeMs}ms)`);
+      console.log(
+        `  ✓ Successfully applied and verified ${m.version}_${m.name}.sql (${executionTimeMs}ms)`,
+      );
       successfullyApplied.push(m.filename);
     }
 
@@ -524,7 +527,9 @@ export async function runMigrationEngine(options = {}) {
     }
 
     console.log("\n==================================================");
-    console.log(`🎉 All ${successfullyApplied.length} migration(s) completed and verified successfully!`);
+    console.log(
+      `🎉 All ${successfullyApplied.length} migration(s) completed and verified successfully!`,
+    );
     console.log("==================================================");
 
     return {

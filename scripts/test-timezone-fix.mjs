@@ -17,7 +17,12 @@
  */
 
 import assert from "node:assert";
-import { parseDbUtcTimestamp, relativeTime, formatAuditRelativeTime, formatAuditTimestamp } from "../src/lib/format.ts";
+import {
+  parseDbUtcTimestamp,
+  relativeTime,
+  formatAuditRelativeTime,
+  formatAuditTimestamp,
+} from "../src/lib/format.ts";
 import { query } from "../src/lib/db.ts";
 
 console.log("==================================================");
@@ -131,15 +136,20 @@ async function runSuite() {
 
   // 12. Database session time_zone is +00:00
   await test("12. Database connection sets session time_zone to '+00:00'", async () => {
-    const rows = await query("SELECT @@session.time_zone as stz, NOW() as db_now, UTC_TIMESTAMP() as db_utc");
+    const rows = await query(
+      "SELECT @@session.time_zone as stz, NOW() as db_now, UTC_TIMESTAMP() as db_utc",
+    );
     assert(rows.length > 0);
     const stz = rows[0].stz;
     assert.strictEqual(stz, "+00:00", `Expected session time_zone to be +00:00, got ${stz}`);
-    
+
     // Ensure NOW() and UTC_TIMESTAMP() evaluate to the same second in DB
     const dbNow = new Date(rows[0].db_now).getTime();
     const dbUtc = new Date(rows[0].db_utc).getTime();
-    assert(Math.abs(dbNow - dbUtc) <= 1000, `NOW() (${rows[0].db_now}) and UTC_TIMESTAMP() (${rows[0].db_utc}) must match in UTC`);
+    assert(
+      Math.abs(dbNow - dbUtc) <= 1000,
+      `NOW() (${rows[0].db_now}) and UTC_TIMESTAMP() (${rows[0].db_utc}) must match in UTC`,
+    );
   });
 
   console.log("\n==================================================");

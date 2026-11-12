@@ -17,7 +17,10 @@ export const getWorkspaceSeatSummaryFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .validator((input: { workspaceId: string }) => input)
   .handler(async ({ data, context }): Promise<WorkspaceSeatSummary> => {
-    const wsId = context.role === "super_admin" ? (data.workspaceId || context.workspaceId) : context.workspaceId;
+    const wsId =
+      context.role === "super_admin"
+        ? data.workspaceId || context.workspaceId
+        : context.workspaceId;
     if (!wsId) throw new Error("Workspace is required.");
     await assertPermission(context, "manage.team", wsId);
 
@@ -30,7 +33,10 @@ export const getWorkspaceSeatSummaryFn = createServerFn({ method: "GET" })
     const seatLimit = workspace.seat_limit || 10;
 
     const [activeRow, totalRow] = await Promise.all([
-      queryOne<{ c: number }>("SELECT COUNT(*) as c FROM profiles WHERE workspace_id = ? AND is_active = 1", [wsId]),
+      queryOne<{ c: number }>(
+        "SELECT COUNT(*) as c FROM profiles WHERE workspace_id = ? AND is_active = 1",
+        [wsId],
+      ),
       queryOne<{ c: number }>("SELECT COUNT(*) as c FROM profiles WHERE workspace_id = ?", [wsId]),
     ]);
 
@@ -219,7 +225,11 @@ export const getUserPermissionsFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .validator((input: { workspaceId: string; userId: string }) => input)
   .handler(async ({ data, context }): Promise<string[]> => {
-    if (context.role !== "owner" && context.role !== "super_admin" && context.userId !== data.userId) {
+    if (
+      context.role !== "owner" &&
+      context.role !== "super_admin" &&
+      context.userId !== data.userId
+    ) {
       throw new Error("FORBIDDEN: Permission denied.");
     }
     const rows = await query<{ permission: string }>(
@@ -298,8 +308,12 @@ export const setUserPermissionsFn = createServerFn({ method: "POST" })
 
     // 5. Notify the employee of access update
     if (grantedList.length > 0 || revokedList.length > 0) {
-      const grantedFormatted = grantedList.map((p) => p.replace(/_/g, " ").replace(/\./g, " → ")).join(", ");
-      const revokedFormatted = revokedList.map((p) => `${p.replace(/_/g, " ").replace(/\./g, " → ")} removed`).join(", ");
+      const grantedFormatted = grantedList
+        .map((p) => p.replace(/_/g, " ").replace(/\./g, " → "))
+        .join(", ");
+      const revokedFormatted = revokedList
+        .map((p) => `${p.replace(/_/g, " ").replace(/\./g, " → ")} removed`)
+        .join(", ");
       const messageParts = [
         grantedList.length > 0 ? `Granted: ${grantedFormatted}` : null,
         revokedList.length > 0 ? `Revoked: ${revokedFormatted}` : null,
@@ -320,7 +334,10 @@ export const setUserPermissionsFn = createServerFn({ method: "POST" })
           ],
         );
       } catch (err: any) {
-        console.warn("[Notifications] Failed to notify employee of permission update:", err?.message);
+        console.warn(
+          "[Notifications] Failed to notify employee of permission update:",
+          err?.message,
+        );
       }
     }
 

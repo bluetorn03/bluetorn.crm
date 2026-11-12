@@ -30,8 +30,10 @@ const listChatConversationsFn = (args) => listChatConversationsCore(args.context
 const markConversationReadFn = (args) => markConversationReadCore(args.context, args.data);
 const getChatUnreadCountFn = (args) => getChatUnreadCountCore(args.context || args);
 const listAvailableChatUsersFn = (args) => listAvailableChatUsersCore(args.context || args);
-const getWorkspaceRetentionPolicyFn = (args) => getWorkspaceRetentionPolicyCore(args?.context, args?.data);
-const updateWorkspaceRetentionPolicyFn = (args) => updateWorkspaceRetentionPolicyCore(args.context, args.data);
+const getWorkspaceRetentionPolicyFn = (args) =>
+  getWorkspaceRetentionPolicyCore(args?.context, args?.data);
+const updateWorkspaceRetentionPolicyFn = (args) =>
+  updateWorkspaceRetentionPolicyCore(args.context, args.data);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -218,7 +220,10 @@ async function main() {
 
     // Verify unread count for Employee 1
     const unreadRes1 = await getChatUnreadCountFn(emp1Ctx);
-    assert(unreadRes1.unreadCount >= 1, `Employee 1 unread count is >= 1 (got: ${unreadRes1.unreadCount})`);
+    assert(
+      unreadRes1.unreadCount >= 1,
+      `Employee 1 unread count is >= 1 (got: ${unreadRes1.unreadCount})`,
+    );
 
     // Employee 1 views conversation messages
     const chatDetails1 = await getChatMessagesFn({
@@ -233,10 +238,9 @@ async function main() {
     );
 
     // After viewing, message should be marked read
-    const [msgRow] = await pool.query(
-      "SELECT is_read, read_at FROM chat_messages WHERE id = ?",
-      [sendRes1.message.id],
-    );
+    const [msgRow] = await pool.query("SELECT is_read, read_at FROM chat_messages WHERE id = ?", [
+      sendRes1.message.id,
+    ]);
     assert(msgRow[0].is_read === 1, "Message marked is_read = 1 after viewing");
     assert(!!msgRow[0].read_at, "read_at timestamp recorded");
 
@@ -402,8 +406,13 @@ async function main() {
     );
     const createdDate = new Date(retentionMsg[0].created_at);
     const expiresDate = new Date(retentionMsg[0].expires_at);
-    const diffDays = Math.round((expiresDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
-    assert(diffDays === 15, `Message expires_at is exactly 15 days from created_at (calculated: ${diffDays} days)`);
+    const diffDays = Math.round(
+      (expiresDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    assert(
+      diffDays === 15,
+      `Message expires_at is exactly 15 days from created_at (calculated: ${diffDays} days)`,
+    );
 
     // Owner cannot change retention policy
     let ownerRetentionBlocked = false;
@@ -415,7 +424,10 @@ async function main() {
     } catch (err) {
       ownerRetentionBlocked = true;
     }
-    assert(ownerRetentionBlocked, "Owner blocked from changing retention policy (Super Admin only)");
+    assert(
+      ownerRetentionBlocked,
+      "Owner blocked from changing retention policy (Super Admin only)",
+    );
 
     // Super Admin cannot set retention > 15 days
     let aboveMaxBlocked = false;
@@ -440,7 +452,10 @@ async function main() {
       "SELECT chat_retention_days FROM workspaces WHERE id = ?",
       [wsJayshreeId],
     );
-    assert(wsRowAfter[0].chat_retention_days === 7, "Workspace chat_retention_days updated in MySQL to 7");
+    assert(
+      wsRowAfter[0].chat_retention_days === 7,
+      "Workspace chat_retention_days updated in MySQL to 7",
+    );
 
     // Verify audit log for retention change
     const [retAudits] = await pool.query(
@@ -458,21 +473,22 @@ async function main() {
     );
 
     // Verify message exists before cleanup
-    const [beforeCleanup] = await pool.query(
-      "SELECT id FROM chat_messages WHERE id = ?",
-      [testExpiredId],
-    );
+    const [beforeCleanup] = await pool.query("SELECT id FROM chat_messages WHERE id = ?", [
+      testExpiredId,
+    ]);
     assert(beforeCleanup.length === 1, "Expired test message inserted into MySQL");
 
     // Run cleanup engine
     const cleanupResult = await cleanupExpiredChatMessages();
-    assert(cleanupResult.deletedCount >= 1, `Cleanup executed and deleted ${cleanupResult.deletedCount} expired messages`);
+    assert(
+      cleanupResult.deletedCount >= 1,
+      `Cleanup executed and deleted ${cleanupResult.deletedCount} expired messages`,
+    );
 
     // Verify expired message is permanently deleted from MySQL
-    const [afterCleanup] = await pool.query(
-      "SELECT id FROM chat_messages WHERE id = ?",
-      [testExpiredId],
-    );
+    const [afterCleanup] = await pool.query("SELECT id FROM chat_messages WHERE id = ?", [
+      testExpiredId,
+    ]);
     assert(afterCleanup.length === 0, "Expired message was ACTUALLY deleted from MySQL");
 
     // Verify audit logs were NOT deleted by cleanup

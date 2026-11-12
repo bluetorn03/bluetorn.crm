@@ -150,4 +150,3 @@ function AppLayout() {
     </AuthGate>
   );
 }
-

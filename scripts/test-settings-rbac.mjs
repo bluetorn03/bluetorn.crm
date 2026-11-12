@@ -15,7 +15,11 @@
 
 import assert from "node:assert";
 import { query, queryOne } from "../src/lib/db.ts";
-import { assertPermission, PERMISSION_ALIASES, createSessionToken } from "../src/lib/auth-server.ts";
+import {
+  assertPermission,
+  PERMISSION_ALIASES,
+  createSessionToken,
+} from "../src/lib/auth-server.ts";
 
 console.log("==================================================");
 console.log("🔒 TEST: SETTINGS RBAC & SERVER AUTHORIZATION");
@@ -41,14 +45,14 @@ async function runSuite() {
     `SELECT p.id, p.email, p.workspace_id, ur.role 
      FROM profiles p 
      JOIN user_roles ur ON ur.user_id = p.id 
-     WHERE ur.role = 'owner' LIMIT 1`
+     WHERE ur.role = 'owner' LIMIT 1`,
   );
 
   const employee = await queryOne(
     `SELECT p.id, p.email, p.workspace_id, ur.role 
      FROM profiles p 
      JOIN user_roles ur ON ur.user_id = p.id 
-     WHERE ur.role = 'employee' LIMIT 1`
+     WHERE ur.role = 'employee' LIMIT 1`,
   );
 
   assert(owner, "Must have an owner profile in DB");
@@ -178,7 +182,10 @@ async function runSuite() {
       assert(isRedirectOrProtected, `Expected redirect or protected page, got ${res.status}`);
       if (res.status === 302 || res.status === 307) {
         const location = res.headers.get("location") || "";
-        assert(location.includes("login") || location.includes("/"), `Redirect location: ${location}`);
+        assert(
+          location.includes("login") || location.includes("/"),
+          `Redirect location: ${location}`,
+        );
       }
     } catch (err) {
       console.log("   (Dev server not reachable on port 3000, skipping HTTP check)");

@@ -37,9 +37,21 @@ assertEqual(amountToWords(1000, "INR"), "Rupees One Thousand Only", "1,000 INR")
 assertEqual(amountToWords(100000, "INR"), "Rupees One Lakh Only", "1,00,000 INR");
 assertEqual(amountToWords(1000000, "INR"), "Rupees Ten Lakh Only", "10,00,000 INR");
 assertEqual(amountToWords(10000000, "INR"), "Rupees One Crore Only", "1,00,00,000 INR");
-assertEqual(amountToWords(12500000, "INR"), "Rupees One Crore Twenty Five Lakh Only", "1.25 Crore INR");
-assertEqual(amountToWords(1000000.5, "INR"), "Rupees Ten Lakh and Fifty Paise Only", "Decimal 10 Lakh 50 Paise");
+assertEqual(
+  amountToWords(12500000, "INR"),
+  "Rupees One Crore Twenty Five Lakh Only",
+  "1.25 Crore INR",
+);
+assertEqual(
+  amountToWords(1000000.5, "INR"),
+  "Rupees Ten Lakh and Fifty Paise Only",
+  "Decimal 10 Lakh 50 Paise",
+);
 assertEqual(amountToWords(0.75, "INR"), "Seventy Five Paise Only", "75 Paise Only");
-assertEqual(amountToWords(1500, "USD"), "US Dollars One Thousand Five Hundred Only", "USD currency");
+assertEqual(
+  amountToWords(1500, "USD"),
+  "US Dollars One Thousand Five Hundred Only",
+  "USD currency",
+);
 
 console.log("\n🎉 ALL MONEY & AMOUNT-IN-WORDS TESTS PASSED!");

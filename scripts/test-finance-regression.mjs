@@ -72,31 +72,66 @@ test("Rejects missing or oversized workspaceId", () => {
   assert.throws(() => validateSaveInvoiceInput({}), /Workspace ID is required/);
   assert.throws(() => validateSaveInvoiceInput({ workspaceId: "" }), /Workspace ID is required/);
   assert.throws(() => validateSaveInvoiceInput({ workspaceId: "   " }), /Workspace ID is required/);
-  assert.throws(() => validateSaveInvoiceInput({ workspaceId: "A".repeat(65) }), /Workspace ID exceeds maximum length/);
+  assert.throws(
+    () => validateSaveInvoiceInput({ workspaceId: "A".repeat(65) }),
+    /Workspace ID exceeds maximum length/,
+  );
 });
 
 test("Rejects missing or invalid invoice details object", () => {
   assert.throws(
     () => validateSaveInvoiceInput({ workspaceId: "ws-1", invoice: null }),
-    /Invoice details object is required/
+    /Invoice details object is required/,
   );
   assert.throws(
     () => validateSaveInvoiceInput({ workspaceId: "ws-1", invoice: "invalid" }),
-    /Invoice details object is required/
+    /Invoice details object is required/,
   );
 });
 
 test("Rejects missing, empty, or oversized invoice_number", () => {
-  const base = { workspaceId: "ws-1", invoice: { issue_date: "2026-11-01" }, lines: [{ description: "Consulting", quantity: 1, rate: 100 }] };
-  assert.throws(() => validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, invoice_number: "" } }), /Invoice number is required/);
-  assert.throws(() => validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, invoice_number: "   " } }), /Invoice number is required/);
-  assert.throws(() => validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, invoice_number: "INV-".padEnd(55, "0") } }), /Invoice number exceeds 50 characters/);
+  const base = {
+    workspaceId: "ws-1",
+    invoice: { issue_date: "2026-11-01" },
+    lines: [{ description: "Consulting", quantity: 1, rate: 100 }],
+  };
+  assert.throws(
+    () => validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, invoice_number: "" } }),
+    /Invoice number is required/,
+  );
+  assert.throws(
+    () =>
+      validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, invoice_number: "   " } }),
+    /Invoice number is required/,
+  );
+  assert.throws(
+    () =>
+      validateSaveInvoiceInput({
+        ...base,
+        invoice: { ...base.invoice, invoice_number: "INV-".padEnd(55, "0") },
+      }),
+    /Invoice number exceeds 50 characters/,
+  );
 });
 
 test("Rejects missing or oversized issue_date", () => {
-  const base = { workspaceId: "ws-1", invoice: { invoice_number: "INV-001" }, lines: [{ description: "Consulting", quantity: 1, rate: 100 }] };
-  assert.throws(() => validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, issue_date: "" } }), /Issue date is required/);
-  assert.throws(() => validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, issue_date: "D".repeat(35) } }), /Issue date exceeds 30 characters/);
+  const base = {
+    workspaceId: "ws-1",
+    invoice: { invoice_number: "INV-001" },
+    lines: [{ description: "Consulting", quantity: 1, rate: 100 }],
+  };
+  assert.throws(
+    () => validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, issue_date: "" } }),
+    /Issue date is required/,
+  );
+  assert.throws(
+    () =>
+      validateSaveInvoiceInput({
+        ...base,
+        invoice: { ...base.invoice, issue_date: "D".repeat(35) },
+      }),
+    /Issue date exceeds 30 characters/,
+  );
 });
 
 test("Rejects invalid tax_rate (negative, NaN, Infinity, > 100)", () => {
@@ -105,17 +140,45 @@ test("Rejects invalid tax_rate (negative, NaN, Infinity, > 100)", () => {
     invoice: { invoice_number: "INV-001", issue_date: "2026-11-01" },
     lines: [{ description: "Item", quantity: 1, rate: 100 }],
   };
-  assert.throws(() => validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, tax_rate: -5 } }), /Tax rate must be a finite number between 0 and 100/);
-  assert.throws(() => validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, tax_rate: 105 } }), /Tax rate must be a finite number between 0 and 100/);
-  assert.throws(() => validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, tax_rate: NaN } }), /Tax rate must be a finite number between 0 and 100/);
-  assert.throws(() => validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, tax_rate: Infinity } }), /Tax rate must be a finite number between 0 and 100/);
+  assert.throws(
+    () => validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, tax_rate: -5 } }),
+    /Tax rate must be a finite number between 0 and 100/,
+  );
+  assert.throws(
+    () => validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, tax_rate: 105 } }),
+    /Tax rate must be a finite number between 0 and 100/,
+  );
+  assert.throws(
+    () => validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, tax_rate: NaN } }),
+    /Tax rate must be a finite number between 0 and 100/,
+  );
+  assert.throws(
+    () => validateSaveInvoiceInput({ ...base, invoice: { ...base.invoice, tax_rate: Infinity } }),
+    /Tax rate must be a finite number between 0 and 100/,
+  );
 });
 
 test("Rejects empty line items array or non-array lines", () => {
-  const base = { workspaceId: "ws-1", invoice: { invoice_number: "INV-001", issue_date: "2026-11-01" } };
-  assert.throws(() => validateSaveInvoiceInput({ ...base, lines: [] }), /An invoice must contain at least one line item/);
-  assert.throws(() => validateSaveInvoiceInput({ ...base, lines: "not-an-array" }), /An invoice must contain at least one line item/);
-  assert.throws(() => validateSaveInvoiceInput({ ...base, lines: new Array(101).fill({ description: "x", quantity: 1, rate: 10 }) }), /cannot contain more than 100 line items/);
+  const base = {
+    workspaceId: "ws-1",
+    invoice: { invoice_number: "INV-001", issue_date: "2026-11-01" },
+  };
+  assert.throws(
+    () => validateSaveInvoiceInput({ ...base, lines: [] }),
+    /An invoice must contain at least one line item/,
+  );
+  assert.throws(
+    () => validateSaveInvoiceInput({ ...base, lines: "not-an-array" }),
+    /An invoice must contain at least one line item/,
+  );
+  assert.throws(
+    () =>
+      validateSaveInvoiceInput({
+        ...base,
+        lines: new Array(101).fill({ description: "x", quantity: 1, rate: 10 }),
+      }),
+    /cannot contain more than 100 line items/,
+  );
 });
 
 test("Rejects invalid line item quantity (zero, negative, NaN, Infinity)", () => {
@@ -124,11 +187,26 @@ test("Rejects invalid line item quantity (zero, negative, NaN, Infinity)", () =>
     invoice: { invoice_number: "INV-001", issue_date: "2026-11-01" },
     lines: [{ description: "Item 1", quantity: qty, rate: 500 }],
   });
-  assert.throws(() => validateSaveInvoiceInput(makePayload(0)), /Quantity for line #1 must be a positive finite number/);
-  assert.throws(() => validateSaveInvoiceInput(makePayload(-1)), /Quantity for line #1 must be a positive finite number/);
-  assert.throws(() => validateSaveInvoiceInput(makePayload(NaN)), /Quantity for line #1 must be a positive finite number/);
-  assert.throws(() => validateSaveInvoiceInput(makePayload(Infinity)), /Quantity for line #1 must be a positive finite number/);
-  assert.throws(() => validateSaveInvoiceInput(makePayload(2000000)), /Quantity for line #1 must be a positive finite number/);
+  assert.throws(
+    () => validateSaveInvoiceInput(makePayload(0)),
+    /Quantity for line #1 must be a positive finite number/,
+  );
+  assert.throws(
+    () => validateSaveInvoiceInput(makePayload(-1)),
+    /Quantity for line #1 must be a positive finite number/,
+  );
+  assert.throws(
+    () => validateSaveInvoiceInput(makePayload(NaN)),
+    /Quantity for line #1 must be a positive finite number/,
+  );
+  assert.throws(
+    () => validateSaveInvoiceInput(makePayload(Infinity)),
+    /Quantity for line #1 must be a positive finite number/,
+  );
+  assert.throws(
+    () => validateSaveInvoiceInput(makePayload(2000000)),
+    /Quantity for line #1 must be a positive finite number/,
+  );
 });
 
 test("Rejects invalid line item rate (negative, NaN, Infinity)", () => {
@@ -137,9 +215,18 @@ test("Rejects invalid line item rate (negative, NaN, Infinity)", () => {
     invoice: { invoice_number: "INV-001", issue_date: "2026-11-01" },
     lines: [{ description: "Item 1", quantity: 1, rate }],
   });
-  assert.throws(() => validateSaveInvoiceInput(makePayload(-50)), /Rate for line #1 must be a non-negative finite number/);
-  assert.throws(() => validateSaveInvoiceInput(makePayload(NaN)), /Rate for line #1 must be a non-negative finite number/);
-  assert.throws(() => validateSaveInvoiceInput(makePayload(Infinity)), /Rate for line #1 must be a non-negative finite number/);
+  assert.throws(
+    () => validateSaveInvoiceInput(makePayload(-50)),
+    /Rate for line #1 must be a non-negative finite number/,
+  );
+  assert.throws(
+    () => validateSaveInvoiceInput(makePayload(NaN)),
+    /Rate for line #1 must be a non-negative finite number/,
+  );
+  assert.throws(
+    () => validateSaveInvoiceInput(makePayload(Infinity)),
+    /Rate for line #1 must be a non-negative finite number/,
+  );
 });
 
 test("Rejects negative discount or discount exceeding line gross amount", () => {
@@ -148,8 +235,14 @@ test("Rejects negative discount or discount exceeding line gross amount", () => 
     invoice: { invoice_number: "INV-001", issue_date: "2026-11-01" },
     lines: [{ description: "Item 1", quantity: 2, rate: 100, discount }],
   });
-  assert.throws(() => validateSaveInvoiceInput(makePayload(-10)), /Discount for line #1 cannot be negative/);
-  assert.throws(() => validateSaveInvoiceInput(makePayload(250)), /Discount for line #1 cannot exceed gross amount/);
+  assert.throws(
+    () => validateSaveInvoiceInput(makePayload(-10)),
+    /Discount for line #1 cannot be negative/,
+  );
+  assert.throws(
+    () => validateSaveInvoiceInput(makePayload(250)),
+    /Discount for line #1 cannot exceed gross amount/,
+  );
 });
 
 test("Accepts clean, valid invoice input and strips untrusted fields", () => {
@@ -195,24 +288,54 @@ test("Rejects non-object and null payment payloads", () => {
 
 test("Rejects missing or oversized workspace_id in payment", () => {
   assert.throws(() => validateCreatePaymentInput({ amount: 1000 }), /Workspace ID is required/);
-  assert.throws(() => validateCreatePaymentInput({ workspace_id: "   ", amount: 1000 }), /Workspace ID is required/);
-  assert.throws(() => validateCreatePaymentInput({ workspace_id: "W".repeat(65), amount: 1000 }), /Workspace ID exceeds maximum length/);
+  assert.throws(
+    () => validateCreatePaymentInput({ workspace_id: "   ", amount: 1000 }),
+    /Workspace ID is required/,
+  );
+  assert.throws(
+    () => validateCreatePaymentInput({ workspace_id: "W".repeat(65), amount: 1000 }),
+    /Workspace ID exceeds maximum length/,
+  );
 });
 
 test("Rejects non-positive, zero, negative, NaN, and Infinity payment amounts", () => {
   const base = { workspace_id: "ws-1" };
-  assert.throws(() => validateCreatePaymentInput({ ...base, amount: 0 }), /Payment amount must be a positive finite number/);
-  assert.throws(() => validateCreatePaymentInput({ ...base, amount: -100 }), /Payment amount must be a positive finite number/);
-  assert.throws(() => validateCreatePaymentInput({ ...base, amount: NaN }), /Payment amount must be a positive finite number/);
-  assert.throws(() => validateCreatePaymentInput({ ...base, amount: Infinity }), /Payment amount must be a positive finite number/);
-  assert.throws(() => validateCreatePaymentInput({ ...base, amount: -Infinity }), /Payment amount must be a positive finite number/);
-  assert.throws(() => validateCreatePaymentInput({ ...base, amount: "not-a-number" }), /Payment amount must be a positive finite number/);
+  assert.throws(
+    () => validateCreatePaymentInput({ ...base, amount: 0 }),
+    /Payment amount must be a positive finite number/,
+  );
+  assert.throws(
+    () => validateCreatePaymentInput({ ...base, amount: -100 }),
+    /Payment amount must be a positive finite number/,
+  );
+  assert.throws(
+    () => validateCreatePaymentInput({ ...base, amount: NaN }),
+    /Payment amount must be a positive finite number/,
+  );
+  assert.throws(
+    () => validateCreatePaymentInput({ ...base, amount: Infinity }),
+    /Payment amount must be a positive finite number/,
+  );
+  assert.throws(
+    () => validateCreatePaymentInput({ ...base, amount: -Infinity }),
+    /Payment amount must be a positive finite number/,
+  );
+  assert.throws(
+    () => validateCreatePaymentInput({ ...base, amount: "not-a-number" }),
+    /Payment amount must be a positive finite number/,
+  );
 });
 
 test("Rejects oversized reference or notes in payment", () => {
   const base = { workspace_id: "ws-1", amount: 500 };
-  assert.throws(() => validateCreatePaymentInput({ ...base, reference: "R".repeat(105) }), /Payment reference exceeds 100 characters/);
-  assert.throws(() => validateCreatePaymentInput({ ...base, notes: "N".repeat(5005) }), /Payment notes exceed 5,000 characters/);
+  assert.throws(
+    () => validateCreatePaymentInput({ ...base, reference: "R".repeat(105) }),
+    /Payment reference exceeds 100 characters/,
+  );
+  assert.throws(
+    () => validateCreatePaymentInput({ ...base, notes: "N".repeat(5005) }),
+    /Payment notes exceed 5,000 characters/,
+  );
 });
 
 test("Accepts valid payment payload and sets defaults", () => {
@@ -223,7 +346,7 @@ test("Accepts valid payment payload and sets defaults", () => {
     reference: "UPI-TXN-99881",
   });
   assert.equal(res.workspace_id, "ws-1");
-  assert.equal(res.amount, 2500.50);
+  assert.equal(res.amount, 2500.5);
   assert.equal(res.currency, "INR");
   assert.equal(res.method, "Bank Transfer");
   assert.equal(res.status, "Received");
@@ -236,14 +359,29 @@ console.log("\n[SECTION 3] Payment Reversal Runtime Input Validation");
 
 test("Rejects missing or invalid payment ID for reversal", () => {
   assert.throws(() => validateReversePaymentInput(null), /Invalid reversal payload/);
-  assert.throws(() => validateReversePaymentInput({ id: "", reason: "Mistake" }), /Valid payment ID is required/);
-  assert.throws(() => validateReversePaymentInput({ id: "I".repeat(65), reason: "Mistake" }), /Valid payment ID is required/);
+  assert.throws(
+    () => validateReversePaymentInput({ id: "", reason: "Mistake" }),
+    /Valid payment ID is required/,
+  );
+  assert.throws(
+    () => validateReversePaymentInput({ id: "I".repeat(65), reason: "Mistake" }),
+    /Valid payment ID is required/,
+  );
 });
 
 test("Rejects empty, short (< 3 chars), or oversized reversal reason", () => {
-  assert.throws(() => validateReversePaymentInput({ id: "pay-1", reason: "" }), /Reversal reason is required/);
-  assert.throws(() => validateReversePaymentInput({ id: "pay-1", reason: "no" }), /must be at least 3 characters/);
-  assert.throws(() => validateReversePaymentInput({ id: "pay-1", reason: "X".repeat(505) }), /exceeds 500 characters/);
+  assert.throws(
+    () => validateReversePaymentInput({ id: "pay-1", reason: "" }),
+    /Reversal reason is required/,
+  );
+  assert.throws(
+    () => validateReversePaymentInput({ id: "pay-1", reason: "no" }),
+    /must be at least 3 characters/,
+  );
+  assert.throws(
+    () => validateReversePaymentInput({ id: "pay-1", reason: "X".repeat(505) }),
+    /exceeds 500 characters/,
+  );
 });
 
 test("Accepts valid payment reversal payload", () => {
@@ -258,13 +396,30 @@ console.log("\n[SECTION 4] Invoice Status Transition Runtime Validation");
 
 test("Rejects invalid or unknown invoice status values", () => {
   assert.throws(() => validateUpdateInvoiceStatusInput(null), /Invalid status payload/);
-  assert.throws(() => validateUpdateInvoiceStatusInput({ id: "inv-1", status: "" }), /Status is required/);
-  assert.throws(() => validateUpdateInvoiceStatusInput({ id: "inv-1", status: "Deleted" }), /Invalid invoice status/);
-  assert.throws(() => validateUpdateInvoiceStatusInput({ id: "inv-1", status: "Hacked" }), /Invalid invoice status/);
+  assert.throws(
+    () => validateUpdateInvoiceStatusInput({ id: "inv-1", status: "" }),
+    /Status is required/,
+  );
+  assert.throws(
+    () => validateUpdateInvoiceStatusInput({ id: "inv-1", status: "Deleted" }),
+    /Invalid invoice status/,
+  );
+  assert.throws(
+    () => validateUpdateInvoiceStatusInput({ id: "inv-1", status: "Hacked" }),
+    /Invalid invoice status/,
+  );
 });
 
 test("Accepts canonical invoice statuses", () => {
-  const validStatuses = ["Draft", "Issued", "Sent", "Paid", "Partially Paid", "Overdue", "Cancelled"];
+  const validStatuses = [
+    "Draft",
+    "Issued",
+    "Sent",
+    "Paid",
+    "Partially Paid",
+    "Overdue",
+    "Cancelled",
+  ];
   for (const s of validStatuses) {
     const res = validateUpdateInvoiceStatusInput({ id: "inv-100", status: s });
     assert.equal(res.id, "inv-100");
@@ -285,52 +440,61 @@ if (testWs) {
   const wsId = testWs.id;
   const testRef = `TEST-REF-${Date.now()}`;
   const testPayId = uuid();
-  const testProfile = await queryOne("SELECT id FROM profiles WHERE workspace_id = ? LIMIT 1", [wsId]);
+  const testProfile = await queryOne("SELECT id FROM profiles WHERE workspace_id = ? LIMIT 1", [
+    wsId,
+  ]);
   const actorId = testProfile ? testProfile.id : null;
 
-  await testAsync("Duplicate payment with identical transaction reference in same workspace is blocked", async () => {
-    // 1. Insert a baseline payment
-    await execute(
-      `INSERT INTO payments (id, workspace_id, amount, currency, method, status, reference, created_by, updated_by)
+  await testAsync(
+    "Duplicate payment with identical transaction reference in same workspace is blocked",
+    async () => {
+      // 1. Insert a baseline payment
+      await execute(
+        `INSERT INTO payments (id, workspace_id, amount, currency, method, status, reference, created_by, updated_by)
        VALUES (?, ?, 1000, 'INR', 'Bank Transfer', 'Received', ?, ?, ?)`,
-      [testPayId, wsId, testRef, actorId, actorId]
-    );
-
-    // 2. Query duplicate check query exactly as used in createPaymentFn
-    const [dupRows] = await query(
-      "SELECT id FROM payments WHERE workspace_id = ? AND reference = ? AND status != 'Reversed' LIMIT 1",
-      [wsId, testRef]
-    );
-
-    assert.ok(dupRows, "First payment must exist");
-
-    // 3. Simulate second payment attempt
-    let blocked = false;
-    try {
-      const existing = await queryOne(
-        "SELECT id FROM payments WHERE workspace_id = ? AND reference = ? AND status != 'Reversed' LIMIT 1",
-        [wsId, testRef]
+        [testPayId, wsId, testRef, actorId, actorId],
       );
-      if (existing) {
-        throw new Error("Validation error: A payment with this transaction reference already exists in this workspace.");
-      }
-    } catch (err) {
-      if (err.message.includes("already exists in this workspace")) {
-        blocked = true;
-      }
-    }
 
-    assert.equal(blocked, true, "Duplicate payment reference must be rejected");
-  });
+      // 2. Query duplicate check query exactly as used in createPaymentFn
+      const [dupRows] = await query(
+        "SELECT id FROM payments WHERE workspace_id = ? AND reference = ? AND status != 'Reversed' LIMIT 1",
+        [wsId, testRef],
+      );
+
+      assert.ok(dupRows, "First payment must exist");
+
+      // 3. Simulate second payment attempt
+      let blocked = false;
+      try {
+        const existing = await queryOne(
+          "SELECT id FROM payments WHERE workspace_id = ? AND reference = ? AND status != 'Reversed' LIMIT 1",
+          [wsId, testRef],
+        );
+        if (existing) {
+          throw new Error(
+            "Validation error: A payment with this transaction reference already exists in this workspace.",
+          );
+        }
+      } catch (err) {
+        if (err.message.includes("already exists in this workspace")) {
+          blocked = true;
+        }
+      }
+
+      assert.equal(blocked, true, "Duplicate payment reference must be rejected");
+    },
+  );
 
   await testAsync("Payment reversal transitions status and prevents double-reversal", async () => {
     // Perform reversal
     await execute(
       "UPDATE payments SET status = 'Reversed', reversal_reason = 'Double pay test', reversed_at = NOW() WHERE id = ?",
-      [testPayId]
+      [testPayId],
     );
 
-    const reversed = await queryOne("SELECT status, reversal_reason FROM payments WHERE id = ?", [testPayId]);
+    const reversed = await queryOne("SELECT status, reversal_reason FROM payments WHERE id = ?", [
+      testPayId,
+    ]);
     assert.equal(reversed.status, "Reversed");
     assert.equal(reversed.reversal_reason, "Double pay test");
 
@@ -363,7 +527,10 @@ if (testWs) {
     return transaction(async (conn) => {
       let lockAcquired = false;
       if (lockKey) {
-        const [lockRows] = await conn.execute("SELECT GET_LOCK(?, ?) as acquired", [lockKey, timeoutSec]);
+        const [lockRows] = await conn.execute("SELECT GET_LOCK(?, ?) as acquired", [
+          lockKey,
+          timeoutSec,
+        ]);
         const acquired = lockRows[0]?.acquired;
         if (acquired === 0) {
           throw new Error("Could not acquire payment reference lock: request timed out.");
@@ -378,17 +545,19 @@ if (testWs) {
         if (cleanRef) {
           const [dupRows] = await conn.execute(
             "SELECT id FROM payments WHERE workspace_id = ? AND reference = ? AND status != 'Reversed' LIMIT 1",
-            [targetWsId, cleanRef]
+            [targetWsId, cleanRef],
           );
           if (dupRows.length > 0) {
-            throw new Error("Validation error: A payment with this transaction reference already exists in this workspace.");
+            throw new Error(
+              "Validation error: A payment with this transaction reference already exists in this workspace.",
+            );
           }
         }
 
         await conn.execute(
           `INSERT INTO payments (id, workspace_id, amount, currency, method, status, reference, created_by, updated_by)
            VALUES (?, ?, 500, 'INR', 'UPI', 'Received', ?, ?, ?)`,
-          [payId, targetWsId, cleanRef, actorId, actorId]
+          [payId, targetWsId, cleanRef, actorId, actorId],
         );
         return { success: true, payId };
       } finally {
@@ -399,32 +568,37 @@ if (testWs) {
               conn.destroy();
             }
           } catch {
-            try { conn.destroy(); } catch {}
+            try {
+              conn.destroy();
+            } catch {}
           }
         }
       }
     });
   };
 
-  await testAsync("Simultaneous concurrent payment requests with identical reference: exactly one succeeds", async () => {
-    const concurrentRef = `CONCUR-DUP-${Date.now()}`;
-    const pay1 = uuid();
-    const pay2 = uuid();
+  await testAsync(
+    "Simultaneous concurrent payment requests with identical reference: exactly one succeeds",
+    async () => {
+      const concurrentRef = `CONCUR-DUP-${Date.now()}`;
+      const pay1 = uuid();
+      const pay2 = uuid();
 
-    const [res1, res2] = await Promise.allSettled([
-      attemptCreatePayment(wsId, concurrentRef, pay1),
-      attemptCreatePayment(wsId, concurrentRef, pay2),
-    ]);
+      const [res1, res2] = await Promise.allSettled([
+        attemptCreatePayment(wsId, concurrentRef, pay1),
+        attemptCreatePayment(wsId, concurrentRef, pay2),
+      ]);
 
-    const successes = [res1, res2].filter((r) => r.status === "fulfilled");
-    const rejections = [res1, res2].filter((r) => r.status === "rejected");
+      const successes = [res1, res2].filter((r) => r.status === "fulfilled");
+      const rejections = [res1, res2].filter((r) => r.status === "rejected");
 
-    assert.equal(successes.length, 1, "Exactly one parallel payment must succeed");
-    assert.equal(rejections.length, 1, "The competing parallel payment must be rejected");
-    assert.match(rejections[0].reason.message, /already exists in this workspace/);
+      assert.equal(successes.length, 1, "Exactly one parallel payment must succeed");
+      assert.equal(rejections.length, 1, "The competing parallel payment must be rejected");
+      assert.match(rejections[0].reason.message, /already exists in this workspace/);
 
-    await execute("DELETE FROM payments WHERE reference = ?", [concurrentRef]);
-  });
+      await execute("DELETE FROM payments WHERE reference = ?", [concurrentRef]);
+    },
+  );
 
   await testAsync("Different payment references can be processed concurrently", async () => {
     const refA = `CONCUR-DIFF-A-${Date.now()}`;
@@ -443,66 +617,76 @@ if (testWs) {
     await execute("DELETE FROM payments WHERE reference IN (?, ?)", [refA, refB]);
   });
 
-  await testAsync("Different workspaces with identical payment reference remain independent", async () => {
-    const ws2 = "ws-client-001";
-    const sharedRef = `CONCUR-WS-SHARED-${Date.now()}`;
-    const pay1 = uuid();
-    const pay2 = uuid();
+  await testAsync(
+    "Different workspaces with identical payment reference remain independent",
+    async () => {
+      const ws2 = "ws-client-001";
+      const sharedRef = `CONCUR-WS-SHARED-${Date.now()}`;
+      const pay1 = uuid();
+      const pay2 = uuid();
 
-    const [res1, res2] = await Promise.allSettled([
-      attemptCreatePayment(wsId, sharedRef, pay1),
-      attemptCreatePayment(ws2, sharedRef, pay2),
-    ]);
+      const [res1, res2] = await Promise.allSettled([
+        attemptCreatePayment(wsId, sharedRef, pay1),
+        attemptCreatePayment(ws2, sharedRef, pay2),
+      ]);
 
-    assert.equal(res1.status, "fulfilled", "Workspace 1 payment must succeed");
-    assert.equal(res2.status, "fulfilled", "Workspace 2 payment must succeed");
+      assert.equal(res1.status, "fulfilled", "Workspace 1 payment must succeed");
+      assert.equal(res2.status, "fulfilled", "Workspace 2 payment must succeed");
 
-    await execute("DELETE FROM payments WHERE reference = ?", [sharedRef]);
-  });
+      await execute("DELETE FROM payments WHERE reference = ?", [sharedRef]);
+    },
+  );
 
-  await testAsync("Lock timeout and acquisition failure reject safely without inserting payment", async () => {
-    const timeoutRef = `CONCUR-TIMEOUT-${Date.now()}`;
-    const payId = uuid();
-    const refHash = createHash("sha256")
-      .update(`${wsId}:${timeoutRef.toUpperCase()}`)
-      .digest("hex")
-      .slice(0, 32);
-    const lockKey = `pay_ref_${refHash}`;
+  await testAsync(
+    "Lock timeout and acquisition failure reject safely without inserting payment",
+    async () => {
+      const timeoutRef = `CONCUR-TIMEOUT-${Date.now()}`;
+      const payId = uuid();
+      const refHash = createHash("sha256")
+        .update(`${wsId}:${timeoutRef.toUpperCase()}`)
+        .digest("hex")
+        .slice(0, 32);
+      const lockKey = `pay_ref_${refHash}`;
 
-    // Hold the lock in a dedicated separate connection
-    const mysqlModule = await import("mysql2/promise");
-    const createPool = mysqlModule.createPool || mysqlModule.default?.createPool;
-    const pool = createPool({
-      host: process.env["DB_HOST"] || "localhost",
-      port: Number(process.env["DB_PORT"]) || 3306,
-      database: process.env["DB_NAME"] || "bluetorn_crm",
-      user: process.env["DB_USER"] || "root",
-      password: process.env["DB_PASSWORD"] ?? "",
-    });
+      // Hold the lock in a dedicated separate connection
+      const mysqlModule = await import("mysql2/promise");
+      const createPool = mysqlModule.createPool || mysqlModule.default?.createPool;
+      const pool = createPool({
+        host: process.env["DB_HOST"] || "localhost",
+        port: Number(process.env["DB_PORT"]) || 3306,
+        database: process.env["DB_NAME"] || "bluetorn_crm",
+        user: process.env["DB_USER"] || "root",
+        password: process.env["DB_PASSWORD"] ?? "",
+      });
 
-    const blockerConn = await pool.getConnection();
-    await blockerConn.execute("SELECT GET_LOCK(?, 10)", [lockKey]);
+      const blockerConn = await pool.getConnection();
+      await blockerConn.execute("SELECT GET_LOCK(?, 10)", [lockKey]);
 
-    try {
-      let timedOut = false;
       try {
-        await attemptCreatePayment(wsId, timeoutRef, payId, 1);
-      } catch (err) {
-        if (err.message.includes("timed out")) {
-          timedOut = true;
+        let timedOut = false;
+        try {
+          await attemptCreatePayment(wsId, timeoutRef, payId, 1);
+        } catch (err) {
+          if (err.message.includes("timed out")) {
+            timedOut = true;
+          }
         }
-      }
-      assert.equal(timedOut, true, "Lock timeout must throw timeout error");
+        assert.equal(timedOut, true, "Lock timeout must throw timeout error");
 
-      // Verify payment was never inserted
-      const inserted = await queryOne("SELECT id FROM payments WHERE id = ?", [payId]);
-      assert.equal(inserted, null, "Payment must not be inserted when lock acquisition times out");
-    } finally {
-      await blockerConn.execute("SELECT RELEASE_LOCK(?)", [lockKey]);
-      blockerConn.release();
-      await pool.end();
-    }
-  });
+        // Verify payment was never inserted
+        const inserted = await queryOne("SELECT id FROM payments WHERE id = ?", [payId]);
+        assert.equal(
+          inserted,
+          null,
+          "Payment must not be inserted when lock acquisition times out",
+        );
+      } finally {
+        await blockerConn.execute("SELECT RELEASE_LOCK(?)", [lockKey]);
+        blockerConn.release();
+        await pool.end();
+      }
+    },
+  );
 
   await testAsync("Failed transactions release locks safely", async () => {
     const failRef = `CONCUR-FAIL-${Date.now()}`;
@@ -548,7 +732,11 @@ if (testWs) {
 
     // Verify lock is completely free
     const freeRow = await queryOne("SELECT IS_FREE_LOCK(?) as free", [lockKey]);
-    assert.equal(freeRow.free, 1, "Lock must be free after transaction completes and connection is returned to pool");
+    assert.equal(
+      freeRow.free,
+      1,
+      "Lock must be free after transaction completes and connection is returned to pool",
+    );
 
     await execute("DELETE FROM payments WHERE id = ?", [payId]);
   });
@@ -558,7 +746,7 @@ if (testWs) {
     await execute(
       `INSERT INTO invoices (id, workspace_id, invoice_number, status, issue_date, currency, total)
        VALUES (?, ?, 'INV-CURR-TEST', 'Issued', '2026-11-01', 'USD', 500)`,
-      [testInvId, wsId]
+      [testInvId, wsId],
     );
 
     let rejected = false;
@@ -566,7 +754,9 @@ if (testWs) {
       const inv = await queryOne("SELECT id, currency FROM invoices WHERE id = ?", [testInvId]);
       const paymentCurrency = "INR";
       if (inv.currency && inv.currency.toUpperCase() !== paymentCurrency.toUpperCase()) {
-        throw new Error(`Validation error: Payment currency (${paymentCurrency}) does not match invoice currency (${inv.currency}).`);
+        throw new Error(
+          `Validation error: Payment currency (${paymentCurrency}) does not match invoice currency (${inv.currency}).`,
+        );
       }
     } catch (err) {
       if (err.message.includes("does not match invoice currency")) {
@@ -587,7 +777,7 @@ if (testWs) {
         await conn.execute(
           `INSERT INTO payments (id, workspace_id, amount, currency, method, status, created_by, updated_by)
            VALUES (?, ?, 9999, 'INR', 'Cash', 'Received', ?, ?)`,
-          [orphanPayId, wsId, actorId, actorId]
+          [orphanPayId, wsId, actorId, actorId],
         );
         // Deliberately trigger failure
         throw new Error("Simulated mid-transaction failure");

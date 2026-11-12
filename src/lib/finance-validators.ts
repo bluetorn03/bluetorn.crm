@@ -84,12 +84,14 @@ export function validateSaveInvoiceInput(input: unknown): ValidatedSaveInvoiceIn
   }
 
   // Optional string lengths & boundaries
-  const financial_year = typeof inv["financial_year"] === "string" ? inv["financial_year"].trim() : null;
+  const financial_year =
+    typeof inv["financial_year"] === "string" ? inv["financial_year"].trim() : null;
   if (financial_year && financial_year.length > 20) {
     throw new Error("Validation error: Financial year exceeds 20 characters.");
   }
 
-  const invoice_type = typeof inv["invoice_type"] === "string" ? inv["invoice_type"].trim() : "Tax Invoice";
+  const invoice_type =
+    typeof inv["invoice_type"] === "string" ? inv["invoice_type"].trim() : "Tax Invoice";
   if (invoice_type.length > 50) {
     throw new Error("Validation error: Invoice type exceeds 50 characters.");
   }
@@ -99,7 +101,10 @@ export function validateSaveInvoiceInput(input: unknown): ValidatedSaveInvoiceIn
     throw new Error("Validation error: Due date exceeds 30 characters.");
   }
 
-  const currency = typeof inv["currency"] === "string" && inv["currency"].trim() ? inv["currency"].trim().toUpperCase() : "INR";
+  const currency =
+    typeof inv["currency"] === "string" && inv["currency"].trim()
+      ? inv["currency"].trim().toUpperCase()
+      : "INR";
   if (currency.length > 10) {
     throw new Error("Validation error: Currency code exceeds 10 characters.");
   }
@@ -113,7 +118,8 @@ export function validateSaveInvoiceInput(input: unknown): ValidatedSaveInvoiceIn
     tax_rate = tr;
   }
 
-  const place_of_supply = typeof inv["place_of_supply"] === "string" ? inv["place_of_supply"].trim() : null;
+  const place_of_supply =
+    typeof inv["place_of_supply"] === "string" ? inv["place_of_supply"].trim() : null;
   if (place_of_supply && place_of_supply.length > 100) {
     throw new Error("Validation error: Place of supply exceeds 100 characters.");
   }
@@ -128,22 +134,32 @@ export function validateSaveInvoiceInput(input: unknown): ValidatedSaveInvoiceIn
     throw new Error("Validation error: Terms exceed 5,000 characters.");
   }
 
-  const customer_id = typeof inv["customer_id"] === "string" && inv["customer_id"].trim() ? inv["customer_id"].trim() : null;
+  const customer_id =
+    typeof inv["customer_id"] === "string" && inv["customer_id"].trim()
+      ? inv["customer_id"].trim()
+      : null;
   if (customer_id && customer_id.length > 64) {
     throw new Error("Validation error: Invalid customer ID.");
   }
 
-  const lead_id = typeof inv["lead_id"] === "string" && inv["lead_id"].trim() ? inv["lead_id"].trim() : null;
+  const lead_id =
+    typeof inv["lead_id"] === "string" && inv["lead_id"].trim() ? inv["lead_id"].trim() : null;
   if (lead_id && lead_id.length > 64) {
     throw new Error("Validation error: Invalid lead ID.");
   }
 
-  const property_id = typeof inv["property_id"] === "string" && inv["property_id"].trim() ? inv["property_id"].trim() : null;
+  const property_id =
+    typeof inv["property_id"] === "string" && inv["property_id"].trim()
+      ? inv["property_id"].trim()
+      : null;
   if (property_id && property_id.length > 64) {
     throw new Error("Validation error: Invalid property ID.");
   }
 
-  const assigned_to = typeof inv["assigned_to"] === "string" && inv["assigned_to"].trim() ? inv["assigned_to"].trim() : null;
+  const assigned_to =
+    typeof inv["assigned_to"] === "string" && inv["assigned_to"].trim()
+      ? inv["assigned_to"].trim()
+      : null;
   if (assigned_to && assigned_to.length > 64) {
     throw new Error("Validation error: Invalid assigned user ID.");
   }
@@ -179,19 +195,23 @@ export function validateSaveInvoiceInput(input: unknown): ValidatedSaveInvoiceIn
 
     const qty = Number(l["quantity"]);
     if (!Number.isFinite(qty) || qty <= 0 || qty > 1000000) {
-      throw new Error(`Validation error: Quantity for line #${i + 1} must be a positive finite number (max 1,000,000).`);
+      throw new Error(
+        `Validation error: Quantity for line #${i + 1} must be a positive finite number (max 1,000,000).`,
+      );
     }
 
     const rate = Number(l["rate"] ?? l["unit_amount"] ?? 0);
     if (!Number.isFinite(rate) || rate < 0 || rate > 1000000000) {
-      throw new Error(`Validation error: Rate for line #${i + 1} must be a non-negative finite number.`);
+      throw new Error(
+        `Validation error: Rate for line #${i + 1} must be a non-negative finite number.`,
+      );
     }
 
     const disc = l["discount"] !== undefined && l["discount"] !== null ? Number(l["discount"]) : 0;
     if (!Number.isFinite(disc) || disc < 0) {
       throw new Error(`Validation error: Discount for line #${i + 1} cannot be negative.`);
     }
-    if (disc > (qty * rate)) {
+    if (disc > qty * rate) {
       throw new Error(`Validation error: Discount for line #${i + 1} cannot exceed gross amount.`);
     }
 
@@ -214,7 +234,8 @@ export function validateSaveInvoiceInput(input: unknown): ValidatedSaveInvoiceIn
       throw new Error(`Validation error: Unit for line #${i + 1} exceeds 30 characters.`);
     }
 
-    const tax_type = typeof l["tax_type"] === "string" && l["tax_type"].trim() ? l["tax_type"].trim() : "GST";
+    const tax_type =
+      typeof l["tax_type"] === "string" && l["tax_type"].trim() ? l["tax_type"].trim() : "GST";
 
     const lineItem: InvoiceLineInput = {
       description,
@@ -293,49 +314,72 @@ export function validateCreatePaymentInput(input: unknown): ValidatedCreatePayme
     throw new Error("Validation error: Payment amount must be a positive finite number.");
   }
 
-  const currency = typeof data["currency"] === "string" && data["currency"].trim() ? data["currency"].trim().toUpperCase() : "INR";
+  const currency =
+    typeof data["currency"] === "string" && data["currency"].trim()
+      ? data["currency"].trim().toUpperCase()
+      : "INR";
   if (currency.length > 10) {
     throw new Error("Validation error: Currency code exceeds 10 characters.");
   }
 
-  const method = typeof data["method"] === "string" && data["method"].trim() ? data["method"].trim() : "Bank Transfer";
+  const method =
+    typeof data["method"] === "string" && data["method"].trim()
+      ? data["method"].trim()
+      : "Bank Transfer";
   if (method.length > 50) {
     throw new Error("Validation error: Payment method exceeds 50 characters.");
   }
 
-  const status = typeof data["status"] === "string" && data["status"].trim() ? data["status"].trim() : "Received";
+  const status =
+    typeof data["status"] === "string" && data["status"].trim()
+      ? data["status"].trim()
+      : "Received";
   if (status.length > 30) {
     throw new Error("Validation error: Status exceeds 30 characters.");
   }
 
-  const paid_at = typeof data["paid_at"] === "string" && data["paid_at"].trim()
-    ? data["paid_at"].trim()
-    : new Date().toISOString().slice(0, 19).replace("T", " ");
+  const paid_at =
+    typeof data["paid_at"] === "string" && data["paid_at"].trim()
+      ? data["paid_at"].trim()
+      : new Date().toISOString().slice(0, 19).replace("T", " ");
   if (paid_at.length > 30) {
     throw new Error("Validation error: Paid date exceeds 30 characters.");
   }
 
-  const reference = typeof data["reference"] === "string" && data["reference"].trim() ? data["reference"].trim() : null;
+  const reference =
+    typeof data["reference"] === "string" && data["reference"].trim()
+      ? data["reference"].trim()
+      : null;
   if (reference && reference.length > 100) {
     throw new Error("Validation error: Payment reference exceeds 100 characters.");
   }
 
-  const notes = typeof data["notes"] === "string" && data["notes"].trim() ? data["notes"].trim() : null;
+  const notes =
+    typeof data["notes"] === "string" && data["notes"].trim() ? data["notes"].trim() : null;
   if (notes && notes.length > 5000) {
     throw new Error("Validation error: Payment notes exceed 5,000 characters.");
   }
 
-  const invoice_id = typeof data["invoice_id"] === "string" && data["invoice_id"].trim() ? data["invoice_id"].trim() : null;
+  const invoice_id =
+    typeof data["invoice_id"] === "string" && data["invoice_id"].trim()
+      ? data["invoice_id"].trim()
+      : null;
   if (invoice_id && invoice_id.length > 64) {
     throw new Error("Validation error: Invalid invoice ID.");
   }
 
-  const customer_id = typeof data["customer_id"] === "string" && data["customer_id"].trim() ? data["customer_id"].trim() : null;
+  const customer_id =
+    typeof data["customer_id"] === "string" && data["customer_id"].trim()
+      ? data["customer_id"].trim()
+      : null;
   if (customer_id && customer_id.length > 64) {
     throw new Error("Validation error: Invalid customer ID.");
   }
 
-  const assigned_to = typeof data["assigned_to"] === "string" && data["assigned_to"].trim() ? data["assigned_to"].trim() : null;
+  const assigned_to =
+    typeof data["assigned_to"] === "string" && data["assigned_to"].trim()
+      ? data["assigned_to"].trim()
+      : null;
   if (assigned_to && assigned_to.length > 64) {
     throw new Error("Validation error: Invalid assigned user ID.");
   }
@@ -394,9 +438,19 @@ export type ValidatedUpdateInvoiceStatusInput = {
   status: string;
 };
 
-const CANONICAL_INVOICE_STATUSES = ["Draft", "Issued", "Sent", "Paid", "Partially Paid", "Overdue", "Cancelled"];
+const CANONICAL_INVOICE_STATUSES = [
+  "Draft",
+  "Issued",
+  "Sent",
+  "Paid",
+  "Partially Paid",
+  "Overdue",
+  "Cancelled",
+];
 
-export function validateUpdateInvoiceStatusInput(input: unknown): ValidatedUpdateInvoiceStatusInput {
+export function validateUpdateInvoiceStatusInput(
+  input: unknown,
+): ValidatedUpdateInvoiceStatusInput {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new Error("Validation error: Invalid status payload.");
   }
@@ -421,4 +475,3 @@ export function validateUpdateInvoiceStatusInput(input: unknown): ValidatedUpdat
     status,
   };
 }
-

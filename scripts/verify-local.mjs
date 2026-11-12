@@ -77,7 +77,10 @@ runStep(
       }
     }
 
-    if (process.env.DB_HOST && !["localhost", "127.0.0.1"].includes(process.env.DB_HOST.toLowerCase())) {
+    if (
+      process.env.DB_HOST &&
+      !["localhost", "127.0.0.1"].includes(process.env.DB_HOST.toLowerCase())
+    ) {
       throw new Error(
         `process.env.DB_HOST is set to '${process.env.DB_HOST}'. Local verification is forbidden from targeting production or remote hosts.`,
       );
@@ -107,7 +110,9 @@ runStep(
     for (const [ver, expectedHash] of Object.entries(expectedHistoricalChecksums)) {
       const match = diskMigrations.find((m) => m.version === ver);
       if (!match) {
-        throw new Error(`Required historical migration ${ver} is missing from migrations directory!`);
+        throw new Error(
+          `Required historical migration ${ver} is missing from migrations directory!`,
+        );
       }
       if (match.checksum !== expectedHash) {
         throw new Error(
@@ -119,7 +124,12 @@ runStep(
     }
   },
   "One or more historical migration files in migrations/ have been altered, corrupted, deleted, or out of sequence.",
-  ["migrations/001_finance_v1.sql", "migrations/002_team_chat_v1.sql", "migrations/003_team_chat_groups_v1_1.sql", "migrations/004_leads_configurable_options.sql"],
+  [
+    "migrations/001_finance_v1.sql",
+    "migrations/002_team_chat_v1.sql",
+    "migrations/003_team_chat_groups_v1_1.sql",
+    "migrations/004_leads_configurable_options.sql",
+  ],
   "Restore the missing or modified historical migration files from git. Never edit or delete applied migrations.",
 );
 
@@ -134,9 +144,7 @@ runStep(
     });
 
     if (result.stdout && result.stdout.trim().length > 0) {
-      throw new Error(
-        `Private environment file tracked in git index: ${result.stdout.trim()}`,
-      );
+      throw new Error(`Private environment file tracked in git index: ${result.stdout.trim()}`);
     }
   },
   "A private .env file was accidentally added to the git index or committed.",

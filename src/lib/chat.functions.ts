@@ -140,19 +140,22 @@ export async function listChatConversationsCore(
   let directSummaries: ChatConversationSummary[] = [];
   if (directConvs.length > 0) {
     const otherUserIds = Array.from(
-      new Set(directConvs.map((c) => (c.user1_id === userId ? c.user2_id : c.user1_id)).filter(Boolean)),
+      new Set(
+        directConvs.map((c) => (c.user1_id === userId ? c.user2_id : c.user1_id)).filter(Boolean),
+      ),
     ) as string[];
 
     const placeholders = otherUserIds.map(() => "?").join(", ");
-    const profiles = otherUserIds.length > 0
-      ? await query<Profile & { role: string | null }>(
-          `SELECT p.id, p.user_code, p.full_name, p.job_title, p.avatar_url, p.is_active, r.role
+    const profiles =
+      otherUserIds.length > 0
+        ? await query<Profile & { role: string | null }>(
+            `SELECT p.id, p.user_code, p.full_name, p.job_title, p.avatar_url, p.is_active, r.role
            FROM profiles p
            LEFT JOIN user_roles r ON p.id = r.user_id AND (r.workspace_id = ? OR r.workspace_id IS NULL)
            WHERE p.id IN (${placeholders})`,
-          [workspaceId, ...otherUserIds],
-        )
-      : [];
+            [workspaceId, ...otherUserIds],
+          )
+        : [];
 
     const profileMap = new Map<string, ChatParticipant>(
       profiles.map((p) => [
@@ -555,7 +558,9 @@ export async function sendChatMessageCore(
   },
 ): Promise<{ message: ChatMessage; conversationId: string }> {
   if (context.isViewingAs) {
-    throw new Error("Action not permitted in view-as preview mode. Switch back to your account to perform this action.");
+    throw new Error(
+      "Action not permitted in view-as preview mode. Switch back to your account to perform this action.",
+    );
   }
 
   const { userId, workspaceId, role } = context;
@@ -639,7 +644,8 @@ export async function sendChatMessageCore(
       throw new Error("Cannot send message to a deactivated user.");
     }
 
-    const [u1, u2] = userId < targetRecipientId ? [userId, targetRecipientId] : [targetRecipientId, userId];
+    const [u1, u2] =
+      userId < targetRecipientId ? [userId, targetRecipientId] : [targetRecipientId, userId];
 
     const existingConv = await queryOne<ChatConversation>(
       "SELECT * FROM chat_conversations WHERE workspace_id = ? AND user1_id = ? AND user2_id = ? LIMIT 1",
@@ -1310,15 +1316,17 @@ export async function renameChatGroupCore(
 
 export const renameChatGroupFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
-  .validator((input: { conversationId: string; title: string; description?: string | undefined }) => {
-    if (!input?.conversationId?.trim()) throw new Error("Conversation ID is required.");
-    if (!input?.title?.trim()) throw new Error("Group title is required.");
-    return {
-      conversationId: input.conversationId.trim(),
-      title: input.title.trim(),
-      description: input.description?.trim() || undefined,
-    };
-  })
+  .validator(
+    (input: { conversationId: string; title: string; description?: string | undefined }) => {
+      if (!input?.conversationId?.trim()) throw new Error("Conversation ID is required.");
+      if (!input?.title?.trim()) throw new Error("Group title is required.");
+      return {
+        conversationId: input.conversationId.trim(),
+        title: input.title.trim(),
+        description: input.description?.trim() || undefined,
+      };
+    },
+  )
   .handler(async ({ data, context }) => {
     assertNotViewingAs(context, "Renaming group");
     return renameChatGroupCore(context as unknown as ServerAuthContext, data);
@@ -1421,7 +1429,9 @@ export async function restoreChatGroupCore(
     [workspaceId, conv.title],
   );
   if (duplicate) {
-    throw new Error(`Another active group named "${conv.title}" already exists. Rename before restoring.`);
+    throw new Error(
+      `Another active group named "${conv.title}" already exists. Rename before restoring.`,
+    );
   }
 
   await execute(
@@ -1490,7 +1500,9 @@ export async function deleteChatGroupCore(
 
   await transaction(async (conn) => {
     await conn.query("DELETE FROM chat_messages WHERE conversation_id = ?", [data.conversationId]);
-    await conn.query("DELETE FROM chat_conversation_members WHERE conversation_id = ?", [data.conversationId]);
+    await conn.query("DELETE FROM chat_conversation_members WHERE conversation_id = ?", [
+      data.conversationId,
+    ]);
     await conn.query("DELETE FROM chat_conversations WHERE id = ?", [data.conversationId]);
   });
 
