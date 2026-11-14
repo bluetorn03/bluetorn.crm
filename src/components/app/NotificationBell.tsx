@@ -248,7 +248,8 @@ export function NotificationBell() {
           <AlertDialogHeader>
             <AlertDialogTitle>Clear All Notifications?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to clear all your notifications? This only removes notifications for your account and will not affect any workspace data or audit logs.
+              Are you sure you want to clear all your notifications? This only removes notifications
+              for your account and will not affect any workspace data or audit logs.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

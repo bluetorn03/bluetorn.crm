@@ -2,6 +2,16 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { validateSessionSecretConfig } from "./lib/auth-server";
+
+// Startup validation: In production, fail early and cleanly if SESSION_SECRET is missing or weak
+const authValidation = validateSessionSecretConfig();
+if (!authValidation.ok) {
+  console.error(`[FATAL STARTUP] ${authValidation.error}`);
+  if (typeof process !== "undefined" && process.env?.["NODE_ENV"] === "production") {
+    throw new Error(`[FATAL STARTUP] ${authValidation.error}`);
+  }
+}
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -115,14 +125,17 @@ function ensureChatCleanupJob(): void {
     }
   }, 15000);
 
-  setInterval(async () => {
-    try {
-      const { cleanupExpiredChatMessages } = await import("./lib/chat-cleanup");
-      await cleanupExpiredChatMessages();
-    } catch (err) {
-      console.error("[Server Chat Cleanup] Interval run error:", err);
-    }
-  }, 30 * 60 * 1000);
+  setInterval(
+    async () => {
+      try {
+        const { cleanupExpiredChatMessages } = await import("./lib/chat-cleanup");
+        await cleanupExpiredChatMessages();
+      } catch (err) {
+        console.error("[Server Chat Cleanup] Interval run error:", err);
+      }
+    },
+    30 * 60 * 1000,
+  );
 }
 
 // Start background interval on server load
@@ -165,12 +178,25 @@ export default {
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {
-      console.error(error);
-      return new Response(renderErrorPage(), {
-        status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      });
+      console.error("[Server Catch-All Error]", error);
+      const accept = request.headers.get("accept") ?? "";
+      // Only return HTML renderErrorPage for direct browser HTML page loads
+      if (accept.includes("text/html") && !url.pathname.startsWith("/_server")) {
+        return new Response(renderErrorPage(), {
+          status: 500,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        });
+      }
+      return new Response(
+        JSON.stringify({
+          error: "Internal server error",
+          message: error instanceof Error ? error.message : "Internal server error",
+        }),
+        {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        },
+      );
     }
   },
 };
-

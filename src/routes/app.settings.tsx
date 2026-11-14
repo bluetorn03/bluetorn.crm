@@ -512,7 +512,8 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
                 </Select>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Security and operational audit events older than {auditRetentionDays} days are automatically purged.
+                Security and operational audit events older than {auditRetentionDays} days are
+                automatically purged.
               </p>
             </div>
 
@@ -531,10 +532,13 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
             <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3.5">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-foreground">Notification Retention</span>
-                <span className="text-xs font-mono text-muted-foreground">Read: 30d / Unread: 90d</span>
+                <span className="text-xs font-mono text-muted-foreground">
+                  Read: 30d / Unread: 90d
+                </span>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Read user notifications are automatically cleared after 30 days; unread after 90 days.
+                Read user notifications are automatically cleared after 30 days; unread after 90
+                days.
               </p>
             </div>
 
@@ -551,10 +555,32 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
               </div>
               {storageQuery.data && (
                 <div className="grid grid-cols-2 gap-2 pt-1 text-[11px] text-muted-foreground">
-                  <div>Property Media: <strong className="text-foreground">{storageQuery.data.propertyMediaCount}</strong> files</div>
-                  <div>Chat Messages: <strong className="text-foreground">{storageQuery.data.chatMessageCount}</strong> messages</div>
-                  <div>Audit Events: <strong className="text-foreground">{storageQuery.data.auditLogCount}</strong> records</div>
-                  <div>Notifications: <strong className="text-foreground">{storageQuery.data.notificationCount}</strong> records</div>
+                  <div>
+                    Property Media:{" "}
+                    <strong className="text-foreground">
+                      {storageQuery.data.propertyMediaCount}
+                    </strong>{" "}
+                    files
+                  </div>
+                  <div>
+                    Chat Messages:{" "}
+                    <strong className="text-foreground">
+                      {storageQuery.data.chatMessageCount}
+                    </strong>{" "}
+                    messages
+                  </div>
+                  <div>
+                    Audit Events:{" "}
+                    <strong className="text-foreground">{storageQuery.data.auditLogCount}</strong>{" "}
+                    records
+                  </div>
+                  <div>
+                    Notifications:{" "}
+                    <strong className="text-foreground">
+                      {storageQuery.data.notificationCount}
+                    </strong>{" "}
+                    records
+                  </div>
                 </div>
               )}
             </div>
@@ -569,8 +595,12 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
                   onClick={() => cleanupMutation.mutate()}
                   disabled={cleanupMutation.isPending}
                 >
-                  <RefreshCw className={`h-3.5 w-3.5 ${cleanupMutation.isPending ? "animate-spin" : ""}`} />
-                  {cleanupMutation.isPending ? "Running Maintenance Cleanup..." : "Run Scheduled Retention Cleanup Now"}
+                  <RefreshCw
+                    className={`h-3.5 w-3.5 ${cleanupMutation.isPending ? "animate-spin" : ""}`}
+                  />
+                  {cleanupMutation.isPending
+                    ? "Running Maintenance Cleanup..."
+                    : "Run Scheduled Retention Cleanup Now"}
                 </Button>
               </div>
             )}
@@ -740,7 +770,9 @@ function TeamTab({
             <div>
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-primary" />
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Team Seats</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Team Seats
+                </span>
               </div>
               <div className="mt-1 flex items-baseline gap-2">
                 <span className="text-2xl font-bold tracking-tight text-foreground">
@@ -750,7 +782,9 @@ function TeamTab({
                 <span className="text-muted-foreground">·</span>
                 <span
                   className={`text-xs font-medium ${
-                    seatData.seatsAvailable === 0 ? "text-destructive font-semibold" : "text-success"
+                    seatData.seatsAvailable === 0
+                      ? "text-destructive font-semibold"
+                      : "text-success"
                   }`}
                 >
                   {seatData.seatsAvailable === 0
@@ -761,7 +795,8 @@ function TeamTab({
             </div>
             {seatData.inactiveMembers > 0 && (
               <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-1.5 border border-border/50 self-start sm:self-auto">
-                <span className="font-medium text-foreground">{seatData.inactiveMembers}</span> inactive account
+                <span className="font-medium text-foreground">{seatData.inactiveMembers}</span>{" "}
+                inactive account
                 {seatData.inactiveMembers === 1 ? "" : "s"} (do not count toward active seat limit)
               </div>
             )}
@@ -775,8 +810,8 @@ function TeamTab({
                   seatData.seatsAvailable === 0
                     ? "bg-destructive"
                     : seatData.seatsAvailable <= 2
-                    ? "bg-amber-500"
-                    : "bg-primary"
+                      ? "bg-amber-500"
+                      : "bg-primary"
                 }`}
                 style={{
                   width: `${Math.min(100, Math.round((seatData.seatsUsed / seatData.seatLimit) * 100))}%`,
@@ -797,7 +832,10 @@ function TeamTab({
         description="Everyone with access to this workspace."
         action={
           canManage && (
-            <Dialog open={addOpen} onOpenChange={(open) => (open ? handleOpenAdd() : setAddOpen(false))}>
+            <Dialog
+              open={addOpen}
+              onOpenChange={(open) => (open ? handleOpenAdd() : setAddOpen(false))}
+            >
               <DialogTrigger asChild>
                 <Button
                   size="sm"
@@ -810,284 +848,292 @@ function TeamTab({
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Add team member</DialogTitle>
-                  <DialogDescription>Create login credentials for a new teammate.</DialogDescription>
+                  <DialogDescription>
+                    Create login credentials for a new teammate.
+                  </DialogDescription>
                 </DialogHeader>
                 {isSeatLimitReached && (
                   <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-xs text-destructive">
-                    <strong>Seat Limit Reached:</strong> All {seatData?.seatLimit} workspace seats are currently
-                    occupied by active team members. Deactivate an unused member or contact Super Admin to increase
-                    your plan limit.
+                    <strong>Seat Limit Reached:</strong> All {seatData?.seatLimit} workspace seats
+                    are currently occupied by active team members. Deactivate an unused member or
+                    contact Super Admin to increase your plan limit.
                   </div>
                 )}
-              <div className="grid gap-3 py-2">
-                <Field
-                  label="Full name *"
-                  value={form.fullName}
-                  onChange={(v) => setForm({ ...form, fullName: v })}
-                />
-                <div>
-                  <Label className="text-xs">User ID (login) *</Label>
-                  <Input
-                    value={form.userCode}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        userCode: e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ""),
-                      })
-                    }
-                    placeholder="e.g. rohit.sharma"
-                    className="mt-1 font-mono text-xs"
+                <div className="grid gap-3 py-2">
+                  <Field
+                    label="Full name *"
+                    value={form.fullName}
+                    onChange={(v) => setForm({ ...form, fullName: v })}
                   />
-                  <p className="text-muted-foreground mt-1 text-[11px]">
-                    2-31 lowercase letters, numbers, dot, dash, or underscore.
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Field
-                      label="Email"
-                      type="email"
-                      value={form.email}
-                      onChange={(v) => setForm({ ...form, email: v })}
+                    <Label className="text-xs">User ID (login) *</Label>
+                    <Input
+                      value={form.userCode}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          userCode: e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ""),
+                        })
+                      }
+                      placeholder="e.g. rohit.sharma"
+                      className="mt-1 font-mono text-xs"
                     />
-                    {!isAddEmailValid && (
-                      <p className="mt-1 text-[11px] text-destructive">Invalid email format.</p>
-                    )}
+                    <p className="text-muted-foreground mt-1 text-[11px]">
+                      2-31 lowercase letters, numbers, dot, dash, or underscore.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Field
+                        label="Email"
+                        type="email"
+                        value={form.email}
+                        onChange={(v) => setForm({ ...form, email: v })}
+                      />
+                      {!isAddEmailValid && (
+                        <p className="mt-1 text-[11px] text-destructive">Invalid email format.</p>
+                      )}
+                    </div>
+                    <Field
+                      label="Phone"
+                      value={form.phone}
+                      onChange={(v) => setForm({ ...form, phone: v })}
+                    />
                   </div>
                   <Field
-                    label="Phone"
-                    value={form.phone}
-                    onChange={(v) => setForm({ ...form, phone: v })}
+                    label="Job title"
+                    value={form.jobTitle}
+                    onChange={(v) => setForm({ ...form, jobTitle: v })}
                   />
-                </div>
-                <Field
-                  label="Job title"
-                  value={form.jobTitle}
-                  onChange={(v) => setForm({ ...form, jobTitle: v })}
-                />
-                <div>
-                  <Label className="text-xs">Role</Label>
-                  <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="employee">Employee</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs">Temporary password * (min 8 chars)</Label>
-                  <div className="relative mt-1">
-                    <Input
-                      type={showPassword ? "text" : "password"}
-                      value={form.password}
-                      onChange={(e) => setForm({ ...form, password: e.target.value })}
-                      placeholder="••••••••"
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="text-muted-foreground hover:text-foreground absolute right-2.5 top-1/2 -translate-y-1/2 p-1"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
+                  <div>
+                    <Label className="text-xs">Role</Label>
+                    <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="employee">Employee</SelectItem>
+                        <SelectItem value="manager">Manager</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Temporary password * (min 8 chars)</Label>
+                    <div className="relative mt-1">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        value={form.password}
+                        onChange={(e) => setForm({ ...form, password: e.target.value })}
+                        placeholder="••••••••"
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="text-muted-foreground hover:text-foreground absolute right-2.5 top-1/2 -translate-y-1/2 p-1"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setAddOpen(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  disabled={
-                    !form.fullName.trim() ||
-                    !isAddUserCodeValid ||
-                    !isAddEmailValid ||
-                    form.password.length < 8 ||
-                    create.isPending ||
-                    isSeatLimitReached
-                  }
-                  onClick={() => create.mutate()}
-                >
-                  {create.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Create
-                  user
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )
-      }
-      bodyClassName="p-0"
-    >
-      <div className="divide-border divide-y">
-        {list.map((m) => {
-          const isSelf = m.id === currentUserId;
-          const isOwner = m.role === "owner";
-          return (
-            <div key={m.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-foreground text-sm font-medium">{m.full_name}</p>
-                  <StatusBadge label={m.role ?? "employee"} />
-                  {!m.is_active && <StatusBadge label="inactive" tone="danger" />}
-                </div>
-                <p className="text-muted-foreground mt-0.5 text-xs">
-                  User ID:{" "}
-                  <code className="bg-muted text-foreground rounded px-1 font-mono">{m.user_code}</code>
-                  {m.job_title ? ` · ${m.job_title}` : ""}
-                  {m.email ? ` · ${m.email}` : ""}
-                  {m.last_login_at ? ` · Last login ${relativeTime(m.last_login_at)}` : ""}
-                </p>
-              </div>
-
-              {canManage && !isOwner && !isSelf && (
-                <div className="flex items-center gap-2">
-                  {/* PRIMARY ACTIONS */}
-                  <Button size="sm" variant="outline" onClick={() => setEditFor(m)}>
-                    <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit Employee
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setAddOpen(false)}>
+                    Cancel
                   </Button>
-
                   <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={viewAsLoadingId === m.id}
-                    onClick={() => handleViewDashboard(m)}
+                    disabled={
+                      !form.fullName.trim() ||
+                      !isAddUserCodeValid ||
+                      !isAddEmailValid ||
+                      form.password.length < 8 ||
+                      create.isPending ||
+                      isSeatLimitReached
+                    }
+                    onClick={() => create.mutate()}
                   >
-                    {viewAsLoadingId === m.id ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <LayoutDashboard className="mr-1.5 h-3.5 w-3.5 text-primary" />
-                    )}
-                    View Dashboard
+                    {create.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Create
+                    user
                   </Button>
-
-                  {/* SECONDARY ACTIONS DROPDOWN */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                        <span className="sr-only">More actions</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      {(role === "Owner" || role === "Super Admin") && (
-                        <DropdownMenuItem onClick={() => setPermissionsFor(m)}>
-                          <ShieldCheck className="mr-2 h-4 w-4 text-primary" /> Permissions
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem
-                        onClick={() => {
-                          setResetFor(m);
-                          setNewPassword("");
-                          setShowResetPassword(false);
-                        }}
-                      >
-                        <KeyRound className="mr-2 h-4 w-4" /> Reset password
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      {m.is_active ? (
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          disabled={activate.isPending}
-                          onClick={() => activate.mutate({ userId: m.id, isActive: false })}
-                        >
-                          <UserX className="mr-2 h-4 w-4" /> Deactivate
-                        </DropdownMenuItem>
-                      ) : (
-                        <DropdownMenuItem
-                          className="text-emerald-600 focus:text-emerald-600"
-                          disabled={activate.isPending}
-                          onClick={() => activate.mutate({ userId: m.id, isActive: true })}
-                        >
-                          <UserCheck className="mr-2 h-4 w-4" /> Reactivate
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )
+        }
+        bodyClassName="p-0"
+      >
+        <div className="divide-border divide-y">
+          {list.map((m) => {
+            const isSelf = m.id === currentUserId;
+            const isOwner = m.role === "owner";
+            return (
+              <div key={m.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-foreground text-sm font-medium">{m.full_name}</p>
+                    <StatusBadge label={m.role ?? "employee"} />
+                    {!m.is_active && <StatusBadge label="inactive" tone="danger" />}
+                  </div>
+                  <p className="text-muted-foreground mt-0.5 text-xs">
+                    User ID:{" "}
+                    <code className="bg-muted text-foreground rounded px-1 font-mono">
+                      {m.user_code}
+                    </code>
+                    {m.job_title ? ` · ${m.job_title}` : ""}
+                    {m.email ? ` · ${m.email}` : ""}
+                    {m.last_login_at ? ` · Last login ${relativeTime(m.last_login_at)}` : ""}
+                  </p>
                 </div>
-              )}
+
+                {canManage && !isOwner && !isSelf && (
+                  <div className="flex items-center gap-2">
+                    {/* PRIMARY ACTIONS */}
+                    <Button size="sm" variant="outline" onClick={() => setEditFor(m)}>
+                      <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit Employee
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={viewAsLoadingId === m.id}
+                      onClick={() => handleViewDashboard(m)}
+                    >
+                      {viewAsLoadingId === m.id ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <LayoutDashboard className="mr-1.5 h-3.5 w-3.5 text-primary" />
+                      )}
+                      View Dashboard
+                    </Button>
+
+                    {/* SECONDARY ACTIONS DROPDOWN */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                          <span className="sr-only">More actions</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        {(role === "Owner" || role === "Super Admin") && (
+                          <DropdownMenuItem onClick={() => setPermissionsFor(m)}>
+                            <ShieldCheck className="mr-2 h-4 w-4 text-primary" /> Permissions
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setResetFor(m);
+                            setNewPassword("");
+                            setShowResetPassword(false);
+                          }}
+                        >
+                          <KeyRound className="mr-2 h-4 w-4" /> Reset password
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {m.is_active ? (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            disabled={activate.isPending}
+                            onClick={() => activate.mutate({ userId: m.id, isActive: false })}
+                          >
+                            <UserX className="mr-2 h-4 w-4" /> Deactivate
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem
+                            className="text-emerald-600 focus:text-emerald-600"
+                            disabled={activate.isPending}
+                            onClick={() => activate.mutate({ userId: m.id, isActive: true })}
+                          >
+                            <UserCheck className="mr-2 h-4 w-4" /> Reactivate
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Edit employee dialog */}
+        {editFor && (
+          <EditEmployeeDialog
+            member={editFor}
+            workspaceId={workspaceId}
+            onClose={() => setEditFor(null)}
+            onSaved={async () => {
+              await invalidate();
+            }}
+          />
+        )}
+
+        {/* Reset password dialog */}
+        <Dialog open={Boolean(resetFor)} onOpenChange={(o) => !o && setResetFor(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reset password</DialogTitle>
+              <DialogDescription>
+                Set a new password for{" "}
+                <span className="font-medium text-foreground">{resetFor?.full_name}</span> (User ID:{" "}
+                {resetFor?.user_code}).
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2">
+              <Label className="text-xs">New password (min 8 chars) *</Label>
+              <div className="relative mt-1">
+                <Input
+                  type={showResetPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowResetPassword(!showResetPassword)}
+                  className="text-muted-foreground hover:text-foreground absolute right-2.5 top-1/2 -translate-y-1/2 p-1"
+                  aria-label={showResetPassword ? "Hide password" : "Show password"}
+                >
+                  {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
-          );
-        })}
-      </div>
-
-      {/* Edit employee dialog */}
-      {editFor && (
-        <EditEmployeeDialog
-          member={editFor}
-          workspaceId={workspaceId}
-          onClose={() => setEditFor(null)}
-          onSaved={async () => {
-            await invalidate();
-          }}
-        />
-      )}
-
-      {/* Reset password dialog */}
-      <Dialog open={Boolean(resetFor)} onOpenChange={(o) => !o && setResetFor(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reset password</DialogTitle>
-            <DialogDescription>
-              Set a new password for{" "}
-              <span className="font-medium text-foreground">{resetFor?.full_name}</span> (User ID:{" "}
-              {resetFor?.user_code}).
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-2">
-            <Label className="text-xs">New password (min 8 chars) *</Label>
-            <div className="relative mt-1">
-              <Input
-                type={showResetPassword ? "text" : "password"}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="••••••••"
-                className="pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowResetPassword(!showResetPassword)}
-                className="text-muted-foreground hover:text-foreground absolute right-2.5 top-1/2 -translate-y-1/2 p-1"
-                aria-label={showResetPassword ? "Hide password" : "Show password"}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setResetFor(null)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={newPassword.length < 8 || reset.isPending}
+                onClick={() => reset.mutate()}
               >
-                {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setResetFor(null)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={newPassword.length < 8 || reset.isPending}
-              onClick={() => reset.mutate()}
-            >
-              {reset.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Update
-              password
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                {reset.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Update
+                password
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-      {/* Permissions Dialog */}
-      {permissionsFor && (
-        <PermissionsDialog
-          member={permissionsFor}
-          workspaceId={workspaceId}
-          onClose={() => setPermissionsFor(null)}
-        />
-      )}
-    </SectionCard>
-  </div>
-);
+        {/* Permissions Dialog */}
+        {permissionsFor && (
+          <PermissionsDialog
+            member={permissionsFor}
+            workspaceId={workspaceId}
+            onClose={() => setPermissionsFor(null)}
+          />
+        )}
+      </SectionCard>
+    </div>
+  );
 }
 
 function EditEmployeeDialog({
@@ -1160,39 +1206,23 @@ function EditEmployeeDialog({
             </div>
           </div>
 
-          <Field
-            label="Full name *"
-            value={fullName}
-            onChange={setFullName}
-          />
+          <Field label="Full name *" value={fullName} onChange={setFullName} />
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Field
-                label="Email"
-                type="email"
-                value={email}
-                onChange={setEmail}
-              />
+              <Field label="Email" type="email" value={email} onChange={setEmail} />
               {!isEmailValid && (
                 <p className="mt-1 text-[11px] text-destructive">Enter a valid email address.</p>
               )}
             </div>
-            <Field
-              label="Phone"
-              value={phone}
-              onChange={setPhone}
-            />
+            <Field label="Phone" value={phone} onChange={setPhone} />
           </div>
 
-          <Field
-            label="Job title"
-            value={jobTitle}
-            onChange={setJobTitle}
-          />
+          <Field label="Job title" value={jobTitle} onChange={setJobTitle} />
 
           <p className="text-muted-foreground text-[11px] border-t border-border pt-2">
-            Role, User ID, and account status are managed separately to prevent unintended privilege escalation. Passwords can be changed via Reset Password.
+            Role, User ID, and account status are managed separately to prevent unintended privilege
+            escalation. Passwords can be changed via Reset Password.
           </p>
         </div>
 
@@ -1217,17 +1247,20 @@ const SECURITY_PERMISSIONS: { id: string; label: string; description: string }[]
   {
     id: "view_audit_logs",
     label: "View Audit Logs",
-    description: "Access and inspect workspace audit trail, security events, and system mutation records",
+    description:
+      "Access and inspect workspace audit trail, security events, and system mutation records",
   },
   {
     id: "manage.settings",
     label: "Workspace Settings",
-    description: "View and manage workspace profile, company details, branding, invoice settings and retention policies",
+    description:
+      "View and manage workspace profile, company details, branding, invoice settings and retention policies",
   },
   {
     id: "manage.team",
     label: "Team Management",
-    description: "View team members, invite employees, manage employee profiles, and activate/deactivate accounts",
+    description:
+      "View team members, invite employees, manage employee profiles, and activate/deactivate accounts",
   },
 ];
 
@@ -1372,8 +1405,8 @@ function PermissionsDialog({
           </DialogTitle>
           <DialogDescription>
             Configure granular access permissions for user{" "}
-            <code className="bg-muted px-1 rounded">{member.user_code}</code> ({member.role}). All permissions
-            are enforced server-side.
+            <code className="bg-muted px-1 rounded">{member.user_code}</code> ({member.role}). All
+            permissions are enforced server-side.
           </DialogDescription>
         </DialogHeader>
 
@@ -1415,7 +1448,9 @@ function PermissionsDialog({
                     <label
                       key={p.id}
                       className={`flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
-                        isChecked ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/40"
+                        isChecked
+                          ? "border-primary/40 bg-primary/5"
+                          : "border-border hover:bg-muted/40"
                       }`}
                     >
                       <Checkbox
@@ -1444,7 +1479,9 @@ function PermissionsDialog({
                     <label
                       key={p.id}
                       className={`flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
-                        isChecked ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/40"
+                        isChecked
+                          ? "border-primary/40 bg-primary/5"
+                          : "border-border hover:bg-muted/40"
                       }`}
                     >
                       <Checkbox

@@ -54,7 +54,11 @@ function LoginPage() {
   const [alert, setAlert] = useState<Alert | null>(null);
   const [needsSetup, setNeedsSetup] = useState(false);
 
-  const [branding, setBranding] = useState<{ found: boolean; name?: string; logoUrl?: string | null } | null>(null);
+  const [branding, setBranding] = useState<{
+    found: boolean;
+    name?: string;
+    logoUrl?: string | null;
+  } | null>(null);
   const [lookingUpBranding, setLookingUpBranding] = useState(false);
 
   useEffect(() => {
@@ -245,16 +249,19 @@ function LoginPage() {
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-foreground truncate">{branding.name}</p>
+                    <p className="text-xs font-semibold text-foreground truncate">
+                      {branding.name}
+                    </p>
                     <p className="text-[10px] text-muted-foreground truncate">Verified Workspace</p>
                   </div>
                 </div>
               )}
-              {branding && !branding.found && workspaceCode.trim().length >= 3 && !lookingUpBranding && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Workspace not found
-                </p>
-              )}
+              {branding &&
+                !branding.found &&
+                workspaceCode.trim().length >= 3 &&
+                !lookingUpBranding && (
+                  <p className="text-xs text-muted-foreground mt-1">Workspace not found</p>
+                )}
               <p className="text-muted-foreground text-xs">
                 Bluetorn staff sign in with code{" "}
                 <span className="text-foreground font-medium">{PLATFORM_WORKSPACE_CODE}</span>.

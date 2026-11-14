@@ -146,10 +146,11 @@ export async function ensureDefaultLeadOptions(workspaceId, conn, actorId = null
       if (Array.isArray(existing) && existing.length > 0) {
         // If option exists but stable_key is missing and default specifies one, update it
         if (item.stable_key && !existing[0].stable_key) {
-          await conn.query(
-            "UPDATE lead_options SET stable_key = ?, is_system = ? WHERE id = ?",
-            [item.stable_key, item.is_system ? 1 : 0, existing[0].id],
-          );
+          await conn.query("UPDATE lead_options SET stable_key = ?, is_system = ? WHERE id = ?", [
+            item.stable_key,
+            item.is_system ? 1 : 0,
+            existing[0].id,
+          ]);
         }
       } else {
         const id = crypto.randomUUID();
@@ -246,8 +247,16 @@ export async function migrateLeadOptions(existingConn = null) {
       { col: "source_option_id", idx: "idx_leads_source_opt", fk: "fk_leads_source_opt" },
       { col: "location_option_id", idx: "idx_leads_location_opt", fk: "fk_leads_location_opt" },
       { col: "purpose_option_id", idx: "idx_leads_purpose_opt", fk: "fk_leads_purpose_opt" },
-      { col: "possession_timeline_option_id", idx: "idx_leads_possession_opt", fk: "fk_leads_possession_opt" },
-      { col: "transaction_timeline_option_id", idx: "idx_leads_transaction_opt", fk: "fk_leads_transaction_opt" },
+      {
+        col: "possession_timeline_option_id",
+        idx: "idx_leads_possession_opt",
+        fk: "fk_leads_possession_opt",
+      },
+      {
+        col: "transaction_timeline_option_id",
+        idx: "idx_leads_transaction_opt",
+        fk: "fk_leads_transaction_opt",
+      },
       { col: "phase_option_id", idx: "idx_leads_phase_opt", fk: "fk_leads_phase_opt" },
     ];
 

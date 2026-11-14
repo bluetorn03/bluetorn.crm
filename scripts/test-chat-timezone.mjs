@@ -203,14 +203,22 @@ console.log("========================================================");
 
 async function runEndToEnd() {
   // 1. Fetch Jayshree workspace and owner
-  const ws = await queryOne("SELECT id, code, timezone FROM workspaces WHERE code = 'JAYSHREE' LIMIT 1");
+  const ws = await queryOne(
+    "SELECT id, code, timezone FROM workspaces WHERE code = 'JAYSHREE' LIMIT 1",
+  );
   assert.ok(ws, "Jayshree workspace must exist");
   assert.strictEqual(ws.timezone, "Asia/Kolkata");
 
-  const owner = await queryOne("SELECT id, full_name FROM profiles WHERE workspace_id = ? AND user_code = 'jayshree.realty' LIMIT 1", [ws.id]);
+  const owner = await queryOne(
+    "SELECT id, full_name FROM profiles WHERE workspace_id = ? AND user_code = 'jayshree.realty' LIMIT 1",
+    [ws.id],
+  );
   assert.ok(owner, "Owner profile must exist");
 
-  const employee = await queryOne("SELECT id, full_name FROM profiles WHERE workspace_id = ? AND user_code = 'jayshree.sales' LIMIT 1", [ws.id]);
+  const employee = await queryOne(
+    "SELECT id, full_name FROM profiles WHERE workspace_id = ? AND user_code = 'jayshree.sales' LIMIT 1",
+    [ws.id],
+  );
   assert.ok(employee, "Employee profile must exist");
 
   const ownerContext = {
@@ -235,7 +243,7 @@ async function runEndToEnd() {
   const timeDiffSec = Math.abs((now.getTime() - msgDate.getTime()) / 1000);
   assert.ok(
     timeDiffSec < 10,
-    `Message created_at (${msg.created_at}) must match current UTC time (${now.toISOString()}) within 10s, got diff ${timeDiffSec}s`
+    `Message created_at (${msg.created_at}) must match current UTC time (${now.toISOString()}) within 10s, got diff ${timeDiffSec}s`,
   );
 
   // 4. Verify message formatting in workspace timezone (Asia/Kolkata)
@@ -246,7 +254,11 @@ async function runEndToEnd() {
     minute: "2-digit",
     hour12: true,
   }).format(now);
-  assert.strictEqual(timeInWsTz, expectedTime, "Message time must match current time in workspace timezone");
+  assert.strictEqual(
+    timeInWsTz,
+    expectedTime,
+    "Message time must match current time in workspace timezone",
+  );
 
   // 5. Verify conversation list item formatting
   const convList = await listChatConversationsCore(ownerContext);
@@ -254,7 +266,10 @@ async function runEndToEnd() {
   assert.ok(targetConv, "Conversation must appear in list");
   assert.strictEqual(targetConv.lastMessage.id, msg.id);
 
-  const lastMsgFormatted = formatChatLastMessageTime(targetConv.lastMessage.created_at, ws.timezone);
+  const lastMsgFormatted = formatChatLastMessageTime(
+    targetConv.lastMessage.created_at,
+    ws.timezone,
+  );
   assert.strictEqual(lastMsgFormatted, "now", "Freshly sent message should display 'now'");
 
   // 6. Test Future-Proof: Dynamically Switch Workspace Timezone
@@ -266,7 +281,11 @@ async function runEndToEnd() {
     minute: "2-digit",
     hour12: true,
   }).format(now);
-  assert.strictEqual(timeInNy, expectedNy, "Same message displayed under America/New_York must adapt dynamically");
+  assert.strictEqual(
+    timeInNy,
+    expectedNy,
+    "Same message displayed under America/New_York must adapt dynamically",
+  );
 
   const timeInLondon = formatChatMessageTime(msg.created_at, "Europe/London");
   const expectedLondon = new Intl.DateTimeFormat("en-US", {
@@ -275,14 +294,21 @@ async function runEndToEnd() {
     minute: "2-digit",
     hour12: true,
   }).format(now);
-  assert.strictEqual(timeInLondon, expectedLondon, "Same message displayed under Europe/London must adapt dynamically");
+  assert.strictEqual(
+    timeInLondon,
+    expectedLondon,
+    "Same message displayed under Europe/London must adapt dynamically",
+  );
 
   // 7. Verify existing format utilities (formatDate, formatTime, formatDateTime) have zero regression
   assert.strictEqual(formatDate(null), "—");
   assert.strictEqual(formatDate(""), "—");
   assert.ok(formatDate("2026-09-30T21:11:55.000Z").includes("/"));
   assert.ok(formatTime("2026-09-30T21:11:55.000Z").includes(":"));
-  assert.ok(formatDateTime("2026-09-30T21:11:55.000Z").includes("•") || formatDateTime("2026-09-30T21:11:55.000Z").includes("·"));
+  assert.ok(
+    formatDateTime("2026-09-30T21:11:55.000Z").includes("•") ||
+      formatDateTime("2026-09-30T21:11:55.000Z").includes("·"),
+  );
 }
 
 await itAsync("End-to-End Chat message insertion, retrieval, and timezone formatting", runEndToEnd);

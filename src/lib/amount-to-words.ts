@@ -36,18 +36,7 @@ const ONES = [
   "Nineteen",
 ];
 
-const TENS = [
-  "",
-  "",
-  "Twenty",
-  "Thirty",
-  "Forty",
-  "Fifty",
-  "Sixty",
-  "Seventy",
-  "Eighty",
-  "Ninety",
-];
+const TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
 
 interface CurrencyUnit {
   main: string;

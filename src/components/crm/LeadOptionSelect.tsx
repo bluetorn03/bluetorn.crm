@@ -63,10 +63,7 @@ export function LeadOptionSelect({
   const queryClient = useQueryClient();
 
   const isOwner =
-    role === "Owner" ||
-    role === "Super Admin" ||
-    dbRole === "owner" ||
-    dbRole === "super_admin";
+    role === "Owner" || role === "Super Admin" || dbRole === "owner" || dbRole === "super_admin";
 
   const elementId = id || `lead-option-${type}`;
 
@@ -223,17 +220,25 @@ export function LeadOptionSelect({
 
           {/* Show inactive historical value if currently assigned */}
           {isSelectedInactive && selectedOption && (
-            <SelectItem key={selectedOption.id} value={selectedOption.id} className="text-muted-foreground">
+            <SelectItem
+              key={selectedOption.id}
+              value={selectedOption.id}
+              className="text-muted-foreground"
+            >
               {selectedOption.name} (Inactive)
             </SelectItem>
           )}
 
           {/* Fallback for historical option if not in options query */}
           {historicalValue &&
-            !Boolean(historicalValue.is_active) &&
+            !historicalValue.is_active &&
             historicalValue.id === value &&
             !selectedOption && (
-              <SelectItem key={historicalValue.id} value={historicalValue.id} className="text-muted-foreground">
+              <SelectItem
+                key={historicalValue.id}
+                value={historicalValue.id}
+                className="text-muted-foreground"
+              >
                 {historicalValue.name} (Inactive)
               </SelectItem>
             )}
@@ -344,7 +349,9 @@ export function LeadOptionSelect({
                             <div className="min-w-0 flex-1 flex items-center gap-2">
                               <span
                                 className={`truncate font-medium text-xs ${
-                                  !isActive ? "line-through text-muted-foreground" : "text-foreground"
+                                  !isActive
+                                    ? "line-through text-muted-foreground"
+                                    : "text-foreground"
                                 }`}
                               >
                                 {opt.name}

@@ -16,7 +16,7 @@ async function main() {
   const wsId = "3419bb7e-7c17-4baa-a929-3e7c4a991542";
   const [dates] = await pool.query(
     "SELECT DATE(created_at) as d, count(*) as c FROM audit_logs WHERE workspace_id = ? GROUP BY DATE(created_at) ORDER BY d DESC",
-    [wsId]
+    [wsId],
   );
   console.log("Audit log dates in ws 3419bb7e-7c17-4baa-a929-3e7c4a991542:", dates);
 
@@ -27,7 +27,7 @@ async function main() {
 
   const [fromOnlyRows] = await pool.query(
     "SELECT id, action, created_at FROM audit_logs WHERE workspace_id = ? AND created_at >= ? ORDER BY created_at DESC LIMIT 5",
-    [wsId, fromUtc]
+    [wsId, fromUtc],
   );
   console.log("From only 2026-10-01 first 5 rows:", fromOnlyRows);
 
@@ -38,7 +38,7 @@ async function main() {
 
   const [rangeRows] = await pool.query(
     "SELECT id, action, created_at FROM audit_logs WHERE workspace_id = ? AND created_at >= ? AND created_at <= ? ORDER BY created_at DESC LIMIT 5",
-    [wsId, fromUtc, toUtc]
+    [wsId, fromUtc, toUtc],
   );
   console.log("From 2026-10-01 to 2026-10-03 rows count:", rangeRows.length, rangeRows);
 

@@ -168,7 +168,9 @@ async function run() {
         console.log("  ✓ Index idx_chat_conv_ws_type_status created.");
       }
     } else {
-      console.warn("  ⚠ chat_conversations table does not exist. Please run migrate-team-chat-v1.mjs first.");
+      console.warn(
+        "  ⚠ chat_conversations table does not exist. Please run migrate-team-chat-v1.mjs first.",
+      );
     }
 
     // 2. Modify chat_messages receiver_id

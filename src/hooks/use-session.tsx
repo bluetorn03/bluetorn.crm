@@ -359,17 +359,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         }
 
         if (perm === "view.finance") {
-          return (
-            permissions.includes("finance.view") ||
-            permissions.includes("view.finance")
-          );
+          return permissions.includes("finance.view") || permissions.includes("view.finance");
         }
 
         if (perm === "finance.view") {
-          return (
-            permissions.includes("finance.view") ||
-            permissions.includes("view.finance")
-          );
+          return permissions.includes("finance.view") || permissions.includes("view.finance");
         }
 
         if (perm === "view_audit_logs" || perm === "view.audit_logs") {
@@ -389,7 +383,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       viewAs,
       exitViewAs,
     };
-  }, [status, user, dbRole, permissions, workspaces, workspaceId, isViewingAs, viewAs, exitViewAs, load, signOut]);
+  }, [
+    status,
+    user,
+    dbRole,
+    permissions,
+    workspaces,
+    workspaceId,
+    isViewingAs,
+    viewAs,
+    exitViewAs,
+    load,
+    signOut,
+  ]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

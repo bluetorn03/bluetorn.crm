@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { formatErrorMessage, isCdnSecurityChallenge } from "../lib/error-formatter";
 import { SessionProvider } from "@/hooks/use-session";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -44,24 +45,32 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
+  const isSecurityChallenge = isCdnSecurityChallenge(error);
+  const displayMsg = formatErrorMessage(
+    error,
+    "Something went wrong on our end. You can try refreshing or head back home.",
+  );
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
+          {isSecurityChallenge ? "Security Verification Required" : "This page didn't load"}
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{displayMsg}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
-              router.invalidate();
-              reset();
+              if (isSecurityChallenge) {
+                window.location.reload();
+              } else {
+                router.invalidate();
+                reset();
+              }
             }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Try again
+            {isSecurityChallenge ? "Refresh Page" : "Try again"}
           </button>
           <a
             href="/"

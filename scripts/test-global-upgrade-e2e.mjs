@@ -82,8 +82,14 @@ async function runTests() {
   assert(formatIndianNumber(10000000) === "1,00,00,000", "10000000 formats as 1,00,00,000");
   assert(formatIndianNumber(5423120) === "54,23,120", "5423120 formats as 54,23,120");
   assert(formatIndianNumber(125000000) === "12,50,00,000", "125000000 formats as 12,50,00,000");
-  assert(formatIndianNumber("10,00,000") === "10,00,000", "Re-formatting formatted string preserves value");
-  assert(parseIndianNumber("1,00,00,000") === 10000000, "parseIndianNumber('1,00,00,000') equals 10000000");
+  assert(
+    formatIndianNumber("10,00,000") === "10,00,000",
+    "Re-formatting formatted string preserves value",
+  );
+  assert(
+    parseIndianNumber("1,00,00,000") === 10000000,
+    "parseIndianNumber('1,00,00,000') equals 10000000",
+  );
   assert(parseIndianNumber("54,23,120.50") === 5423120.5, "parseIndianNumber parses decimal paise");
   assert(parseIndianNumber("") === 0, "parseIndianNumber empty string returns 0");
 
@@ -110,7 +116,8 @@ async function runTests() {
     `150000000.75 -> Fifteen Crore and 75 Paise (got: ${amountToWords(150000000.75)})`,
   );
   assert(
-    amountToWords(5423120) === "Rupees Fifty Four Lakh Twenty Three Thousand One Hundred Twenty Only",
+    amountToWords(5423120) ===
+      "Rupees Fifty Four Lakh Twenty Three Thousand One Hundred Twenty Only",
     `5423120 -> Fifty Four Lakh Twenty Three Thousand One Hundred Twenty (got: ${amountToWords(5423120)})`,
   );
 
@@ -128,10 +135,14 @@ async function runTests() {
     const [userAgentCols] = await conn.query("SHOW COLUMNS FROM audit_logs LIKE 'user_agent'");
     assert(userAgentCols.length === 1, "Column audit_logs.user_agent exists in MySQL");
 
-    const [indexes] = await conn.query("SHOW INDEX FROM audit_logs WHERE Key_name = 'idx_audit_ws_entity'");
+    const [indexes] = await conn.query(
+      "SHOW INDEX FROM audit_logs WHERE Key_name = 'idx_audit_ws_entity'",
+    );
     assert(indexes.length >= 1, "Compound index idx_audit_ws_entity exists on audit_logs");
 
-    const [notifIndexes] = await conn.query("SHOW INDEX FROM notifications WHERE Key_name = 'idx_notifications_retention'");
+    const [notifIndexes] = await conn.query(
+      "SHOW INDEX FROM notifications WHERE Key_name = 'idx_notifications_retention'",
+    );
     assert(notifIndexes.length >= 1, "Index idx_notifications_retention exists on notifications");
 
     // 4. Owner Audit Log System (Append-only & Isolation)
@@ -161,7 +172,10 @@ async function runTests() {
         "SELECT * FROM audit_logs WHERE id = ? AND workspace_id = ?",
         [testEventId, fakeWsId],
       );
-      assert(crossRows.length === 0, "Cross-workspace audit log isolation strictly blocks foreign workspace read");
+      assert(
+        crossRows.length === 0,
+        "Cross-workspace audit log isolation strictly blocks foreign workspace read",
+      );
 
       // Clean test entry
       await conn.query("DELETE FROM audit_logs WHERE id = ?", [testEventId]);
@@ -189,11 +203,10 @@ async function runTests() {
       );
 
       // Individual delete
-      await conn.query("DELETE FROM notifications WHERE id = ? AND user_id = ? AND workspace_id = ?", [
-        notif1,
-        testUserId,
-        userWs,
-      ]);
+      await conn.query(
+        "DELETE FROM notifications WHERE id = ? AND user_id = ? AND workspace_id = ?",
+        [notif1, testUserId, userWs],
+      );
       const [chk1] = await conn.query("SELECT id FROM notifications WHERE id = ?", [notif1]);
       assert(chk1.length === 0, "Individual notification deleted successfully");
 
@@ -206,12 +219,19 @@ async function runTests() {
         testUserId,
         userWs,
       ]);
-      const [chkAfterClear] = await conn.query("SELECT id FROM notifications WHERE id = ?", [notif2]);
+      const [chkAfterClear] = await conn.query("SELECT id FROM notifications WHERE id = ?", [
+        notif2,
+      ]);
       assert(chkAfterClear.length === 0, "Clear All deleted notifications for current user");
 
       // Other user's notification must NOT be affected
-      const [chkOther] = await conn.query("SELECT id FROM notifications WHERE id = ?", [otherNotif]);
-      assert(chkOther.length === 1, "Clear All strictly isolated: other user's notification completely untouched");
+      const [chkOther] = await conn.query("SELECT id FROM notifications WHERE id = ?", [
+        otherNotif,
+      ]);
+      assert(
+        chkOther.length === 1,
+        "Clear All strictly isolated: other user's notification completely untouched",
+      );
 
       // Clean up other test notif
       await conn.query("DELETE FROM notifications WHERE id = ?", [otherNotif]);
@@ -222,23 +242,40 @@ async function runTests() {
     // 6. Centralized Retention & Cleanup Engine
     console.log("\n--- TEST 6: Centralized Retention & Maintenance Cleanup Engine ---");
     const cleanupResult = await runCentralizedCleanup({ batchSize: 100 });
-    assert(typeof cleanupResult.durationMs === "number", `Cleanup executed in ${cleanupResult.durationMs}ms`);
-    assert(typeof cleanupResult.chatMessagesDeleted === "number", "chatMessagesDeleted returned as number");
+    assert(
+      typeof cleanupResult.durationMs === "number",
+      `Cleanup executed in ${cleanupResult.durationMs}ms`,
+    );
+    assert(
+      typeof cleanupResult.chatMessagesDeleted === "number",
+      "chatMessagesDeleted returned as number",
+    );
     assert(typeof cleanupResult.auditLogsPurged === "number", "auditLogsPurged returned as number");
-    assert(typeof cleanupResult.readNotificationsPurged === "number", "readNotificationsPurged returned as number");
+    assert(
+      typeof cleanupResult.readNotificationsPurged === "number",
+      "readNotificationsPurged returned as number",
+    );
 
     // Test second run (idempotent)
     const secondCleanup = await runCentralizedCleanup({ batchSize: 100 });
-    assert(secondCleanup.readNotificationsPurged === 0, "Repeated cleanup run is idempotent (0 duplicate purges)");
+    assert(
+      secondCleanup.readNotificationsPurged === 0,
+      "Repeated cleanup run is idempotent (0 duplicate purges)",
+    );
 
     // 7. Workspace Storage Usage Breakdown
     console.log("\n--- TEST 7: Workspace Storage Breakdown ---");
     const storageUsage = await getWorkspaceStorageUsage(testWs);
     assert(storageUsage.workspaceId === testWs, "Storage breakdown returned for correct workspace");
     assert(typeof storageUsage.propertyMediaCount === "number", "propertyMediaCount is a number");
-    assert(typeof storageUsage.estimatedStorageBytes === "number", "estimatedStorageBytes is a number");
-    assert(typeof storageUsage.estimatedStorageFormatted === "string", `estimatedStorageFormatted: ${storageUsage.estimatedStorageFormatted}`);
-
+    assert(
+      typeof storageUsage.estimatedStorageBytes === "number",
+      "estimatedStorageBytes is a number",
+    );
+    assert(
+      typeof storageUsage.estimatedStorageFormatted === "string",
+      `estimatedStorageFormatted: ${storageUsage.estimatedStorageFormatted}`,
+    );
   } finally {
     await conn.end();
   }

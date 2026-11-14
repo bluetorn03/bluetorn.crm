@@ -24,6 +24,7 @@ import { updateLead, logLeadActivity, qk, type Lead } from "@/lib/crm-api";
 import { useSession } from "@/hooks/use-session";
 import { formatDateTime } from "@/lib/format";
 import { toast } from "sonner";
+import { formatErrorMessage, isCdnSecurityChallenge } from "@/lib/error-formatter";
 
 const followUpTypes = [
   "Call",
@@ -90,8 +91,18 @@ export function ScheduleFollowUpDialog({
       toast.success(variables ? "Follow-up cancelled." : "Follow-up scheduled successfully.");
       onOpenChange(false);
     },
-    onError: (err: Error) => {
-      toast.error(err.message || "Failed to schedule follow-up.");
+    onError: (err: unknown) => {
+      const msg = formatErrorMessage(err, "Failed to schedule follow-up.");
+      if (isCdnSecurityChallenge(err)) {
+        toast.error(msg, {
+          action: {
+            label: "Refresh",
+            onClick: () => window.location.reload(),
+          },
+        });
+      } else {
+        toast.error(msg);
+      }
     },
   });
 

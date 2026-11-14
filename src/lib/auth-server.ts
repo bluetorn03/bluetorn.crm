@@ -29,30 +29,82 @@ async function getDb() {
 
 /* ----------------------------- session tokens ----------------------------- */
 
+let _cachedSigningKey: CryptoKey | null = null;
+let _cachedSecretValue: string | null = null;
 let _devFallbackKey: CryptoKey | null = null;
+let _devWarnedOnce = false;
 
-async function getSigningKey(): Promise<CryptoKey> {
+/**
+ * Validates the session signing secret configuration without exposing secret material.
+ * In production, a missing or weak secret fails startup or requests immediately.
+ */
+export function validateSessionSecretConfig(): { ok: boolean; error?: string } {
+  const isProduction = typeof process !== "undefined" && process.env?.["NODE_ENV"] === "production";
   const secret = typeof process !== "undefined" ? process.env?.["SESSION_SECRET"] : undefined;
-  if (secret && secret.length >= 32) {
-    const keyMaterial = new TextEncoder().encode(secret);
+
+  if (!secret || secret.trim().length < 32) {
+    if (isProduction) {
+      return {
+        ok: false,
+        error:
+          "SESSION_SECRET environment variable is missing or shorter than 32 characters. A stable SESSION_SECRET (minimum 32 characters) must be configured in Hostinger environment variables.",
+      };
+    }
+    return {
+      ok: true,
+      error:
+        "SESSION_SECRET is unset or shorter than 32 characters. Using a development-only ephemeral in-memory signing key.",
+    };
+  }
+  return { ok: true };
+}
+
+/** Reset cache for unit / integration tests */
+export function resetSigningKeyCacheForTesting(): void {
+  _cachedSigningKey = null;
+  _cachedSecretValue = null;
+  _devFallbackKey = null;
+  _devWarnedOnce = false;
+}
+
+export async function getSigningKey(): Promise<CryptoKey> {
+  const isProduction = typeof process !== "undefined" && process.env?.["NODE_ENV"] === "production";
+  const secret = typeof process !== "undefined" ? process.env?.["SESSION_SECRET"] : undefined;
+
+  if (secret && secret.trim().length >= 32) {
+    const trimmed = secret.trim();
+    if (_cachedSigningKey && _cachedSecretValue === trimmed) {
+      return _cachedSigningKey;
+    }
+    const keyMaterial = new TextEncoder().encode(trimmed);
     const padded = new Uint8Array(32);
     padded.set(keyMaterial.slice(0, 32));
-    return globalThis.crypto.subtle.importKey(
+    _cachedSigningKey = await globalThis.crypto.subtle.importKey(
       "raw",
       padded,
       { name: "HMAC", hash: "SHA-256" },
       false,
       ["sign", "verify"],
     );
+    _cachedSecretValue = trimmed;
+    return _cachedSigningKey;
   }
 
-  if (typeof process !== "undefined" && process.env?.["NODE_ENV"] === "production") {
-    console.error(
-      "[CRITICAL] SESSION_SECRET env var is missing or too short. Set a strong secret (min 32 chars) in production!",
+  // Production MUST NEVER silently fall back to an ephemeral random key
+  if (isProduction) {
+    throw new Error(
+      "[FATAL] SESSION_SECRET environment variable is missing or shorter than 32 characters in production. Configure a stable secret (min 32 chars) in Hostinger environment variables.",
     );
   }
 
+  // Explicit local development only fallback
   if (!_devFallbackKey) {
+    if (!_devWarnedOnce) {
+      _devWarnedOnce = true;
+      console.warn(
+        "[DEV ONLY] SESSION_SECRET env var is unset or shorter than 32 characters. Using ephemeral dev key. Sessions will invalidate on server restart.",
+      );
+    }
     const randBytes = new Uint8Array(32);
     globalThis.crypto.getRandomValues(randBytes);
     _devFallbackKey = await globalThis.crypto.subtle.importKey(
@@ -99,7 +151,11 @@ export async function createSessionToken(userId: string): Promise<string> {
   globalThis.crypto.getRandomValues(nonce);
   const payload = `${userId}:${Date.now()}:${toBase64url(nonce)}`;
   const payloadB64 = toBase64url(new TextEncoder().encode(payload));
-  const sigBuf = await globalThis.crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payloadB64));
+  const sigBuf = await globalThis.crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(payloadB64),
+  );
   const sig = toBase64url(sigBuf);
   return `${payloadB64}.${sig}`;
 }
@@ -125,7 +181,13 @@ export async function parseSessionToken(token: string): Promise<string | null> {
     const payloadBytes = fromBase64url(payloadB64);
     const payload = new TextDecoder().decode(payloadBytes);
     const parts = payload.split(":");
-    return parts[0] || null;
+    const [userId, issuedAtStr] = parts;
+    if (!userId) return null;
+    const issuedAt = Number(issuedAtStr);
+    if (issuedAt && Date.now() - issuedAt > SESSION_MAX_AGE * 1000) {
+      return null;
+    }
+    return userId;
   } catch {
     return null;
   }
@@ -147,7 +209,11 @@ export async function createViewAsToken(
   const expiresAt = issuedAt + VIEW_AS_MAX_AGE * 1000;
   const payload = `${ownerUserId}:${employeeId}:${workspaceId}:${issuedAt}:${expiresAt}:${toBase64url(nonce)}`;
   const payloadB64 = toBase64url(new TextEncoder().encode(payload));
-  const sigBuf = await globalThis.crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payloadB64));
+  const sigBuf = await globalThis.crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(payloadB64),
+  );
   const sig = toBase64url(sigBuf);
   return `${payloadB64}.${sig}`;
 }
@@ -276,10 +342,9 @@ export const requireMySqlAuth = createMiddleware().server(async ({ next }) => {
     throw new Error("Unauthorized: Account is inactive or does not exist.");
   }
 
-  const role = await queryOne<UserRole>(
-    "SELECT role FROM user_roles WHERE user_id = ? LIMIT 1",
-    [userId],
-  );
+  const role = await queryOne<UserRole>("SELECT role FROM user_roles WHERE user_id = ? LIMIT 1", [
+    userId,
+  ]);
 
   const realRole = role?.role ?? "employee";
 
@@ -340,23 +405,56 @@ export const requireMySqlAuth = createMiddleware().server(async ({ next }) => {
 
 export const PERMISSION_ALIASES: Record<string, string[]> = {
   "finance.view": ["finance.view", "view.finance", "manage.finance"],
-  "finance.invoices.view": ["finance.invoices.view", "finance.view", "view.finance", "manage.finance"],
+  "finance.invoices.view": [
+    "finance.invoices.view",
+    "finance.view",
+    "view.finance",
+    "manage.finance",
+  ],
   "finance.invoices.create": ["finance.invoices.create", "create.invoice"],
   "finance.invoices.edit": ["finance.invoices.edit", "edit.invoice"],
   "finance.invoices.issue": ["finance.invoices.issue", "issue.invoice"],
   "finance.invoices.cancel": ["finance.invoices.cancel", "cancel.invoice"],
-  "finance.invoices.delete": ["finance.invoices.delete", "finance.invoices.cancel", "cancel.invoice"],
-  "finance.payments.view": ["finance.payments.view", "finance.view", "view.finance", "manage.finance"],
-  "finance.payments.record": ["finance.payments.record", "finance.payments.create", "record.payment"],
-  "finance.payments.create": ["finance.payments.create", "finance.payments.record", "record.payment"],
+  "finance.invoices.delete": [
+    "finance.invoices.delete",
+    "finance.invoices.cancel",
+    "cancel.invoice",
+  ],
+  "finance.payments.view": [
+    "finance.payments.view",
+    "finance.view",
+    "view.finance",
+    "manage.finance",
+  ],
+  "finance.payments.record": [
+    "finance.payments.record",
+    "finance.payments.create",
+    "record.payment",
+  ],
+  "finance.payments.create": [
+    "finance.payments.create",
+    "finance.payments.record",
+    "record.payment",
+  ],
   "finance.payments.edit": ["finance.payments.edit", "edit.payment"],
   "finance.payments.reverse": ["finance.payments.reverse", "reverse.payment"],
-  "finance.reports.view": ["finance.reports.view", "view.finance_reports", "view.reports", "manage.finance"],
+  "finance.reports.view": [
+    "finance.reports.view",
+    "view.finance_reports",
+    "view.reports",
+    "manage.finance",
+  ],
   "finance.settings.view": ["finance.settings.view", "settings.view"],
   "finance.settings.edit": ["finance.settings.edit", "settings.edit"],
-  "view_audit_logs": ["view_audit_logs", "view.audit_logs", "audit_logs.view", "manage.audit_logs"],
+  view_audit_logs: ["view_audit_logs", "view.audit_logs", "audit_logs.view", "manage.audit_logs"],
   "view.audit_logs": ["view_audit_logs", "view.audit_logs", "audit_logs.view", "manage.audit_logs"],
-  "manage.settings": ["manage.settings", "settings.workspace.manage", "settings.view", "settings.edit", "manage_settings"],
+  "manage.settings": [
+    "manage.settings",
+    "settings.workspace.manage",
+    "settings.view",
+    "settings.edit",
+    "manage_settings",
+  ],
   "manage.team": ["manage.team", "team.manage", "manage_team", "settings.team.manage"],
 };
 

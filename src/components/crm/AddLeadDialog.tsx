@@ -19,13 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  createLead,
-  listCustomers,
-  listProperties,
-  listMembers,
-  qk,
-} from "@/lib/crm-api";
+import { createLead, listCustomers, listProperties, listMembers, qk } from "@/lib/crm-api";
 import { LeadOptionSelect } from "@/components/crm/LeadOptionSelect";
 import { MoneyInput } from "@/components/common/MoneyInput";
 import { useSession } from "@/hooks/use-session";

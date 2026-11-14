@@ -41,7 +41,9 @@ async function main() {
 
   if (pushingToMain) {
     if (process.env.BLUETORN_RELEASE_APPROVED === "true") {
-      console.log("🔓 Release approval verified (BLUETORN_RELEASE_APPROVED=true). Allowing push to main.");
+      console.log(
+        "🔓 Release approval verified (BLUETORN_RELEASE_APPROVED=true). Allowing push to main.",
+      );
       process.exit(0);
     }
 
@@ -55,7 +57,7 @@ async function main() {
     console.error("  3. Request user review and submit a Pull Request to 'main'");
     console.error("  4. Merge only after CI quality checks pass.\n");
     console.error("For intentional, explicitly approved releases, set:");
-    console.error("  PowerShell:  $env:BLUETORN_RELEASE_APPROVED=\"true\"; git push origin main");
+    console.error('  PowerShell:  $env:BLUETORN_RELEASE_APPROVED="true"; git push origin main');
     console.error("  Bash/Zsh:    BLUETORN_RELEASE_APPROVED=true git push origin main");
     console.error("==================================================\n");
     process.exit(1);

@@ -33,7 +33,10 @@ async function main() {
   console.log("[TEST 1] Session Token Web Crypto signing and verification");
   const testUserId = "76a64772-b0df-429a-aed7-dc487d9b2901"; // jayshree.realty
   const token = await createSessionToken(testUserId);
-  assert(typeof token === "string" && token.includes("."), "createSessionToken generates valid dot-separated token");
+  assert(
+    typeof token === "string" && token.includes("."),
+    "createSessionToken generates valid dot-separated token",
+  );
   const parsedId = await parseSessionToken(token);
   assert(parsedId === testUserId, `parseSessionToken extracts correct userId (${parsedId})`);
 
@@ -59,19 +62,27 @@ async function main() {
   // If neither, update to jayshree8989 per .antigravity.local.md
   if (!pwdValid) {
     const freshHash = await bcrypt.hash("jayshree8989", 10);
-    await query("UPDATE profiles SET password_hash = ? WHERE user_code = 'jayshree.realty'", [freshHash]);
+    await query("UPDATE profiles SET password_hash = ? WHERE user_code = 'jayshree.realty'", [
+      freshHash,
+    ]);
     pwdValid = true;
-    console.log("     Synchronized jayshree.realty password to .antigravity.local.md ('jayshree8989')");
+    console.log(
+      "     Synchronized jayshree.realty password to .antigravity.local.md ('jayshree8989')",
+    );
   }
   assert(pwdValid, "Password matches documented credential ('jayshree8989')");
 
   // Check sales employee
-  const salesProfile = await queryOne("SELECT user_code, password_hash FROM profiles WHERE user_code = 'jayshree.sales'");
+  const salesProfile = await queryOne(
+    "SELECT user_code, password_hash FROM profiles WHERE user_code = 'jayshree.sales'",
+  );
   if (salesProfile) {
     let salesMatch = await bcrypt.compare("jayshree8989", salesProfile.password_hash);
     if (!salesMatch) {
       const freshHash = await bcrypt.hash("jayshree8989", 10);
-      await query("UPDATE profiles SET password_hash = ? WHERE user_code = 'jayshree.sales'", [freshHash]);
+      await query("UPDATE profiles SET password_hash = ? WHERE user_code = 'jayshree.sales'", [
+        freshHash,
+      ]);
     }
     assert(true, "jayshree.sales credential synchronized ('jayshree8989')");
   }
@@ -101,10 +112,15 @@ async function main() {
     "SELECT id, invoice_number, total, subtotal, status, customer_id, issue_date FROM invoices WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 5",
     [profile.workspace_id],
   );
-  assert(Array.isArray(invoices), `Invoices query returned an array (${invoices.length} records found)`);
+  assert(
+    Array.isArray(invoices),
+    `Invoices query returned an array (${invoices.length} records found)`,
+  );
   if (invoices.length > 0) {
     const inv = invoices[0];
-    console.log(`     Sample Invoice: #${inv.invoice_number}, Subtotal: ₹${inv.subtotal}, Total: ₹${inv.total}, Status: ${inv.status}`);
+    console.log(
+      `     Sample Invoice: #${inv.invoice_number}, Subtotal: ₹${inv.subtotal}, Total: ₹${inv.total}, Status: ${inv.status}`,
+    );
     assert(inv.invoice_number !== undefined, "Invoice has valid invoice_number");
     assert(typeof inv.total === "number", "Invoice total is a number");
   }
@@ -115,10 +131,15 @@ async function main() {
     "SELECT id, reference, amount, method, status, paid_at FROM payments WHERE workspace_id = ? ORDER BY paid_at DESC, created_at DESC LIMIT 5",
     [profile.workspace_id],
   );
-  assert(Array.isArray(payments), `Payments query returned an array (${payments.length} records found)`);
+  assert(
+    Array.isArray(payments),
+    `Payments query returned an array (${payments.length} records found)`,
+  );
   if (payments.length > 0) {
     const pmt = payments[0];
-    console.log(`     Sample Payment: Ref: ${pmt.reference || 'N/A'}, Amount: ₹${pmt.amount}, Method: ${pmt.method}, Status: ${pmt.status}`);
+    console.log(
+      `     Sample Payment: Ref: ${pmt.reference || "N/A"}, Amount: ₹${pmt.amount}, Method: ${pmt.method}, Status: ${pmt.status}`,
+    );
     assert(pmt.id !== undefined, "Payment has valid id");
   }
 
@@ -138,7 +159,10 @@ async function main() {
   assert(adminPwdValid, "testadmin password matches Bluet@rn@2356");
 
   const totalWorkspaces = await queryOne("SELECT COUNT(*) as cnt FROM workspaces");
-  assert(Number(totalWorkspaces.cnt) >= 1, `Super Admin can count workspaces (${totalWorkspaces.cnt} found)`);
+  assert(
+    Number(totalWorkspaces.cnt) >= 1,
+    `Super Admin can count workspaces (${totalWorkspaces.cnt} found)`,
+  );
 
   console.log("\n==================================================");
   console.log(`TEST SUMMARY: ${passed} passed, ${failed} failed`);

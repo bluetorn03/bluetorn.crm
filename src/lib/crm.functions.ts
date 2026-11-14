@@ -3,7 +3,17 @@ import { requireMySqlAuth, assertPermission } from "./auth-server.ts";
 import { query, queryOne, execute, transaction, uuid } from "./db.ts";
 import { getDefaultQuickAddDueDateTime } from "./date-utils.ts";
 import { calculateLeadScore } from "./lead-scoring.ts";
-import { type InvoiceLineInput, invoiceTotals, computeInvoiceTotals } from "./invoice-calculations.ts";
+import {
+  type InvoiceLineInput,
+  invoiceTotals,
+  computeInvoiceTotals,
+} from "./invoice-calculations.ts";
+import {
+  validateSaveInvoiceInput,
+  validateCreatePaymentInput,
+  validateReversePaymentInput,
+  validateUpdateInvoiceStatusInput,
+} from "./finance-validators.ts";
 import { recordAuditEvent } from "./audit-logger.ts";
 import { convertIstDateToUtcBounds } from "./format.ts";
 import type {
@@ -216,7 +226,12 @@ export const createCustomerFn = createServerFn({ method: "POST" })
         context.userId,
         context.role,
         id,
-        JSON.stringify({ name: data.name, type: data.type, status: data.status, value: data.value }),
+        JSON.stringify({
+          name: data.name,
+          type: data.type,
+          status: data.status,
+          value: data.value,
+        }),
       ],
     );
 
@@ -284,7 +299,11 @@ export const updateCustomerFn = createServerFn({ method: "POST" })
         JSON.stringify({
           name: updated.name,
           changes: data.patch,
-          before: { status: existing.status, value: existing.value, assigned_to: existing.assigned_to },
+          before: {
+            status: existing.status,
+            value: existing.value,
+            assigned_to: existing.assigned_to,
+          },
           after: { status: updated.status, value: updated.value, assigned_to: updated.assigned_to },
         }),
       ],
@@ -315,7 +334,9 @@ export const deleteCustomerFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     checkDeleteRole(context);
     const wsId = getTargetWorkspaceId(undefined, context);
-    const existing = await queryOne<Customer>("SELECT id, name FROM customers WHERE id = ?", [data.id]);
+    const existing = await queryOne<Customer>("SELECT id, name FROM customers WHERE id = ?", [
+      data.id,
+    ]);
     if (context.role !== "super_admin") {
       await execute("DELETE FROM customers WHERE id = ? AND workspace_id = ?", [data.id, wsId]);
     } else {
@@ -428,7 +449,13 @@ export const createPropertyFn = createServerFn({ method: "POST" })
         context.userId,
         context.role,
         id,
-        JSON.stringify({ name: data.name, location: data.location, type: data.type, status: data.status, price: data.price }),
+        JSON.stringify({
+          name: data.name,
+          location: data.location,
+          type: data.type,
+          status: data.status,
+          price: data.price,
+        }),
       ],
     );
 
@@ -496,7 +523,11 @@ export const updatePropertyFn = createServerFn({ method: "POST" })
         JSON.stringify({
           name: updated.name,
           changes: data.patch,
-          before: { status: existing.status, price: existing.price, assigned_to: existing.assigned_to },
+          before: {
+            status: existing.status,
+            price: existing.price,
+            assigned_to: existing.assigned_to,
+          },
           after: { status: updated.status, price: updated.price, assigned_to: updated.assigned_to },
         }),
       ],
@@ -527,7 +558,9 @@ export const deletePropertyFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     checkDeleteRole(context);
     const wsId = getTargetWorkspaceId(undefined, context);
-    const existing = await queryOne<Property>("SELECT id, name FROM properties WHERE id = ?", [data.id]);
+    const existing = await queryOne<Property>("SELECT id, name FROM properties WHERE id = ?", [
+      data.id,
+    ]);
     if (context.role !== "super_admin") {
       await execute("DELETE FROM properties WHERE id = ? AND workspace_id = ?", [data.id, wsId]);
     } else {
@@ -646,10 +679,11 @@ export async function ensureDefaultLeadOptionsInternal(
 
       if (existing) {
         if (item.stable_key && !existing.stable_key) {
-          await execute(
-            "UPDATE lead_options SET stable_key = ?, is_system = ? WHERE id = ?",
-            [item.stable_key, item.is_system ? 1 : 0, existing.id],
-          );
+          await execute("UPDATE lead_options SET stable_key = ?, is_system = ? WHERE id = ?", [
+            item.stable_key,
+            item.is_system ? 1 : 0,
+            existing.id,
+          ]);
         }
       } else {
         const id = uuid();
@@ -680,10 +714,9 @@ async function validateLeadOptionReference(
   requireActive: boolean = true,
 ): Promise<LeadOption | null> {
   if (!optionId || optionId === "none" || optionId === "unassigned") return null;
-  const opt = await queryOne<LeadOption>(
-    "SELECT * FROM lead_options WHERE id = ? LIMIT 1",
-    [optionId],
-  );
+  const opt = await queryOne<LeadOption>("SELECT * FROM lead_options WHERE id = ? LIMIT 1", [
+    optionId,
+  ]);
   if (!opt) {
     throw new Error(`Invalid ${expectedType} option selected (not found).`);
   }
@@ -721,10 +754,9 @@ export async function getLeadCore(
   data: { id: string },
 ): Promise<Lead | null> {
   if (context.role === "super_admin") {
-    return queryOne<Lead>(
-      `SELECT ${LEAD_SELECT_COLS} FROM ${LEAD_FROM_JOINS} WHERE l.id = ?`,
-      [data.id],
-    );
+    return queryOne<Lead>(`SELECT ${LEAD_SELECT_COLS} FROM ${LEAD_FROM_JOINS} WHERE l.id = ?`, [
+      data.id,
+    ]);
   }
   const wsId = getTargetWorkspaceId(undefined, context);
   const ef = employeeFilter(context, "l.assigned_to", "l.created_by");
@@ -765,10 +797,20 @@ export async function createLeadCore(
     ? await validateLeadOptionReference(wsId, data.purpose_option_id, "purpose", true)
     : null;
   const possessionOpt = data.possession_timeline_option_id
-    ? await validateLeadOptionReference(wsId, data.possession_timeline_option_id, "possession_timeline", true)
+    ? await validateLeadOptionReference(
+        wsId,
+        data.possession_timeline_option_id,
+        "possession_timeline",
+        true,
+      )
     : null;
   const transactionOpt = data.transaction_timeline_option_id
-    ? await validateLeadOptionReference(wsId, data.transaction_timeline_option_id, "transaction_timeline", true)
+    ? await validateLeadOptionReference(
+        wsId,
+        data.transaction_timeline_option_id,
+        "transaction_timeline",
+        true,
+      )
     : null;
   const phaseOpt = data.phase_option_id
     ? await validateLeadOptionReference(wsId, data.phase_option_id, "phase", true)
@@ -912,7 +954,12 @@ export async function createLeadCore(
       context.userId,
       context.role,
       id,
-      JSON.stringify({ name: data.name, status: candidateLead.status, budget: candidateLead.budget, source: candidateLead.source }),
+      JSON.stringify({
+        name: data.name,
+        status: candidateLead.status,
+        budget: candidateLead.budget,
+        source: candidateLead.source,
+      }),
     ],
   );
 
@@ -936,10 +983,7 @@ export async function updateLeadCore(
 
   // Employee isolation check
   if (isEmployee(context)) {
-    if (
-      existingLead.assigned_to !== context.userId &&
-      existingLead.created_by !== context.userId
-    ) {
+    if (existingLead.assigned_to !== context.userId && existingLead.created_by !== context.userId) {
       throw new Error("Unauthorized: You do not have access to update this lead.");
     }
   }
@@ -949,7 +993,12 @@ export async function updateLeadCore(
     data.patch.source_option_id !== undefined &&
     data.patch.source_option_id !== existingLead.source_option_id
   ) {
-    const opt = await validateLeadOptionReference(wsId, data.patch.source_option_id, "source", true);
+    const opt = await validateLeadOptionReference(
+      wsId,
+      data.patch.source_option_id,
+      "source",
+      true,
+    );
     if (opt) {
       data.patch.source = opt.name;
     }
@@ -970,13 +1019,23 @@ export async function updateLeadCore(
     data.patch.possession_timeline_option_id !== undefined &&
     data.patch.possession_timeline_option_id !== existingLead.possession_timeline_option_id
   ) {
-    await validateLeadOptionReference(wsId, data.patch.possession_timeline_option_id, "possession_timeline", true);
+    await validateLeadOptionReference(
+      wsId,
+      data.patch.possession_timeline_option_id,
+      "possession_timeline",
+      true,
+    );
   }
   if (
     data.patch.transaction_timeline_option_id !== undefined &&
     data.patch.transaction_timeline_option_id !== existingLead.transaction_timeline_option_id
   ) {
-    await validateLeadOptionReference(wsId, data.patch.transaction_timeline_option_id, "transaction_timeline", true);
+    await validateLeadOptionReference(
+      wsId,
+      data.patch.transaction_timeline_option_id,
+      "transaction_timeline",
+      true,
+    );
   }
   if (
     data.patch.phase_option_id !== undefined &&
@@ -986,10 +1045,7 @@ export async function updateLeadCore(
   }
 
   // If assigned_to is changing, verify authorization & inject assigned_at
-  if (
-    data.patch.assigned_to !== undefined &&
-    data.patch.assigned_to !== existingLead.assigned_to
-  ) {
+  if (data.patch.assigned_to !== undefined && data.patch.assigned_to !== existingLead.assigned_to) {
     if (isEmployee(context)) {
       throw new Error("Unauthorized: Only owners or managers can assign or reassign leads.");
     }
@@ -1071,7 +1127,10 @@ export async function updateLeadCore(
   // Audit log
   let action = "lead.updated";
   let summary = `Lead "${updatedLead.name}" updated`;
-  if (data.patch.next_follow_up !== undefined && data.patch.next_follow_up !== existingLead.next_follow_up) {
+  if (
+    data.patch.next_follow_up !== undefined &&
+    data.patch.next_follow_up !== existingLead.next_follow_up
+  ) {
     if (data.patch.next_follow_up) {
       action = "lead.follow_up_scheduled";
       summary = `Follow-up scheduled for lead "${updatedLead.name}" at ${data.patch.next_follow_up}`;
@@ -1114,7 +1173,11 @@ export const updateLeadFn = createServerFn({ method: "POST" })
 
 export async function listLeadOptionsCore(
   context: CrmServerAuthContext,
-  data: { workspaceId?: string | undefined; type?: LeadOptionType | undefined; includeInactive?: boolean | undefined },
+  data: {
+    workspaceId?: string | undefined;
+    type?: LeadOptionType | undefined;
+    includeInactive?: boolean | undefined;
+  },
 ): Promise<LeadOption[]> {
   const wsId = getTargetWorkspaceId(data.workspaceId, context);
   // Employees can ONLY ever receive active options
@@ -1144,7 +1207,11 @@ export async function listLeadOptionsCore(
 export const listLeadOptionsFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .validator(
-    (input: { workspaceId?: string | undefined; type?: LeadOptionType | undefined; includeInactive?: boolean | undefined }) => input,
+    (input: {
+      workspaceId?: string | undefined;
+      type?: LeadOptionType | undefined;
+      includeInactive?: boolean | undefined;
+    }) => input,
   )
   .handler(async ({ data, context }) => listLeadOptionsCore(context, data));
 
@@ -1209,7 +1276,9 @@ export async function createLeadOptionCore(
 
 export const createLeadOptionFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
-  .validator((input: { workspaceId?: string | undefined; type: LeadOptionType; name: string }) => input)
+  .validator(
+    (input: { workspaceId?: string | undefined; type: LeadOptionType; name: string }) => input,
+  )
   .handler(async ({ data, context }) => createLeadOptionCore(context, data));
 
 export async function updateLeadOptionCore(
@@ -1244,10 +1313,12 @@ export async function updateLeadOptionCore(
 
   const newSortOrder = data.sort_order !== undefined ? Number(data.sort_order) : option.sort_order;
 
-  await execute(
-    "UPDATE lead_options SET name = ?, sort_order = ?, updated_by = ? WHERE id = ?",
-    [newName, newSortOrder, context.userId, option.id],
-  );
+  await execute("UPDATE lead_options SET name = ?, sort_order = ?, updated_by = ? WHERE id = ?", [
+    newName,
+    newSortOrder,
+    context.userId,
+    option.id,
+  ]);
 
   await execute(
     `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
@@ -1616,7 +1687,12 @@ export const convertLeadToCustomerFn = createServerFn({ method: "POST" })
             context.userId ?? "system",
             context.role ?? "user",
             lead.id,
-            JSON.stringify({ lead_name: lead.name, customer_id: customer.id, customer_name: customer.name, is_new: isNew }),
+            JSON.stringify({
+              lead_name: lead.name,
+              customer_id: customer.id,
+              customer_name: customer.name,
+              is_new: isNew,
+            }),
           ],
         );
 
@@ -1804,9 +1880,16 @@ export const updateTaskFn = createServerFn({ method: "POST" })
     let action = "task.updated";
     if (data.patch.status === "Completed" && existing.status !== "Completed") {
       action = "task.completed";
-    } else if (existing.status === "Completed" && data.patch.status && data.patch.status !== "Completed") {
+    } else if (
+      existing.status === "Completed" &&
+      data.patch.status &&
+      data.patch.status !== "Completed"
+    ) {
       action = "task.reopened";
-    } else if (data.patch.assigned_to !== undefined && data.patch.assigned_to !== existing.assigned_to) {
+    } else if (
+      data.patch.assigned_to !== undefined &&
+      data.patch.assigned_to !== existing.assigned_to
+    ) {
       action = "task.assigned";
     }
 
@@ -1925,7 +2008,9 @@ export const createEventFn = createServerFn({ method: "POST" })
         data.created_by ?? null,
       ],
     );
-    const newEvent = (await queryOne<CalendarEvent>("SELECT * FROM calendar_events WHERE id = ?", [id]))!;
+    const newEvent = (await queryOne<CalendarEvent>("SELECT * FROM calendar_events WHERE id = ?", [
+      id,
+    ]))!;
 
     // Audit log
     await recordAuditEvent({
@@ -1954,7 +2039,9 @@ export const updateEventFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string; patch: Partial<CalendarEvent> }) => input)
   .handler(async ({ data, context }): Promise<CalendarEvent> => {
-    const existing = await queryOne<CalendarEvent>("SELECT * FROM calendar_events WHERE id = ?", [data.id]);
+    const existing = await queryOne<CalendarEvent>("SELECT * FROM calendar_events WHERE id = ?", [
+      data.id,
+    ]);
 
     const sets: string[] = [];
     const vals: unknown[] = [];
@@ -2003,7 +2090,9 @@ export const deleteEventFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string }) => input)
   .handler(async ({ data, context }) => {
-    const existing = await queryOne<CalendarEvent>("SELECT * FROM calendar_events WHERE id = ?", [data.id]);
+    const existing = await queryOne<CalendarEvent>("SELECT * FROM calendar_events WHERE id = ?", [
+      data.id,
+    ]);
     await execute("DELETE FROM calendar_events WHERE id = ?", [data.id]);
 
     if (existing) {
@@ -2177,30 +2266,7 @@ export const nextInvoiceNumberFn = createServerFn({ method: "GET" })
 
 export const saveInvoiceFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
-  .validator(
-    (input: {
-      id?: string;
-      workspaceId: string;
-      invoice: {
-        invoice_number: string;
-        financial_year?: string | null;
-        invoice_type?: string;
-        customer_id?: string | null;
-        lead_id?: string | null;
-        property_id?: string | null;
-        assigned_to?: string | null;
-        status?: string;
-        issue_date: string;
-        due_date?: string | null;
-        currency?: string;
-        tax_rate?: number;
-        place_of_supply?: string | null;
-        notes?: string | null;
-        terms?: string | null;
-      };
-      lines: InvoiceLineInput[];
-    }) => input,
-  )
+  .validator((input: unknown) => validateSaveInvoiceInput(input))
   .handler(async ({ data, context }): Promise<Invoice> => {
     const wsId = getTargetWorkspaceId(data.workspaceId, context);
     const isNew = !data.id;
@@ -2434,7 +2500,7 @@ export const saveInvoiceFn = createServerFn({ method: "POST" })
 
 export const updateInvoiceStatusFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
-  .validator((input: { id: string; status: string }) => input)
+  .validator((input: unknown) => validateUpdateInvoiceStatusInput(input))
   .handler(async ({ data, context }): Promise<Invoice> => {
     const invoice = await queryOne<Invoice>("SELECT * FROM invoices WHERE id = ? LIMIT 1", [
       data.id,
@@ -2615,26 +2681,12 @@ export const listPaymentsFn = createServerFn({ method: "GET" })
 
 export const createPaymentFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
-  .validator(
-    (input: {
-      workspace_id: string;
-      invoice_id?: string | null;
-      customer_id?: string | null;
-      assigned_to?: string | null;
-      amount: number;
-      currency?: string;
-      method: string;
-      status?: string;
-      paid_at?: string;
-      reference?: string | null;
-      notes?: string | null;
-    }) => input,
-  )
+  .validator((input: unknown) => validateCreatePaymentInput(input))
   .handler(async ({ data, context }): Promise<Payment> => {
     const wsId = getTargetWorkspaceId(data.workspace_id, context);
     await assertPermission(context, "finance.payments.record", wsId);
 
-    const amount = Number(data.amount);
+    const amount = Math.round(Number(data.amount) * 100) / 100;
     if (!amount || amount <= 0) {
       throw new Error("Payment amount must be greater than zero.");
     }
@@ -2659,88 +2711,163 @@ export const createPaymentFn = createServerFn({ method: "POST" })
 
     const id = uuid();
     const paidAt = data.paid_at || new Date().toISOString().slice(0, 19).replace("T", " ");
+    const cleanRef = data.reference?.trim() || null;
+    let lockKey: string | null = null;
+    if (cleanRef) {
+      const { createHash } = await import("node:crypto");
+      const refHash = createHash("sha256")
+        .update(`${wsId}:${cleanRef.toUpperCase()}`)
+        .digest("hex")
+        .slice(0, 32);
+      lockKey = `pay_ref_${refHash}`;
+    }
 
     return transaction(async (conn) => {
-      let resolvedCustomerId = data.customer_id || null;
+      let lockAcquired = false;
+      if (lockKey) {
+        const [lockRows] = await conn.execute("SELECT GET_LOCK(?, 5) as acquired", [lockKey]);
+        const acquired = (lockRows as any[])[0]?.acquired;
+        if (acquired === 0) {
+          throw new Error("Could not acquire payment reference lock: request timed out.");
+        }
+        if (acquired !== 1) {
+          throw new Error("Failed to acquire payment reference lock.");
+        }
+        lockAcquired = true;
+      }
 
-      if (data.invoice_id) {
-        // Lock invoice row for concurrency safety and validate workspace
-        const [invRows] = await conn.execute(
-          "SELECT id, workspace_id, customer_id, status, total FROM invoices WHERE id = ? LIMIT 1 FOR UPDATE",
-          [data.invoice_id],
-        );
-        const inv = (invRows as any[])[0];
-        if (!inv) throw new Error("Invoice not found.");
-        if (inv.workspace_id !== wsId) {
-          throw new Error("Unauthorized: Invoice does not belong to this workspace.");
-        }
-        if (inv.status === "Cancelled") {
-          throw new Error("Cannot record payment against a Cancelled invoice.");
-        }
-        if (!resolvedCustomerId && inv.customer_id) {
-          resolvedCustomerId = inv.customer_id;
-        } else if (
-          resolvedCustomerId &&
-          inv.customer_id &&
-          resolvedCustomerId !== inv.customer_id
-        ) {
-          throw new Error(
-            "Validation error: Payment customer does not match linked invoice customer.",
+      try {
+        // Prevent duplicate payments with identical reference in same workspace (concurrency-safe)
+        if (cleanRef) {
+          const [existingRefRows] = await conn.execute(
+            "SELECT id, amount, status FROM payments WHERE workspace_id = ? AND reference = ? AND status != 'Reversed' LIMIT 1",
+            [wsId, cleanRef],
           );
+          if ((existingRefRows as any[]).length > 0) {
+            throw new Error(
+              "Validation error: A payment with this transaction reference already exists in this workspace.",
+            );
+          }
+        }
+
+        let resolvedCustomerId = data.customer_id || null;
+
+        if (data.invoice_id) {
+          // Lock invoice row for concurrency safety and validate workspace
+          const [invRows] = await conn.execute(
+            "SELECT id, workspace_id, customer_id, status, total, currency FROM invoices WHERE id = ? LIMIT 1 FOR UPDATE",
+            [data.invoice_id],
+          );
+          const inv = (invRows as any[])[0];
+          if (!inv) throw new Error("Invoice not found.");
+          if (inv.workspace_id !== wsId) {
+            throw new Error("Unauthorized: Invoice does not belong to this workspace.");
+          }
+          if (inv.status === "Cancelled") {
+            throw new Error("Cannot record payment against a Cancelled invoice.");
+          }
+          if (inv.status === "Draft") {
+            throw new Error(
+              "Validation error: Cannot record payment against a Draft invoice. Issue the invoice first.",
+            );
+          }
+          // Currency consistency check between linked invoice and payment
+          const paymentCurrency = (data.currency || "INR").trim().toUpperCase();
+          const invoiceCurrency = (inv.currency || "INR").trim().toUpperCase();
+          if (paymentCurrency !== invoiceCurrency) {
+            throw new Error(
+              `Validation error: Payment currency (${paymentCurrency}) does not match invoice currency (${invoiceCurrency}).`,
+            );
+          }
+          if (!resolvedCustomerId && inv.customer_id) {
+            resolvedCustomerId = inv.customer_id;
+          } else if (
+            resolvedCustomerId &&
+            inv.customer_id &&
+            resolvedCustomerId !== inv.customer_id
+          ) {
+            throw new Error(
+              "Validation error: Payment customer does not match linked invoice customer.",
+            );
+          }
+        }
+
+        await conn.execute(
+          `INSERT INTO payments (
+            id, workspace_id, invoice_id, customer_id, assigned_to,
+            amount, currency, method, status, paid_at, reference, notes, created_by, updated_by
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            wsId,
+            data.invoice_id || null,
+            resolvedCustomerId,
+            data.assigned_to || null,
+            amount,
+            data.currency || "INR",
+            data.method || "Bank Transfer",
+            data.status || "Received",
+            paidAt,
+            cleanRef,
+            data.notes?.trim() || null,
+            context.userId,
+            context.userId,
+          ],
+        );
+
+        await conn.execute(
+          `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            uuid(),
+            wsId,
+            context.userId,
+            context.role,
+            "payment.create",
+            "payment",
+            id,
+            JSON.stringify({ amount, method: data.method, invoice_id: data.invoice_id }),
+          ],
+        );
+
+        if (data.invoice_id) {
+          await reconcileInvoiceWithConn(conn, data.invoice_id);
+        }
+
+        const [rows] = await conn.execute(
+          `SELECT p.*, i.invoice_number, c.name as customer_name 
+           FROM payments p 
+           LEFT JOIN invoices i ON p.invoice_id = i.id 
+           LEFT JOIN customers c ON p.customer_id = c.id 
+           WHERE p.id = ? LIMIT 1`,
+          [id],
+        );
+        return (rows as Payment[])[0]!;
+      } finally {
+        if (lockKey && lockAcquired) {
+          try {
+            const [relRows] = await conn.execute("SELECT RELEASE_LOCK(?) as released", [lockKey]);
+            const released = (relRows as any[])[0]?.released;
+            if (released !== 1) {
+              console.error(
+                "[createPaymentFn] RELEASE_LOCK failed, destroying connection:",
+                released,
+              );
+              (conn as any).destroy?.();
+            }
+          } catch (releaseErr) {
+            console.error(
+              "[createPaymentFn] Failed to release lock, destroying connection:",
+              releaseErr,
+            );
+            try {
+              (conn as any).destroy?.();
+            } catch {
+              // ignore destroy error
+            }
+          }
         }
       }
-
-      await conn.execute(
-        `INSERT INTO payments (
-          id, workspace_id, invoice_id, customer_id, assigned_to,
-          amount, currency, method, status, paid_at, reference, notes, created_by, updated_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          id,
-          wsId,
-          data.invoice_id || null,
-          resolvedCustomerId,
-          data.assigned_to || null,
-          amount,
-          data.currency || "INR",
-          data.method || "Bank Transfer",
-          data.status || "Received",
-          paidAt,
-          data.reference?.trim() || null,
-          data.notes?.trim() || null,
-          context.userId,
-          context.userId,
-        ],
-      );
-
-      await conn.execute(
-        `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          uuid(),
-          wsId,
-          context.userId,
-          context.role,
-          "payment.create",
-          "payment",
-          id,
-          JSON.stringify({ amount, method: data.method, invoice_id: data.invoice_id }),
-        ],
-      );
-
-      if (data.invoice_id) {
-        await reconcileInvoiceWithConn(conn, data.invoice_id);
-      }
-
-      const [rows] = await conn.execute(
-        `SELECT p.*, i.invoice_number, c.name as customer_name 
-         FROM payments p 
-         LEFT JOIN invoices i ON p.invoice_id = i.id 
-         LEFT JOIN customers c ON p.customer_id = c.id 
-         WHERE p.id = ? LIMIT 1`,
-        [id],
-      );
-      return (rows as Payment[])[0]!;
     });
   });
 
@@ -2807,11 +2934,8 @@ export const updatePaymentFn = createServerFn({ method: "POST" })
 
 export const reversePaymentFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
-  .validator((input: { id: string; reason: string }) => input)
+  .validator((input: unknown) => validateReversePaymentInput(input))
   .handler(async ({ data, context }): Promise<Payment> => {
-    if (!data.reason?.trim()) {
-      throw new Error("Reversal reason is required.");
-    }
     const payment = await queryOne<Payment>("SELECT * FROM payments WHERE id = ? LIMIT 1", [
       data.id,
     ]);
@@ -2824,11 +2948,22 @@ export const reversePaymentFn = createServerFn({ method: "POST" })
     }
 
     return transaction(async (conn) => {
+      // Lock row to prevent concurrent race condition reversals
+      const [lockedRows] = await conn.execute(
+        "SELECT id, status, invoice_id FROM payments WHERE id = ? LIMIT 1 FOR UPDATE",
+        [data.id],
+      );
+      const lockedPayment = (lockedRows as any[])[0];
+      if (!lockedPayment) throw new Error("Payment not found.");
+      if (lockedPayment.status === "Reversed") {
+        throw new Error("Payment is already reversed.");
+      }
+
       await conn.execute(
         `UPDATE payments SET 
           status = 'Reversed', reversal_reason = ?, reversed_at = NOW(), reversed_by = ?, updated_by = ?
          WHERE id = ?`,
-        [data.reason.trim(), context.userId, context.userId, data.id],
+        [data.reason, context.userId, context.userId, data.id],
       );
 
       await conn.execute(
@@ -2879,7 +3014,7 @@ export const deletePaymentFn = createServerFn({ method: "POST" })
 
 async function reconcileInvoiceWithConn(conn: any, invoiceId: string) {
   const [invRows] = await conn.execute(
-    "SELECT id, total, status, due_date FROM invoices WHERE id = ? LIMIT 1",
+    "SELECT id, total, status, due_date FROM invoices WHERE id = ? LIMIT 1 FOR UPDATE",
     [invoiceId],
   );
   const inv = (invRows as any[])[0];
@@ -3090,7 +3225,9 @@ export const getFinanceReportsFn = createServerFn({ method: "GET" })
       let meta: any = {};
       try {
         meta = JSON.parse(a.metadata || "{}");
-      } catch {}
+      } catch {
+        // ignore invalid JSON metadata
+      }
       return {
         id: a.id,
         action: a.action,
@@ -3399,7 +3536,15 @@ export const listWorkspaceAuditLogsFn = createServerFn({ method: "GET" })
        ${where}
        ORDER BY a.created_at DESC
        LIMIT ? OFFSET ?`,
-      [wsId, isSuperAdminViewer ? 1 : 0, wsId, isSuperAdminViewer ? 1 : 0, ...vals, pageSize, offset],
+      [
+        wsId,
+        isSuperAdminViewer ? 1 : 0,
+        wsId,
+        isSuperAdminViewer ? 1 : 0,
+        ...vals,
+        pageSize,
+        offset,
+      ],
     );
 
     // Fetch distinct modules for filters in this workspace
@@ -3871,11 +4016,10 @@ export const markNotificationReadFn = createServerFn({ method: "POST" })
   .validator((input: { id: string }) => input)
   .handler(async ({ data, context }) => {
     const wsId = getTargetWorkspaceId(undefined, context);
-    await execute("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ? AND workspace_id = ?", [
-      data.id,
-      context.userId,
-      wsId,
-    ]);
+    await execute(
+      "UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ? AND workspace_id = ?",
+      [data.id, context.userId, wsId],
+    );
     return { ok: true };
   });
 
@@ -3883,10 +4027,10 @@ export const markAllNotificationsReadFn = createServerFn({ method: "POST" })
   .middleware([requireMySqlAuth])
   .handler(async ({ context }) => {
     const wsId = getTargetWorkspaceId(undefined, context);
-    await execute("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND workspace_id = ? AND is_read = 0", [
-      context.userId,
-      wsId,
-    ]);
+    await execute(
+      "UPDATE notifications SET is_read = 1 WHERE user_id = ? AND workspace_id = ? AND is_read = 0",
+      [context.userId, wsId],
+    );
     return { ok: true };
   });
 

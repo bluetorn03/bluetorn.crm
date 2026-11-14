@@ -19,21 +19,12 @@ import { useQuery } from "@tanstack/react-query";
 import { QuickAddButton, Shell, type NavGroup, type NavItem } from "@/components/app/Shell";
 import { AuthGate } from "@/components/app/AuthGate";
 import { qk, getChatUnreadCount } from "@/lib/crm-api";
+import { formatErrorMessage } from "@/lib/error-formatter";
 
 export const Route = createFileRoute("/app")({
   ssr: false,
   component: AppLayout,
-  errorComponent: ({ error }: ErrorComponentProps) => {
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : typeof error === "string"
-          ? error
-          : error && typeof error === "object" && "message" in error && typeof error.message === "string"
-            ? error.message
-            : "An unexpected error occurred while loading this page.";
-
-    return (
+  errorComponent: ({ error }: ErrorComponentProps) => (
     <div className="bg-background min-h-screen flex items-center justify-center p-6 text-center">
       <div className="max-w-md space-y-4">
         <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center">
@@ -41,7 +32,7 @@ export const Route = createFileRoute("/app")({
         </div>
         <h2 className="text-xl font-bold text-foreground">Workspace Encountered an Error</h2>
         <p className="text-sm text-muted-foreground">
-          {errorMessage}
+          {formatErrorMessage(error, "An unexpected error occurred while loading this page.")}
         </p>
         <button
           onClick={() => window.location.reload()}
@@ -51,8 +42,7 @@ export const Route = createFileRoute("/app")({
         </button>
       </div>
     </div>
-  );
-  },
+  ),
   pendingComponent: () => (
     <div className="bg-background grid min-h-screen place-items-center">
       <div className="text-muted-foreground flex items-center gap-2 text-sm">
@@ -160,4 +150,3 @@ function AppLayout() {
     </AuthGate>
   );
 }
-

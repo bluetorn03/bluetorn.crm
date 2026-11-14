@@ -188,7 +188,10 @@ async function main() {
     assert(members.length === 2, `Group has exactly 2 members (got: ${members.length})`);
     const ownerMember = members.find((m) => m.user_id === ownerProfile.id);
     const emp1Member = members.find((m) => m.user_id === emp1Profile.id);
-    assert(!!ownerMember && ownerMember.role === "owner", "Owner is automatically enrolled with role 'owner'");
+    assert(
+      !!ownerMember && ownerMember.role === "owner",
+      "Owner is automatically enrolled with role 'owner'",
+    );
     assert(!!emp1Member && emp1Member.role === "member", "Employee 1 enrolled with role 'member'");
 
     // --------------------------------------------------------------------------
@@ -341,7 +344,9 @@ async function main() {
     console.log("\n[TEST 6] Group Archive, Restore & Delete Lifecycle");
     // Owner archives group
     await archiveChatGroupCore(ownerCtx, { conversationId: groupId });
-    const [archivedRows] = await conn.query("SELECT status FROM chat_conversations WHERE id = ?", [groupId]);
+    const [archivedRows] = await conn.query("SELECT status FROM chat_conversations WHERE id = ?", [
+      groupId,
+    ]);
     assert(archivedRows[0].status === "archived", "Group status updated to 'archived'");
 
     // Sending message to archived group is blocked
@@ -363,19 +368,32 @@ async function main() {
 
     // Owner restores group
     await restoreChatGroupCore(ownerCtx, { conversationId: groupId });
-    const [restoredRows] = await conn.query("SELECT status FROM chat_conversations WHERE id = ?", [groupId]);
+    const [restoredRows] = await conn.query("SELECT status FROM chat_conversations WHERE id = ?", [
+      groupId,
+    ]);
     assert(restoredRows[0].status === "active", "Group status restored to 'active'");
 
     // Owner deletes group permanently
     await deleteChatGroupCore(ownerCtx, { conversationId: groupId });
-    const [deletedRows] = await conn.query("SELECT id FROM chat_conversations WHERE id = ?", [groupId]);
+    const [deletedRows] = await conn.query("SELECT id FROM chat_conversations WHERE id = ?", [
+      groupId,
+    ]);
     assert(deletedRows.length === 0, "Group permanently deleted from chat_conversations");
 
-    const [deletedMsgRows] = await conn.query("SELECT id FROM chat_messages WHERE conversation_id = ?", [groupId]);
+    const [deletedMsgRows] = await conn.query(
+      "SELECT id FROM chat_messages WHERE conversation_id = ?",
+      [groupId],
+    );
     assert(deletedMsgRows.length === 0, "Group messages permanently deleted from chat_messages");
 
-    const [deletedMemberRows] = await conn.query("SELECT id FROM chat_conversation_members WHERE conversation_id = ?", [groupId]);
-    assert(deletedMemberRows.length === 0, "Group members permanently deleted from chat_conversation_members");
+    const [deletedMemberRows] = await conn.query(
+      "SELECT id FROM chat_conversation_members WHERE conversation_id = ?",
+      [groupId],
+    );
+    assert(
+      deletedMemberRows.length === 0,
+      "Group members permanently deleted from chat_conversation_members",
+    );
 
     // --------------------------------------------------------------------------
     // TEST 7: Cross-Workspace Security & IDOR Isolation
@@ -438,13 +456,19 @@ async function main() {
     });
 
     // Check message expires_at
-    const [retMsgRows] = await conn.query("SELECT created_at, expires_at FROM chat_messages WHERE id = ?", [
-      retMsg.message.id,
-    ]);
+    const [retMsgRows] = await conn.query(
+      "SELECT created_at, expires_at FROM chat_messages WHERE id = ?",
+      [retMsg.message.id],
+    );
     const createdDate = new Date(retMsgRows[0].created_at);
     const expiresDate = new Date(retMsgRows[0].expires_at);
-    const diffDays = Math.round((expiresDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
-    assert(diffDays === 15, `Group message expires_at is exactly 15 days from created_at (${diffDays} days)`);
+    const diffDays = Math.round(
+      (expiresDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    assert(
+      diffDays === 15,
+      `Group message expires_at is exactly 15 days from created_at (${diffDays} days)`,
+    );
 
     // Insert an expired test message in this group
     const expiredMsgId = "expired-group-test-msg-" + Date.now();
@@ -456,9 +480,14 @@ async function main() {
 
     // Run cleanup engine
     const cleanupRes = await cleanupExpiredChatMessages(500);
-    assert(cleanupRes.deletedCount >= 1, `Cleanup deleted expired group messages (count: ${cleanupRes.deletedCount})`);
+    assert(
+      cleanupRes.deletedCount >= 1,
+      `Cleanup deleted expired group messages (count: ${cleanupRes.deletedCount})`,
+    );
 
-    const [checkDeleted] = await conn.query("SELECT id FROM chat_messages WHERE id = ?", [expiredMsgId]);
+    const [checkDeleted] = await conn.query("SELECT id FROM chat_messages WHERE id = ?", [
+      expiredMsgId,
+    ]);
     assert(checkDeleted.length === 0, "Expired group message was ACTUALLY deleted from MySQL");
 
     // Clean up retention group
@@ -475,9 +504,14 @@ async function main() {
     assert(!!directRes.conversationId, "Direct message conversation resolved");
     assert(directRes.message.receiver_id === emp1Profile.id, "Direct message has receiver_id set");
 
-    const directMessages = await getChatMessagesCore(emp1Ctx, { conversationId: directRes.conversationId });
+    const directMessages = await getChatMessagesCore(emp1Ctx, {
+      conversationId: directRes.conversationId,
+    });
     assert(directMessages.messages.length >= 1, "Direct messages fetched successfully");
-    assert(directMessages.participant?.full_name === ownerProfile.full_name, "Participant resolved as Owner");
+    assert(
+      directMessages.participant?.full_name === ownerProfile.full_name,
+      "Participant resolved as Owner",
+    );
 
     // --------------------------------------------------------------------------
     // TEST 10: Multi-Tenant & Future Workspaces Default Retention
@@ -490,8 +524,13 @@ async function main() {
       [futureWsId],
     );
 
-    const [futureWs] = await conn.query("SELECT chat_retention_days FROM workspaces WHERE id = ?", [futureWsId]);
-    assert(futureWs[0].chat_retention_days === 15, "New workspace automatically receives 15 days default retention");
+    const [futureWs] = await conn.query("SELECT chat_retention_days FROM workspaces WHERE id = ?", [
+      futureWsId,
+    ]);
+    assert(
+      futureWs[0].chat_retention_days === 15,
+      "New workspace automatically receives 15 days default retention",
+    );
 
     await conn.query("DELETE FROM workspaces WHERE id = ?", [futureWsId]);
     assert(true, "Future test workspace cleaned up cleanly");

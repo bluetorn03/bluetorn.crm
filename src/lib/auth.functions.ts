@@ -204,10 +204,9 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
   if (viewAsToken && (role.role === "owner" || role.role === "super_admin")) {
     const parsed = await parseViewAsToken(viewAsToken);
     if (parsed && parsed.ownerUserId === profile.id) {
-      const empProfile = await queryOne<Profile>(
-        "SELECT * FROM profiles WHERE id = ? LIMIT 1",
-        [parsed.employeeId],
-      );
+      const empProfile = await queryOne<Profile>("SELECT * FROM profiles WHERE id = ? LIMIT 1", [
+        parsed.employeeId,
+      ]);
       if (
         empProfile &&
         (role.role === "super_admin" || empProfile.workspace_id === profile.workspace_id)
@@ -372,13 +371,7 @@ export const exitViewAsEmployeeFn = createServerFn({ method: "POST" })
     await execute(
       `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id)
        VALUES (?, ?, ?, ?, 'EXIT_EMPLOYEE_DASHBOARD_VIEW', 'profile', ?)`,
-      [
-        uuid(),
-        context.workspaceId,
-        realUserId,
-        context.realRole || context.role,
-        employeeId,
-      ],
+      [uuid(), context.workspaceId, realUserId, context.realRole || context.role, employeeId],
     );
 
     return { ok: true };
@@ -426,9 +419,8 @@ export const lookupPublicWorkspaceBranding = createServerFn({ method: "GET" })
   .validator((input: { workspaceCode: string } | undefined) => {
     return { workspaceCode: (input?.workspaceCode ?? "").trim() };
   })
-  .handler(async ({ data }): Promise<{ found: boolean; name?: string; logoUrl?: string | null }> => {
-    return lookupPublicWorkspaceBrandingCore(data.workspaceCode);
-  });
-
-
-
+  .handler(
+    async ({ data }): Promise<{ found: boolean; name?: string; logoUrl?: string | null }> => {
+      return lookupPublicWorkspaceBrandingCore(data.workspaceCode);
+    },
+  );

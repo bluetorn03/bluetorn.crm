@@ -103,10 +103,18 @@ try {
     assert.equal(formattedTime, "05:30 AM", `Expected 05:30 AM, got ${formattedTime}`);
 
     const formattedDateTime = formatDateTime(utcIso);
-    assert.equal(formattedDateTime, "05/10/2026 • 05:30 AM", `Expected bullet separator, got ${formattedDateTime}`);
+    assert.equal(
+      formattedDateTime,
+      "05/10/2026 • 05:30 AM",
+      `Expected bullet separator, got ${formattedDateTime}`,
+    );
 
     const auditTs = formatAuditTimestamp(utcIso);
-    assert.equal(auditTs, "05/10/2026 • 05:30 AM", `Expected audit timestamp format, got ${auditTs}`);
+    assert.equal(
+      auditTs,
+      "05/10/2026 • 05:30 AM",
+      `Expected audit timestamp format, got ${auditTs}`,
+    );
   });
 
   // --------------------------------------------------------------------------
@@ -126,8 +134,14 @@ try {
     // Event slightly in future due to client clock skew (+30 seconds)
     const future30s = new Date(now.getTime() + 30 * 1000).toISOString();
     const relFuture = relativeTime(future30s);
-    assert.ok(relFuture === "just now" || relFuture === "in 1m", `Future event produced: ${relFuture}`);
-    assert.ok(!relFuture.includes("-"), `Relative time must never have negative sign: ${relFuture}`);
+    assert.ok(
+      relFuture === "just now" || relFuture === "in 1m",
+      `Future event produced: ${relFuture}`,
+    );
+    assert.ok(
+      !relFuture.includes("-"),
+      `Relative time must never have negative sign: ${relFuture}`,
+    );
 
     // Audit relative time
     const auditRelFuture = formatAuditRelativeTime(future30s);
@@ -207,9 +221,18 @@ try {
 
     // Assert that every actor returned belongs to JAYSHREE
     for (const actor of actors) {
-      const profile = await queryOne("SELECT workspace_id, user_code FROM profiles WHERE id = ?", [actor.id]);
-      assert.equal(profile.workspace_id, ws.id, `Actor ${actor.name} does not belong to workspace ${ws.id}`);
-      assert.ok(!actor.email?.includes("testadmin"), "Super Admin must NEVER be present in client actor dropdown");
+      const profile = await queryOne("SELECT workspace_id, user_code FROM profiles WHERE id = ?", [
+        actor.id,
+      ]);
+      assert.equal(
+        profile.workspace_id,
+        ws.id,
+        `Actor ${actor.name} does not belong to workspace ${ws.id}`,
+      );
+      assert.ok(
+        !actor.email?.includes("testadmin"),
+        "Super Admin must NEVER be present in client actor dropdown",
+      );
     }
   });
 
@@ -217,7 +240,9 @@ try {
   // TEST 6: Super Admin Seat Limit Update Rules
   // --------------------------------------------------------------------------
   await test("Seat limit update enforces business rules and audits changes", async () => {
-    const ws = await queryOne("SELECT id, code, seat_limit FROM workspaces WHERE code = 'JAYSHREE' LIMIT 1");
+    const ws = await queryOne(
+      "SELECT id, code, seat_limit FROM workspaces WHERE code = 'JAYSHREE' LIMIT 1",
+    );
     assert.ok(ws, "Workspace JAYSHREE must exist");
 
     const activeRow = await queryOne(
@@ -230,14 +255,13 @@ try {
     // Attempting to set limit < activeCount must fail
     const invalidLimit = Math.max(0, activeCount - 1);
     if (invalidLimit < activeCount) {
-      assert.throws(
-        () => {
-          if (invalidLimit < activeCount) {
-            throw new Error(`Cannot reduce seat limit to ${invalidLimit}. Workspace currently has ${activeCount} active users.`);
-          }
-        },
-        /Cannot reduce seat limit/,
-      );
+      assert.throws(() => {
+        if (invalidLimit < activeCount) {
+          throw new Error(
+            `Cannot reduce seat limit to ${invalidLimit}. Workspace currently has ${activeCount} active users.`,
+          );
+        }
+      }, /Cannot reduce seat limit/);
     }
 
     // Increasing seat limit is valid
@@ -316,14 +340,21 @@ try {
 
       assert.equal(successes.length, 1, "Exactly one concurrent creation must succeed");
       assert.equal(failures.length, 1, "Exactly one concurrent creation must fail");
-      assert.ok(failures[0].error.includes("Seat limit reached"), "Failure must be seat limit error");
+      assert.ok(
+        failures[0].error.includes("Seat limit reached"),
+        "Failure must be seat limit error",
+      );
 
       // Verify final active count in database is exactly 1, NEVER 2
       const finalCountRow = await queryOne(
         "SELECT COUNT(*) as cnt FROM profiles WHERE workspace_id = ? AND is_active = 1",
         [testWsId],
       );
-      assert.equal(Number(finalCountRow.cnt), 1, "Total active profiles must not exceed seat limit of 1");
+      assert.equal(
+        Number(finalCountRow.cnt),
+        1,
+        "Total active profiles must not exceed seat limit of 1",
+      );
     } finally {
       // Clean up test workspace and profiles
       await pool.execute("DELETE FROM profiles WHERE workspace_id = ?", [testWsId]);

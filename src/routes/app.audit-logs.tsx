@@ -184,7 +184,9 @@ function extractDiffs(metadata: any): FieldDiff[] {
     typeof metadata.before === "object" &&
     typeof metadata.after === "object"
   ) {
-    const allKeys = Array.from(new Set([...Object.keys(metadata.before), ...Object.keys(metadata.after)]));
+    const allKeys = Array.from(
+      new Set([...Object.keys(metadata.before), ...Object.keys(metadata.after)]),
+    );
     for (const k of allKeys) {
       const b = metadata.before[k];
       const a = metadata.after[k];
@@ -208,12 +210,14 @@ export const Route = createFileRoute("/app/audit-logs")({
       { title: "Audit Logs · BLUETORN CRM" },
       {
         name: "description",
-        content: "Database-backed append-only security and operational audit trail for workspace activities.",
+        content:
+          "Database-backed append-only security and operational audit trail for workspace activities.",
       },
       { property: "og:title", content: "Audit Logs · BLUETORN CRM" },
       {
         property: "og:description",
-        content: "Database-backed append-only security and operational audit trail for workspace activities.",
+        content:
+          "Database-backed append-only security and operational audit trail for workspace activities.",
       },
     ],
   }),
@@ -271,7 +275,8 @@ function AuditLogsPage() {
   // Query workspace settings for retention days
   const settingsQuery = useQuery({
     queryKey: ["workspace-settings", workspace?.id],
-    queryFn: () => (workspace ? getWorkspaceSettingsFn({ data: { workspaceId: workspace.id } }) : null),
+    queryFn: () =>
+      workspace ? getWorkspaceSettingsFn({ data: { workspaceId: workspace.id } }) : null,
     enabled: Boolean(workspace?.id),
   });
 
@@ -325,9 +330,16 @@ function AuditLogsPage() {
     setTimeout(() => setCopiedJson(false), 2000);
   };
 
-  const getActionBadgeTone = (action: string): "neutral" | "brand" | "success" | "warning" | "danger" => {
+  const getActionBadgeTone = (
+    action: string,
+  ): "neutral" | "brand" | "success" | "warning" | "danger" => {
     const act = action.toLowerCase();
-    if (act.includes("delete") || act.includes("void") || act.includes("cancel") || act.includes("failed")) {
+    if (
+      act.includes("delete") ||
+      act.includes("void") ||
+      act.includes("cancel") ||
+      act.includes("failed")
+    ) {
       return "danger";
     }
     if (act.includes("create") || act.includes("record") || act.includes("convert")) {
@@ -391,13 +403,19 @@ function AuditLogsPage() {
         <div className="flex items-center gap-2.5">
           <Shield className="h-4 w-4 text-primary shrink-0" />
           <p className="text-muted-foreground">
-            <strong className="text-foreground font-medium">Immutable Security Audit:</strong> All business mutations, logins, and configurations are permanently recorded with authenticated session identity. Logs older than {retentionDays} days are cleaned by the centralized retention scheduler.
+            <strong className="text-foreground font-medium">Immutable Security Audit:</strong> All
+            business mutations, logins, and configurations are permanently recorded with
+            authenticated session identity. Logs older than {retentionDays} days are cleaned by the
+            centralized retention scheduler.
           </p>
         </div>
       </div>
 
       {/* Filters Card */}
-      <SectionCard title="Filter & Search Events" description="Search actions, records, team members, and date ranges.">
+      <SectionCard
+        title="Filter & Search Events"
+        description="Search actions, records, team members, and date ranges."
+      >
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {/* Search Input */}
@@ -501,7 +519,12 @@ function AuditLogsPage() {
               </div>
             </div>
 
-            {(debouncedSearch || selectedActor !== "all" || selectedModule !== "all" || selectedStatus !== "all" || startDate || endDate) && (
+            {(debouncedSearch ||
+              selectedActor !== "all" ||
+              selectedModule !== "all" ||
+              selectedStatus !== "all" ||
+              startDate ||
+              endDate) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -531,7 +554,11 @@ function AuditLogsPage() {
               icon={Shield}
               title="No audit events found"
               description={
-                debouncedSearch || selectedActor !== "all" || selectedModule !== "all" || startDate || endDate
+                debouncedSearch ||
+                selectedActor !== "all" ||
+                selectedModule !== "all" ||
+                startDate ||
+                endDate
                   ? "No audit records match the current filter criteria."
                   : "No audit events recorded for this workspace yet."
               }
@@ -565,7 +592,9 @@ function AuditLogsPage() {
                             {event.actor_name || event.actor_label || "System"}
                           </div>
                           {event.actor_email && (
-                            <div className="text-[11px] text-muted-foreground">{event.actor_email}</div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {event.actor_email}
+                            </div>
                           )}
                         </td>
                         <td className="py-3 px-4">
@@ -579,13 +608,18 @@ function AuditLogsPage() {
                             {event.entity_type ? event.entity_type.replace(/_/g, " ") : "—"}
                           </div>
                           {event.entity_id && (
-                            <div className="text-[11px] font-mono text-muted-foreground truncate max-w-[140px]" title={event.entity_id}>
+                            <div
+                              className="text-[11px] font-mono text-muted-foreground truncate max-w-[140px]"
+                              title={event.entity_id}
+                            >
                               {event.entity_id}
                             </div>
                           )}
                         </td>
                         <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">
-                          <div className="text-foreground font-medium">{formatAuditTimestamp(event.created_at)}</div>
+                          <div className="text-foreground font-medium">
+                            {formatAuditTimestamp(event.created_at)}
+                          </div>
                         </td>
                         <td className="py-3 px-4">
                           {event.status === "failed" ? (
@@ -657,281 +691,320 @@ function AuditLogsPage() {
       {/* Event Details Inspection Modal */}
       <Dialog open={Boolean(inspectEvent)} onOpenChange={(open) => !open && setInspectEvent(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          {inspectEvent && (() => {
-            const meta = parseMetadata(inspectEvent.metadata) || {};
-            const diffs = extractDiffs(meta);
-            const actorRole =
-              meta["actorRole"] || meta["role"] || (inspectEvent.actor_email?.includes("admin") ? "Admin" : "Team Member");
-            const recordTitle =
-              meta["lead_name"] ||
-              meta["task_title"] ||
-              meta["customer_name"] ||
-              meta["title"] ||
-              meta["invoice_no"] ||
-              meta["payment_number"] ||
-              meta["full_name"] ||
-              meta["user_code"];
+          {inspectEvent &&
+            (() => {
+              const meta = parseMetadata(inspectEvent.metadata) || {};
+              const diffs = extractDiffs(meta);
+              const actorRole =
+                meta["actorRole"] ||
+                meta["role"] ||
+                (inspectEvent.actor_email?.includes("admin") ? "Admin" : "Team Member");
+              const recordTitle =
+                meta["lead_name"] ||
+                meta["task_title"] ||
+                meta["customer_name"] ||
+                meta["title"] ||
+                meta["invoice_no"] ||
+                meta["payment_number"] ||
+                meta["full_name"] ||
+                meta["user_code"];
 
-            return (
-              <>
-                <DialogHeader className="border-b border-border pb-3">
-                  <div className="flex items-center justify-between pr-6">
-                    <div className="flex items-center gap-2">
-                      <Shield className="h-5 w-5 text-primary" />
-                      <DialogTitle className="text-base font-semibold">
-                        {humanizeAction(inspectEvent.action)}
-                      </DialogTitle>
-                    </div>
-                    <StatusBadge
-                      label={inspectEvent.action}
-                      tone={getActionBadgeTone(inspectEvent.action)}
-                    />
-                  </div>
-                  <DialogDescription className="text-xs text-muted-foreground mt-1">
-                    Event ID: <code className="font-mono text-[11px] bg-muted px-1 py-0.5 rounded">{inspectEvent.id}</code>
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="space-y-4 pt-2 text-xs">
-                  {/* Grid: WHO and WHAT HAPPENED */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* WHO */}
-                    <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        <User className="h-3.5 w-3.5 text-primary" />
-                        <span>Who</span>
+              return (
+                <>
+                  <DialogHeader className="border-b border-border pb-3">
+                    <div className="flex items-center justify-between pr-6">
+                      <div className="flex items-center gap-2">
+                        <Shield className="h-5 w-5 text-primary" />
+                        <DialogTitle className="text-base font-semibold">
+                          {humanizeAction(inspectEvent.action)}
+                        </DialogTitle>
                       </div>
-                      <div className="space-y-1">
-                        <div>
-                          <span className="text-[11px] text-muted-foreground block">Name</span>
-                          <span className="font-medium text-foreground text-sm">
-                            {inspectEvent.actor_name || inspectEvent.actor_label || "System"}
-                          </span>
+                      <StatusBadge
+                        label={inspectEvent.action}
+                        tone={getActionBadgeTone(inspectEvent.action)}
+                      />
+                    </div>
+                    <DialogDescription className="text-xs text-muted-foreground mt-1">
+                      Event ID:{" "}
+                      <code className="font-mono text-[11px] bg-muted px-1 py-0.5 rounded">
+                        {inspectEvent.id}
+                      </code>
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-4 pt-2 text-xs">
+                    {/* Grid: WHO and WHAT HAPPENED */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* WHO */}
+                      <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          <User className="h-3.5 w-3.5 text-primary" />
+                          <span>Who</span>
                         </div>
-                        <div>
-                          <span className="text-[11px] text-muted-foreground block">Email</span>
-                          <span className="text-foreground">
-                            {inspectEvent.actor_email || "System / Automated"}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[11px] text-muted-foreground block">Role</span>
-                          <span className="inline-block font-medium capitalize text-foreground bg-muted px-1.5 py-0.5 rounded text-[11px]">
-                            {actorRole}
-                          </span>
-                        </div>
-                        {inspectEvent.actor_id && (
+                        <div className="space-y-1">
                           <div>
-                            <span className="text-[11px] text-muted-foreground block">Actor ID</span>
-                            <span className="font-mono text-[10px] text-muted-foreground truncate block" title={inspectEvent.actor_id}>
-                              {inspectEvent.actor_id}
+                            <span className="text-[11px] text-muted-foreground block">Name</span>
+                            <span className="font-medium text-foreground text-sm">
+                              {inspectEvent.actor_name || inspectEvent.actor_label || "System"}
                             </span>
                           </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* WHAT HAPPENED */}
-                    <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        <Activity className="h-3.5 w-3.5 text-primary" />
-                        <span>What Happened</span>
-                      </div>
-                      <div className="space-y-1">
-                        <div>
-                          <span className="text-[11px] text-muted-foreground block">Action</span>
-                          <span className="font-medium text-foreground">
-                            {humanizeAction(inspectEvent.action)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[11px] text-muted-foreground block">Module</span>
-                          <span className="font-medium capitalize text-foreground">
-                            {inspectEvent.entity_type ? inspectEvent.entity_type.replace(/_/g, " ") : "System"}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[11px] text-muted-foreground block">Record</span>
-                          <div className="text-foreground font-medium">
-                            {recordTitle ? (
-                              <span>{recordTitle}</span>
-                            ) : inspectEvent.entity_id ? (
-                              <code className="font-mono text-[11px] text-muted-foreground bg-muted px-1 rounded truncate block max-w-full">
-                                {inspectEvent.entity_id}
-                              </code>
-                            ) : (
-                              <span className="text-muted-foreground">Workspace Level</span>
-                            )}
+                          <div>
+                            <span className="text-[11px] text-muted-foreground block">Email</span>
+                            <span className="text-foreground">
+                              {inspectEvent.actor_email || "System / Automated"}
+                            </span>
                           </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Grid: WHEN and RESULT */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* WHEN */}
-                    <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        <Clock className="h-3.5 w-3.5 text-primary" />
-                        <span>When</span>
-                      </div>
-                      <div className="space-y-1">
-                        <div>
-                          <span className="text-[11px] text-muted-foreground block">Date & Time (IST)</span>
-                          <span className="font-semibold text-foreground text-sm block">
-                            {formatAuditTimestamp(inspectEvent.created_at)}
-                          </span>
-                          <span className="text-[11px] text-muted-foreground">Timezone: Asia/Kolkata (IST)</span>
-                        </div>
-                        <div>
-                          <span className="text-[11px] text-muted-foreground block">Relative</span>
-                          <span className="text-foreground">{formatAuditRelativeTime(inspectEvent.created_at)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* RESULT */}
-                    <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-                        <span>Result</span>
-                      </div>
-                      <div className="space-y-1">
-                        <div>
-                          <span className="text-[11px] text-muted-foreground block">Execution Status</span>
-                          {inspectEvent.status === "failed" ? (
-                            <span className="inline-flex items-center gap-1 font-semibold text-destructive text-sm mt-0.5">
-                              <XCircle className="h-4 w-4" /> Failed
+                          <div>
+                            <span className="text-[11px] text-muted-foreground block">Role</span>
+                            <span className="inline-block font-medium capitalize text-foreground bg-muted px-1.5 py-0.5 rounded text-[11px]">
+                              {actorRole}
                             </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 font-semibold text-success text-sm mt-0.5">
-                              <CheckCircle2 className="h-4 w-4" /> Success
-                            </span>
+                          </div>
+                          {inspectEvent.actor_id && (
+                            <div>
+                              <span className="text-[11px] text-muted-foreground block">
+                                Actor ID
+                              </span>
+                              <span
+                                className="font-mono text-[10px] text-muted-foreground truncate block"
+                                title={inspectEvent.actor_id}
+                              >
+                                {inspectEvent.actor_id}
+                              </span>
+                            </div>
                           )}
                         </div>
-                        {(meta["reason"] || meta["error"]) && (
-                          <div className="mt-1 rounded bg-destructive/10 border border-destructive/20 p-2">
-                            <span className="text-[10px] uppercase font-semibold text-destructive block mb-0.5">
-                              Reason / Error
+                      </div>
+
+                      {/* WHAT HAPPENED */}
+                      <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          <Activity className="h-3.5 w-3.5 text-primary" />
+                          <span>What Happened</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div>
+                            <span className="text-[11px] text-muted-foreground block">Action</span>
+                            <span className="font-medium text-foreground">
+                              {humanizeAction(inspectEvent.action)}
                             </span>
-                            <span className="text-destructive font-medium text-xs">{meta["reason"] || meta["error"]}</span>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* CHANGES (Before / After Comparison) */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      <Layers className="h-3.5 w-3.5 text-primary" />
-                      <span>Changes</span>
-                    </div>
-
-                    {diffs.length > 0 ? (
-                      <div className="divide-y divide-border rounded-lg border border-border bg-card overflow-hidden">
-                        {diffs.map((d) => (
-                          <div key={d.field} className="p-3">
-                            <div className="font-semibold text-foreground text-xs mb-2">
-                              {d.label}
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="rounded-md bg-muted/40 p-2.5 border border-border/50">
-                                <span className="text-[10px] uppercase font-semibold text-muted-foreground block mb-1">
-                                  Before
-                                </span>
-                                <span className="font-mono text-muted-foreground text-xs break-words">
-                                  {formatValue(d.field, d.before)}
-                                </span>
-                              </div>
-                              <div className="rounded-md bg-primary/5 p-2.5 border border-primary/20">
-                                <span className="text-[10px] uppercase font-semibold text-primary block mb-1">
-                                  After
-                                </span>
-                                <span className="font-mono text-foreground font-semibold text-xs break-words">
-                                  {formatValue(d.field, d.after)}
-                                </span>
-                              </div>
+                          <div>
+                            <span className="text-[11px] text-muted-foreground block">Module</span>
+                            <span className="font-medium capitalize text-foreground">
+                              {inspectEvent.entity_type
+                                ? inspectEvent.entity_type.replace(/_/g, " ")
+                                : "System"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[11px] text-muted-foreground block">Record</span>
+                            <div className="text-foreground font-medium">
+                              {recordTitle ? (
+                                <span>{recordTitle}</span>
+                              ) : inspectEvent.entity_id ? (
+                                <code className="font-mono text-[11px] text-muted-foreground bg-muted px-1 rounded truncate block max-w-full">
+                                  {inspectEvent.entity_id}
+                                </code>
+                              ) : (
+                                <span className="text-muted-foreground">Workspace Level</span>
+                              )}
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border border-border bg-card p-3">
-                        <p className="text-xs text-muted-foreground">
-                          {inspectEvent.action.includes("create") || inspectEvent.action.includes("record")
-                            ? "Initial creation event — record initialized with default and provided values."
-                            : inspectEvent.action.includes("delete") || inspectEvent.action.includes("cancel")
-                            ? "Deletion or cancellation event — record transitioned to inactive/removed state."
-                            : "Operation executed successfully. No field-level diff was required."}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* CONTEXT (IP, Browser / Device) */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      <Globe className="h-3.5 w-3.5 text-primary" />
-                      <span>Context</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-border bg-card p-3">
-                      <div>
-                        <span className="text-[11px] text-muted-foreground block">IP Address</span>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <span className="font-mono text-xs text-foreground">
-                            {inspectEvent.ip_address || "Localhost / Internal"}
-                          </span>
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-[11px] text-muted-foreground block">Device / Browser</span>
-                        <div
-                          className="flex items-center gap-1.5 mt-0.5 truncate"
-                          title={inspectEvent.user_agent || "Direct Server / API"}
-                        >
-                          <Monitor className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <span className="text-xs text-foreground truncate">
-                            {inspectEvent.user_agent || "Direct Server / API"}
-                          </span>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* TECHNICAL DETAILS ▼ (Collapsible) */}
-                  <details className="group rounded-lg border border-border bg-muted/20 p-3">
-                    <summary className="flex cursor-pointer items-center justify-between text-xs font-medium text-muted-foreground hover:text-foreground">
-                      <span className="flex items-center gap-1.5">
-                        <FileCode className="h-3.5 w-3.5 text-primary" />
-                        Technical Details & Raw Payload
-                      </span>
-                      <span className="text-[11px] group-open:rotate-180 transition-transform">▼</span>
-                    </summary>
-                    <div className="mt-3 space-y-2 pt-2 border-t border-border/50">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-muted-foreground">Sanitized JSON payload</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleCopyJson(meta)}
-                          className="h-6 text-[10px] gap-1 px-2"
-                        >
-                          {copiedJson ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
-                          {copiedJson ? "Copied" : "Copy JSON"}
-                        </Button>
+                    {/* Grid: WHEN and RESULT */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* WHEN */}
+                      <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          <Clock className="h-3.5 w-3.5 text-primary" />
+                          <span>When</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div>
+                            <span className="text-[11px] text-muted-foreground block">
+                              Date & Time (IST)
+                            </span>
+                            <span className="font-semibold text-foreground text-sm block">
+                              {formatAuditTimestamp(inspectEvent.created_at)}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">
+                              Timezone: Asia/Kolkata (IST)
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[11px] text-muted-foreground block">
+                              Relative
+                            </span>
+                            <span className="text-foreground">
+                              {formatAuditRelativeTime(inspectEvent.created_at)}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <pre className="font-mono text-[11px] p-3 rounded-lg border border-border bg-card overflow-x-auto max-h-56 leading-relaxed text-foreground">
-                        {JSON.stringify(meta, null, 2)}
-                      </pre>
+
+                      {/* RESULT */}
+                      <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                          <span>Result</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div>
+                            <span className="text-[11px] text-muted-foreground block">
+                              Execution Status
+                            </span>
+                            {inspectEvent.status === "failed" ? (
+                              <span className="inline-flex items-center gap-1 font-semibold text-destructive text-sm mt-0.5">
+                                <XCircle className="h-4 w-4" /> Failed
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 font-semibold text-success text-sm mt-0.5">
+                                <CheckCircle2 className="h-4 w-4" /> Success
+                              </span>
+                            )}
+                          </div>
+                          {(meta["reason"] || meta["error"]) && (
+                            <div className="mt-1 rounded bg-destructive/10 border border-destructive/20 p-2">
+                              <span className="text-[10px] uppercase font-semibold text-destructive block mb-0.5">
+                                Reason / Error
+                              </span>
+                              <span className="text-destructive font-medium text-xs">
+                                {meta["reason"] || meta["error"]}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </details>
-                </div>
-              </>
-            );
-          })()}
+
+                    {/* CHANGES (Before / After Comparison) */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        <Layers className="h-3.5 w-3.5 text-primary" />
+                        <span>Changes</span>
+                      </div>
+
+                      {diffs.length > 0 ? (
+                        <div className="divide-y divide-border rounded-lg border border-border bg-card overflow-hidden">
+                          {diffs.map((d) => (
+                            <div key={d.field} className="p-3">
+                              <div className="font-semibold text-foreground text-xs mb-2">
+                                {d.label}
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="rounded-md bg-muted/40 p-2.5 border border-border/50">
+                                  <span className="text-[10px] uppercase font-semibold text-muted-foreground block mb-1">
+                                    Before
+                                  </span>
+                                  <span className="font-mono text-muted-foreground text-xs break-words">
+                                    {formatValue(d.field, d.before)}
+                                  </span>
+                                </div>
+                                <div className="rounded-md bg-primary/5 p-2.5 border border-primary/20">
+                                  <span className="text-[10px] uppercase font-semibold text-primary block mb-1">
+                                    After
+                                  </span>
+                                  <span className="font-mono text-foreground font-semibold text-xs break-words">
+                                    {formatValue(d.field, d.after)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-border bg-card p-3">
+                          <p className="text-xs text-muted-foreground">
+                            {inspectEvent.action.includes("create") ||
+                            inspectEvent.action.includes("record")
+                              ? "Initial creation event — record initialized with default and provided values."
+                              : inspectEvent.action.includes("delete") ||
+                                  inspectEvent.action.includes("cancel")
+                                ? "Deletion or cancellation event — record transitioned to inactive/removed state."
+                                : "Operation executed successfully. No field-level diff was required."}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* CONTEXT (IP, Browser / Device) */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        <Globe className="h-3.5 w-3.5 text-primary" />
+                        <span>Context</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-border bg-card p-3">
+                        <div>
+                          <span className="text-[11px] text-muted-foreground block">
+                            IP Address
+                          </span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="font-mono text-xs text-foreground">
+                              {inspectEvent.ip_address || "Localhost / Internal"}
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-[11px] text-muted-foreground block">
+                            Device / Browser
+                          </span>
+                          <div
+                            className="flex items-center gap-1.5 mt-0.5 truncate"
+                            title={inspectEvent.user_agent || "Direct Server / API"}
+                          >
+                            <Monitor className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-xs text-foreground truncate">
+                              {inspectEvent.user_agent || "Direct Server / API"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* TECHNICAL DETAILS ▼ (Collapsible) */}
+                    <details className="group rounded-lg border border-border bg-muted/20 p-3">
+                      <summary className="flex cursor-pointer items-center justify-between text-xs font-medium text-muted-foreground hover:text-foreground">
+                        <span className="flex items-center gap-1.5">
+                          <FileCode className="h-3.5 w-3.5 text-primary" />
+                          Technical Details & Raw Payload
+                        </span>
+                        <span className="text-[11px] group-open:rotate-180 transition-transform">
+                          ▼
+                        </span>
+                      </summary>
+                      <div className="mt-3 space-y-2 pt-2 border-t border-border/50">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-muted-foreground">
+                            Sanitized JSON payload
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCopyJson(meta)}
+                            className="h-6 text-[10px] gap-1 px-2"
+                          >
+                            {copiedJson ? (
+                              <Check className="h-3 w-3 text-success" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                            {copiedJson ? "Copied" : "Copy JSON"}
+                          </Button>
+                        </div>
+                        <pre className="font-mono text-[11px] p-3 rounded-lg border border-border bg-card overflow-x-auto max-h-56 leading-relaxed text-foreground">
+                          {JSON.stringify(meta, null, 2)}
+                        </pre>
+                      </div>
+                    </details>
+                  </div>
+                </>
+              );
+            })()}
         </DialogContent>
       </Dialog>
     </div>

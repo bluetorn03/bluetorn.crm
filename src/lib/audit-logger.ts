@@ -10,14 +10,7 @@
 import { execute, uuid } from "./db.ts";
 
 export type AuditActionCategory =
-  | "auth"
-  | "team"
-  | "lead"
-  | "customer"
-  | "property"
-  | "finance"
-  | "settings"
-  | "chat";
+  "auth" | "team" | "lead" | "customer" | "property" | "finance" | "settings" | "chat";
 
 export interface LogAuditEventInput {
   workspaceId?: string | null;
@@ -66,7 +59,11 @@ export function sanitizeAuditData<T>(val: T): T {
   const sanitized: Record<string, any> = {};
   for (const [key, value] of Object.entries(val)) {
     const lowerKey = key.toLowerCase();
-    if (REDACTED_KEYS.has(lowerKey) || lowerKey.includes("password") || lowerKey.includes("secret")) {
+    if (
+      REDACTED_KEYS.has(lowerKey) ||
+      lowerKey.includes("password") ||
+      lowerKey.includes("secret")
+    ) {
       sanitized[key] = "[REDACTED]";
     } else if (typeof value === "object" && value !== null) {
       sanitized[key] = sanitizeAuditData(value);

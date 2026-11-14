@@ -140,9 +140,18 @@ async function main() {
     const [loCols] = await pool.query("SHOW COLUMNS FROM lead_options");
     const loColNames = loCols.map((c) => c.Field);
     const requiredLoCols = [
-      "id", "workspace_id", "type", "name", "stable_key",
-      "is_system", "is_active", "sort_order", "created_by",
-      "updated_by", "created_at", "updated_at"
+      "id",
+      "workspace_id",
+      "type",
+      "name",
+      "stable_key",
+      "is_system",
+      "is_active",
+      "sort_order",
+      "created_by",
+      "updated_by",
+      "created_at",
+      "updated_at",
     ];
     for (const col of requiredLoCols) {
       assert(loColNames.includes(col), `lead_options table has '${col}' column`);
@@ -164,38 +173,53 @@ async function main() {
     }
 
     // Verify existing 22 leads preserved and mapped
-    const [leadRows] = await pool.query("SELECT COUNT(*) AS count, COUNT(source_option_id) AS mapped_count FROM leads");
+    const [leadRows] = await pool.query(
+      "SELECT COUNT(*) AS count, COUNT(source_option_id) AS mapped_count FROM leads",
+    );
     const totalLeads = leadRows[0].count;
     const mappedLeads = leadRows[0].mapped_count;
     assert(totalLeads >= 22, `Existing lead records preserved in MySQL (count: ${totalLeads})`);
-    assert(mappedLeads === totalLeads, `All existing leads are mapped to source_option_id (${mappedLeads}/${totalLeads})`);
+    assert(
+      mappedLeads === totalLeads,
+      `All existing leads are mapped to source_option_id (${mappedLeads}/${totalLeads})`,
+    );
 
     // Verify campaign data is intact in DB
-    const [campaignRows] = await pool.query("SELECT COUNT(*) AS count FROM leads WHERE campaign IS NOT NULL AND campaign != ''");
+    const [campaignRows] = await pool.query(
+      "SELECT COUNT(*) AS count FROM leads WHERE campaign IS NOT NULL AND campaign != ''",
+    );
     console.log(`     Leads with non-empty campaign column: ${campaignRows[0].count}`);
     assert(true, "Campaign column and legacy data preserved without data loss");
 
     // ------------------------------------------------------------------------
     // TEST 2: Default Options Seeding & Idempotency
     // ------------------------------------------------------------------------
-    console.log("\n[TEST 2] Verifying default options seeding, typo normalization, and idempotency...");
+    console.log(
+      "\n[TEST 2] Verifying default options seeding, typo normalization, and idempotency...",
+    );
 
     const [typesSeeded] = await pool.query(
       "SELECT type, COUNT(*) as count FROM lead_options WHERE workspace_id = ? GROUP BY type",
-      [JAYSHREE_WS_ID]
+      [JAYSHREE_WS_ID],
     );
     const typesMap = Object.fromEntries(typesSeeded.map((r) => [r.type, r.count]));
     assert(typesMap["source"] >= 6, `Sources seeded (count: ${typesMap["source"]})`);
     assert(typesMap["location"] >= 5, `Locations seeded (count: ${typesMap["location"]})`);
     assert(typesMap["purpose"] >= 2, `Purposes seeded (count: ${typesMap["purpose"]})`);
-    assert(typesMap["possession_timeline"] >= 6, `Possession timelines seeded (count: ${typesMap["possession_timeline"]})`);
-    assert(typesMap["transaction_timeline"] >= 5, `Transaction timelines seeded (count: ${typesMap["transaction_timeline"]})`);
+    assert(
+      typesMap["possession_timeline"] >= 6,
+      `Possession timelines seeded (count: ${typesMap["possession_timeline"]})`,
+    );
+    assert(
+      typesMap["transaction_timeline"] >= 5,
+      `Transaction timelines seeded (count: ${typesMap["transaction_timeline"]})`,
+    );
     assert(typesMap["phase"] >= 4, `Phases seeded (count: ${typesMap["phase"]})`);
 
     // Verify stable_keys for system sources
     const [sysSources] = await pool.query(
       "SELECT name, stable_key FROM lead_options WHERE workspace_id = ? AND type = 'source' AND is_system = 1",
-      [JAYSHREE_WS_ID]
+      [JAYSHREE_WS_ID],
     );
     const stableKeys = sysSources.map((s) => s.stable_key);
     assert(stableKeys.includes("meta_ads"), "meta_ads stable_key exists");
@@ -208,39 +232,45 @@ async function main() {
     // Verify typo normalization
     const [typoRows] = await pool.query(
       "SELECT name FROM lead_options WHERE workspace_id = ? AND type = 'transaction_timeline' AND name LIKE '%Withing%'",
-      [JAYSHREE_WS_ID]
+      [JAYSHREE_WS_ID],
     );
     assert(typoRows.length === 0, "Typo 'Withing 6 Months' is normalized (0 occurrences)");
     const [normalizedRows] = await pool.query(
       "SELECT name FROM lead_options WHERE workspace_id = ? AND type = 'transaction_timeline' AND name = 'Within 6 Months'",
-      [JAYSHREE_WS_ID]
+      [JAYSHREE_WS_ID],
     );
     assert(normalizedRows.length > 0, "Normalized 'Within 6 Months' option exists in MySQL");
 
     // Test Idempotency: re-running ensureDefaultLeadOptionsInternal does NOT duplicate
     const [beforeCount] = await pool.query(
       "SELECT COUNT(*) as total FROM lead_options WHERE workspace_id = ?",
-      [JAYSHREE_WS_ID]
+      [JAYSHREE_WS_ID],
     );
     await ensureDefaultLeadOptionsInternal(JAYSHREE_WS_ID, ownerContext.userId);
     const [afterCount] = await pool.query(
       "SELECT COUNT(*) as total FROM lead_options WHERE workspace_id = ?",
-      [JAYSHREE_WS_ID]
+      [JAYSHREE_WS_ID],
     );
-    assert(beforeCount[0].total === afterCount[0].total, `Idempotency verified: re-seeding did not create duplicate options (${beforeCount[0].total} -> ${afterCount[0].total})`);
+    assert(
+      beforeCount[0].total === afterCount[0].total,
+      `Idempotency verified: re-seeding did not create duplicate options (${beforeCount[0].total} -> ${afterCount[0].total})`,
+    );
 
     // Test Future Workspace Provisioning
     const tempWsId = "ws-temp-test-" + Date.now();
     await pool.query(
       "INSERT INTO workspaces (id, name, code) VALUES (?, 'Test Provisioning WS', ?)",
-      [tempWsId, "TEMP" + Date.now().toString().slice(-4)]
+      [tempWsId, "TEMP" + Date.now().toString().slice(-4)],
     );
     await ensureDefaultLeadOptionsInternal(tempWsId, "system");
     const [tempWsOptions] = await pool.query(
       "SELECT COUNT(*) as total FROM lead_options WHERE workspace_id = ?",
-      [tempWsId]
+      [tempWsId],
     );
-    assert(tempWsOptions[0].total >= 28, `Future workspace automatically receives all default options (provisioned: ${tempWsOptions[0].total})`);
+    assert(
+      tempWsOptions[0].total >= 28,
+      `Future workspace automatically receives all default options (provisioned: ${tempWsOptions[0].total})`,
+    );
     // Cleanup temp ws
     await pool.query("DELETE FROM lead_options WHERE workspace_id = ?", [tempWsId]);
     await pool.query("DELETE FROM workspaces WHERE id = ?", [tempWsId]);
@@ -259,14 +289,17 @@ async function main() {
       });
     } catch (err) {
       empCreateFailed = true;
-      assert(err.message.includes("Only workspace Owners can create"), "Employee createLeadOption server call rejected with Unauthorized");
+      assert(
+        err.message.includes("Only workspace Owners can create"),
+        "Employee createLeadOption server call rejected with Unauthorized",
+      );
     }
     assert(empCreateFailed, "Employee cannot create lead options");
 
     // Fetch an option ID to test edit/deactivate/delete
     const [someOption] = await pool.query(
       "SELECT id FROM lead_options WHERE workspace_id = ? AND type = 'location' LIMIT 1",
-      [JAYSHREE_WS_ID]
+      [JAYSHREE_WS_ID],
     );
     const testOptId = someOption[0].id;
 
@@ -278,7 +311,10 @@ async function main() {
       });
     } catch (err) {
       empEditFailed = true;
-      assert(err.message.includes("Only workspace Owners can edit"), "Employee updateLeadOption server call rejected with Unauthorized");
+      assert(
+        err.message.includes("Only workspace Owners can edit"),
+        "Employee updateLeadOption server call rejected with Unauthorized",
+      );
     }
     assert(empEditFailed, "Employee cannot edit lead options");
 
@@ -290,7 +326,10 @@ async function main() {
       });
     } catch (err) {
       empDeactFailed = true;
-      assert(err.message.includes("Only workspace Owners can activate/deactivate"), "Employee setLeadOptionActive server call rejected with Unauthorized");
+      assert(
+        err.message.includes("Only workspace Owners can activate/deactivate"),
+        "Employee setLeadOptionActive server call rejected with Unauthorized",
+      );
     }
     assert(empDeactFailed, "Employee cannot deactivate lead options");
 
@@ -301,7 +340,10 @@ async function main() {
       });
     } catch (err) {
       empDeleteFailed = true;
-      assert(err.message.includes("Only workspace Owners can delete"), "Employee deleteLeadOption server call rejected with Unauthorized");
+      assert(
+        err.message.includes("Only workspace Owners can delete"),
+        "Employee deleteLeadOption server call rejected with Unauthorized",
+      );
     }
     assert(empDeleteFailed, "Employee cannot delete lead options");
 
@@ -315,31 +357,46 @@ async function main() {
       type: "source",
       name: "Test Referral Agency",
     });
-    assert(customSource.id && customSource.name === "Test Referral Agency", "Owner created custom Source");
+    assert(
+      customSource.id && customSource.name === "Test Referral Agency",
+      "Owner created custom Source",
+    );
 
     const customLocation = await createLeadOptionCore(ownerContext, {
       type: "location",
       name: "Kharghar Hills",
     });
-    assert(customLocation.id && customLocation.name === "Kharghar Hills", "Owner created custom Location");
+    assert(
+      customLocation.id && customLocation.name === "Kharghar Hills",
+      "Owner created custom Location",
+    );
 
     const customPurpose = await createLeadOptionCore(ownerContext, {
       type: "purpose",
       name: "Commercial Lease",
     });
-    assert(customPurpose.id && customPurpose.name === "Commercial Lease", "Owner created custom Purpose");
+    assert(
+      customPurpose.id && customPurpose.name === "Commercial Lease",
+      "Owner created custom Purpose",
+    );
 
     const customPossession = await createLeadOptionCore(ownerContext, {
       type: "possession_timeline",
       name: "Ready in 45 Days",
     });
-    assert(customPossession.id && customPossession.name === "Ready in 45 Days", "Owner created custom Possession Timeline");
+    assert(
+      customPossession.id && customPossession.name === "Ready in 45 Days",
+      "Owner created custom Possession Timeline",
+    );
 
     const customTransaction = await createLeadOptionCore(ownerContext, {
       type: "transaction_timeline",
       name: "Within 15 Days",
     });
-    assert(customTransaction.id && customTransaction.name === "Within 15 Days", "Owner created custom Transaction Timeline");
+    assert(
+      customTransaction.id && customTransaction.name === "Within 15 Days",
+      "Owner created custom Transaction Timeline",
+    );
 
     const customPhase = await createLeadOptionCore(ownerContext, {
       type: "phase",
@@ -356,7 +413,10 @@ async function main() {
       });
     } catch (err) {
       dupFailed = true;
-      assert(err.message.includes("already exists"), "Duplicate option name within workspace + type rejected");
+      assert(
+        err.message.includes("already exists"),
+        "Duplicate option name within workspace + type rejected",
+      );
     }
     assert(dupFailed, "Duplicate option prevented");
 
@@ -391,14 +451,20 @@ async function main() {
       name: "Test Referral Agency Premium",
       sort_order: 99,
     });
-    assert(updatedSource.name === "Test Referral Agency Premium" && updatedSource.sort_order === 99, "Owner updated custom option name and sort_order");
+    assert(
+      updatedSource.name === "Test Referral Agency Premium" && updatedSource.sort_order === 99,
+      "Owner updated custom option name and sort_order",
+    );
 
     // 5. Deactivate option
     const deactSource = await setLeadOptionActiveCore(ownerContext, {
       id: customSource.id,
       isActive: false,
     });
-    assert(deactSource.is_active === 0 || deactSource.is_active === false, "Owner deactivated custom option");
+    assert(
+      deactSource.is_active === 0 || deactSource.is_active === false,
+      "Owner deactivated custom option",
+    );
 
     // Verify employee cannot see deactivated option
     const empOptions = await listLeadOptionsCore(employeeContext, {
@@ -406,14 +472,20 @@ async function main() {
       includeInactive: true, // Employee flag ignored server-side!
     });
     const hasDeact = empOptions.some((o) => o.id === customSource.id);
-    assert(!hasDeact, "Employee query NEVER returns deactivated options even if includeInactive requested");
+    assert(
+      !hasDeact,
+      "Employee query NEVER returns deactivated options even if includeInactive requested",
+    );
 
     // 6. Reactivate option
     const reactSource = await setLeadOptionActiveCore(ownerContext, {
       id: customSource.id,
       isActive: true,
     });
-    assert(reactSource.is_active === 1 || reactSource.is_active === true, "Owner reactivated custom option");
+    assert(
+      reactSource.is_active === 1 || reactSource.is_active === true,
+      "Owner reactivated custom option",
+    );
 
     // ------------------------------------------------------------------------
     // TEST 5: Delete Protection Policies
@@ -423,7 +495,7 @@ async function main() {
     // 1. System option deletion must be rejected
     const [metaAdsOpt] = await pool.query(
       "SELECT id FROM lead_options WHERE workspace_id = ? AND stable_key = 'meta_ads' LIMIT 1",
-      [JAYSHREE_WS_ID]
+      [JAYSHREE_WS_ID],
     );
     let sysDeleteFailed = false;
     try {
@@ -432,7 +504,10 @@ async function main() {
       });
     } catch (err) {
       sysDeleteFailed = true;
-      assert(err.message.includes("System options cannot be deleted"), "System option deletion rejected with clear error message");
+      assert(
+        err.message.includes("System options cannot be deleted"),
+        "System option deletion rejected with clear error message",
+      );
     }
     assert(sysDeleteFailed, "System options protected from hard deletion");
 
@@ -460,7 +535,10 @@ async function main() {
       });
     } catch (err) {
       crossEditFailed = true;
-      assert(err.message.includes("FORBIDDEN: Cross-workspace access denied"), "Cross-workspace option edit rejected");
+      assert(
+        err.message.includes("FORBIDDEN: Cross-workspace access denied"),
+        "Cross-workspace option edit rejected",
+      );
     }
     assert(crossEditFailed, "Cross-workspace option edit blocked");
 
@@ -473,7 +551,10 @@ async function main() {
       });
     } catch (err) {
       crossDeactFailed = true;
-      assert(err.message.includes("FORBIDDEN: Cross-workspace access denied"), "Cross-workspace option deactivate rejected");
+      assert(
+        err.message.includes("FORBIDDEN: Cross-workspace access denied"),
+        "Cross-workspace option deactivate rejected",
+      );
     }
     assert(crossDeactFailed, "Cross-workspace option deactivate blocked");
 
@@ -485,14 +566,19 @@ async function main() {
       });
     } catch (err) {
       crossDelFailed = true;
-      assert(err.message.includes("FORBIDDEN: Cross-workspace access denied"), "Cross-workspace option delete rejected");
+      assert(
+        err.message.includes("FORBIDDEN: Cross-workspace access denied"),
+        "Cross-workspace option delete rejected",
+      );
     }
     assert(crossDelFailed, "Cross-workspace option delete blocked");
 
     // ------------------------------------------------------------------------
     // TEST 7: Leads CRUD with Configurable Fields
     // ------------------------------------------------------------------------
-    console.log("\n[TEST 7] Verifying Leads CRUD with 5 new configurable fields + historical preservation...");
+    console.log(
+      "\n[TEST 7] Verifying Leads CRUD with 5 new configurable fields + historical preservation...",
+    );
 
     // Create a lead with all 5 new configurable fields + source
     const newLead = await createLeadCore(ownerContext, {
@@ -511,26 +597,47 @@ async function main() {
       status: "New",
     });
 
-    assert(newLead.id && newLead.name === "Rohit Sharma Test Lead", "Created new lead successfully");
+    assert(
+      newLead.id && newLead.name === "Rohit Sharma Test Lead",
+      "Created new lead successfully",
+    );
     assert(newLead.source_option_id === customSource.id, "Saved source_option_id");
     assert(newLead.location_option_id === customLocation.id, "Saved location_option_id");
     assert(newLead.purpose_option_id === customPurpose.id, "Saved purpose_option_id");
-    assert(newLead.possession_timeline_option_id === customPossession.id, "Saved possession_timeline_option_id");
-    assert(newLead.transaction_timeline_option_id === customTransaction.id, "Saved transaction_timeline_option_id");
+    assert(
+      newLead.possession_timeline_option_id === customPossession.id,
+      "Saved possession_timeline_option_id",
+    );
+    assert(
+      newLead.transaction_timeline_option_id === customTransaction.id,
+      "Saved transaction_timeline_option_id",
+    );
     assert(newLead.phase_option_id === customPhase.id, "Saved phase_option_id");
 
     // Verify joined resolved names on lead fetch
-    assert(newLead.location_name === "Kharghar Hills", `Resolved location_name: '${newLead.location_name}'`);
-    assert(newLead.purpose_name === "Commercial Lease", `Resolved purpose_name: '${newLead.purpose_name}'`);
-    assert(newLead.possession_timeline_name === "Ready in 45 Days", `Resolved possession_timeline_name: '${newLead.possession_timeline_name}'`);
-    assert(newLead.transaction_timeline_name === "Within 15 Days", `Resolved transaction_timeline_name: '${newLead.transaction_timeline_name}'`);
+    assert(
+      newLead.location_name === "Kharghar Hills",
+      `Resolved location_name: '${newLead.location_name}'`,
+    );
+    assert(
+      newLead.purpose_name === "Commercial Lease",
+      `Resolved purpose_name: '${newLead.purpose_name}'`,
+    );
+    assert(
+      newLead.possession_timeline_name === "Ready in 45 Days",
+      `Resolved possession_timeline_name: '${newLead.possession_timeline_name}'`,
+    );
+    assert(
+      newLead.transaction_timeline_name === "Within 15 Days",
+      `Resolved transaction_timeline_name: '${newLead.transaction_timeline_name}'`,
+    );
     assert(newLead.phase_name === "Tower B Launch", `Resolved phase_name: '${newLead.phase_name}'`);
     assert(newLead.campaign === null, "Campaign column remains null and not required in form");
 
     // Cross-workspace option tampering in Lead Creation
     const [otherWsOption] = await pool.query(
       "SELECT id FROM lead_options WHERE workspace_id = ? AND type = 'location' LIMIT 1",
-      [OTHER_WS_ID]
+      [OTHER_WS_ID],
     );
     let crossLeadOptFailed = false;
     try {
@@ -542,7 +649,10 @@ async function main() {
       });
     } catch (err) {
       crossLeadOptFailed = true;
-      assert(err.message.includes("Unauthorized: Cross-workspace location option tampering rejected"), "Cross-workspace option ID attachment to lead rejected");
+      assert(
+        err.message.includes("Unauthorized: Cross-workspace location option tampering rejected"),
+        "Cross-workspace option ID attachment to lead rejected",
+      );
     }
     assert(crossLeadOptFailed, "Cross-workspace option tampering rejected on lead creation");
 
@@ -561,14 +671,23 @@ async function main() {
       });
     } catch (err) {
       inactiveLeadOptFailed = true;
-      assert(err.message.includes("Cannot select inactive location option"), "Selecting inactive option for new lead rejected");
+      assert(
+        err.message.includes("Cannot select inactive location option"),
+        "Selecting inactive option for new lead rejected",
+      );
     }
     assert(inactiveLeadOptFailed, "Inactive option rejected for new lead");
 
     // Historical lead with deactivated option still resolves and displays
     const fetchedLead = await getLeadCore(ownerContext, { id: newLead.id });
-    assert(fetchedLead.location_option_id === customLocation.id, "Historical lead retains deactivated location_option_id");
-    assert(fetchedLead.location_name === "Kharghar Hills", `Historical lead still resolves inactive location name ('${fetchedLead.location_name}')`);
+    assert(
+      fetchedLead.location_option_id === customLocation.id,
+      "Historical lead retains deactivated location_option_id",
+    );
+    assert(
+      fetchedLead.location_name === "Kharghar Hills",
+      `Historical lead still resolves inactive location name ('${fetchedLead.location_name}')`,
+    );
 
     // Attempting to hard-delete an option referenced by a lead must be blocked!
     let deleteReferencedFailed = false;
@@ -578,7 +697,10 @@ async function main() {
       });
     } catch (err) {
       deleteReferencedFailed = true;
-      assert(err.message.includes("referenced by 1 lead(s) and cannot be deleted"), "Hard-deleting lead-referenced option rejected with reference count");
+      assert(
+        err.message.includes("referenced by 1 lead(s) and cannot be deleted"),
+        "Hard-deleting lead-referenced option rejected with reference count",
+      );
     }
     assert(deleteReferencedFailed, "Lead-referenced options protected from deletion");
 
@@ -596,7 +718,10 @@ async function main() {
         status: "Contacted",
       },
     });
-    assert(updatedLead.budget === 18000000 && updatedLead.status === "Contacted", "Lead updated successfully");
+    assert(
+      updatedLead.budget === 18000000 && updatedLead.status === "Contacted",
+      "Lead updated successfully",
+    );
 
     // ------------------------------------------------------------------------
     // TEST 8: Stable Key Source Card Filtering
@@ -606,7 +731,7 @@ async function main() {
     // Find meta_ads option in Jayshree
     const [metaOpt] = await pool.query(
       "SELECT id, name, stable_key FROM lead_options WHERE workspace_id = ? AND stable_key = 'meta_ads' LIMIT 1",
-      [JAYSHREE_WS_ID]
+      [JAYSHREE_WS_ID],
     );
     const originalMetaName = metaOpt[0].name;
 
@@ -623,9 +748,12 @@ async function main() {
       `SELECT l.id, so.stable_key FROM leads l
        JOIN lead_options so ON l.source_option_id = so.id
        WHERE l.workspace_id = ? AND so.stable_key = 'meta_ads'`,
-      [JAYSHREE_WS_ID]
+      [JAYSHREE_WS_ID],
     );
-    assert(leadsByStableKeyBefore[0].length >= 1, `Found ${leadsByStableKeyBefore[0].length} lead(s) with stable_key 'meta_ads'`);
+    assert(
+      leadsByStableKeyBefore[0].length >= 1,
+      `Found ${leadsByStableKeyBefore[0].length} lead(s) with stable_key 'meta_ads'`,
+    );
 
     // Rename display label of Meta Ads
     await updateLeadOptionCore(ownerContext, {
@@ -638,10 +766,16 @@ async function main() {
       `SELECT l.id, so.name, so.stable_key FROM leads l
        JOIN lead_options so ON l.source_option_id = so.id
        WHERE l.workspace_id = ? AND so.stable_key = 'meta_ads'`,
-      [JAYSHREE_WS_ID]
+      [JAYSHREE_WS_ID],
     );
-    assert(leadsByStableKeyAfter[0].length === leadsByStableKeyBefore[0].length, "Renaming display label did NOT break stable_key source filtering");
-    assert(leadsByStableKeyAfter[0][0].name === "Meta Ads (Facebook & Instagram Lead Gen)", "Renamed label reflected in joined query");
+    assert(
+      leadsByStableKeyAfter[0].length === leadsByStableKeyBefore[0].length,
+      "Renaming display label did NOT break stable_key source filtering",
+    );
+    assert(
+      leadsByStableKeyAfter[0][0].name === "Meta Ads (Facebook & Instagram Lead Gen)",
+      "Renamed label reflected in joined query",
+    );
 
     // Restore original name
     await updateLeadOptionCore(ownerContext, {
@@ -659,14 +793,29 @@ async function main() {
       `SELECT action, COUNT(*) as count FROM audit_logs
        WHERE workspace_id = ? AND entity_type = 'lead_option'
        GROUP BY action`,
-      [JAYSHREE_WS_ID]
+      [JAYSHREE_WS_ID],
     );
     const auditMap = Object.fromEntries(auditActions.map((r) => [r.action, r.count]));
-    assert(auditMap["LEAD_OPTION_CREATED"] > 0, `audit_logs recorded LEAD_OPTION_CREATED (count: ${auditMap["LEAD_OPTION_CREATED"]})`);
-    assert(auditMap["LEAD_OPTION_UPDATED"] > 0, `audit_logs recorded LEAD_OPTION_UPDATED (count: ${auditMap["LEAD_OPTION_UPDATED"]})`);
-    assert(auditMap["LEAD_OPTION_DEACTIVATED"] > 0, `audit_logs recorded LEAD_OPTION_DEACTIVATED (count: ${auditMap["LEAD_OPTION_DEACTIVATED"]})`);
-    assert(auditMap["LEAD_OPTION_REACTIVATED"] > 0, `audit_logs recorded LEAD_OPTION_REACTIVATED (count: ${auditMap["LEAD_OPTION_REACTIVATED"]})`);
-    assert(auditMap["LEAD_OPTION_DELETED"] > 0, `audit_logs recorded LEAD_OPTION_DELETED (count: ${auditMap["LEAD_OPTION_DELETED"]})`);
+    assert(
+      auditMap["LEAD_OPTION_CREATED"] > 0,
+      `audit_logs recorded LEAD_OPTION_CREATED (count: ${auditMap["LEAD_OPTION_CREATED"]})`,
+    );
+    assert(
+      auditMap["LEAD_OPTION_UPDATED"] > 0,
+      `audit_logs recorded LEAD_OPTION_UPDATED (count: ${auditMap["LEAD_OPTION_UPDATED"]})`,
+    );
+    assert(
+      auditMap["LEAD_OPTION_DEACTIVATED"] > 0,
+      `audit_logs recorded LEAD_OPTION_DEACTIVATED (count: ${auditMap["LEAD_OPTION_DEACTIVATED"]})`,
+    );
+    assert(
+      auditMap["LEAD_OPTION_REACTIVATED"] > 0,
+      `audit_logs recorded LEAD_OPTION_REACTIVATED (count: ${auditMap["LEAD_OPTION_REACTIVATED"]})`,
+    );
+    assert(
+      auditMap["LEAD_OPTION_DELETED"] > 0,
+      `audit_logs recorded LEAD_OPTION_DELETED (count: ${auditMap["LEAD_OPTION_DELETED"]})`,
+    );
 
     // ------------------------------------------------------------------------
     // TEST 10: Clean Test Teardown
@@ -692,17 +841,24 @@ async function main() {
     // Clean up test audit logs
     await pool.query(
       "DELETE FROM audit_logs WHERE workspace_id = ? AND entity_id IN (?, ?, ?, ?, ?, ?)",
-      [JAYSHREE_WS_ID, ...createdOptionIds]
+      [JAYSHREE_WS_ID, ...createdOptionIds],
     );
     console.log("     Cleaned up test options and test audit logs.");
 
     // Final database consistency check
     const [finalLeadCount] = await pool.query("SELECT COUNT(*) as count FROM leads");
-    assert(finalLeadCount[0].count === totalLeads, `Historical leads preserved intact (${finalLeadCount[0].count}/${totalLeads})`);
+    assert(
+      finalLeadCount[0].count === totalLeads,
+      `Historical leads preserved intact (${finalLeadCount[0].count}/${totalLeads})`,
+    );
 
-    console.log("\n================================================================================");
+    console.log(
+      "\n================================================================================",
+    );
     console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
-    console.log("================================================================================\n");
+    console.log(
+      "================================================================================\n",
+    );
 
     if (failed > 0) {
       process.exit(1);

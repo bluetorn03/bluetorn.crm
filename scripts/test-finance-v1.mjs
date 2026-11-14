@@ -8,7 +8,10 @@ if (fs.existsSync(".env")) {
     if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
       const idx = trimmed.indexOf("=");
       const key = trimmed.slice(0, idx).trim();
-      const val = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, "");
+      const val = trimmed
+        .slice(idx + 1)
+        .trim()
+        .replace(/^["']|["']$/g, "");
       if (!(key in process.env)) process.env[key] = val;
     }
   }
@@ -18,7 +21,10 @@ const pool = mysql.createPool({
   host: process.env["DB_HOST"] || process.env.MYSQL_HOST || "localhost",
   port: parseInt(process.env["DB_PORT"] || process.env.MYSQL_PORT || "3306", 10),
   user: process.env["DB_USER"] || process.env.MYSQL_USER || "root",
-  password: process.env["DB_PASSWORD"] !== undefined ? process.env["DB_PASSWORD"] : (process.env.MYSQL_PASSWORD ?? ""),
+  password:
+    process.env["DB_PASSWORD"] !== undefined
+      ? process.env["DB_PASSWORD"]
+      : (process.env.MYSQL_PASSWORD ?? ""),
   database: process.env["DB_NAME"] || process.env.MYSQL_DATABASE || "bluetorn_crm",
   decimalNumbers: true,
 });
@@ -31,10 +37,21 @@ async function runTests() {
   const [wsCols] = await pool.query("SHOW COLUMNS FROM workspaces");
   const colNames = wsCols.map((c) => c.Field);
   const requiredBillingCols = [
-    "legal_name", "logo_url", "gstin", "pan", "state", "state_code",
-    "website", "bank_name", "bank_account_no", "bank_account_name",
-    "bank_ifsc", "invoice_prefix", "default_payment_terms_days",
-    "default_invoice_notes", "default_invoice_terms"
+    "legal_name",
+    "logo_url",
+    "gstin",
+    "pan",
+    "state",
+    "state_code",
+    "website",
+    "bank_name",
+    "bank_account_no",
+    "bank_account_name",
+    "bank_ifsc",
+    "invoice_prefix",
+    "default_payment_terms_days",
+    "default_invoice_notes",
+    "default_invoice_terms",
   ];
   for (const col of requiredBillingCols) {
     if (!colNames.includes(col)) {
@@ -47,7 +64,11 @@ async function runTests() {
   console.log("\n[TEST 2] Verifying user_permissions table schema...");
   const [permCols] = await pool.query("SHOW COLUMNS FROM user_permissions");
   const permColNames = permCols.map((c) => c.Field);
-  if (!permColNames.includes("workspace_id") || !permColNames.includes("user_id") || !permColNames.includes("permission")) {
+  if (
+    !permColNames.includes("workspace_id") ||
+    !permColNames.includes("user_id") ||
+    !permColNames.includes("permission")
+  ) {
     throw new Error("user_permissions table missing required columns.");
   }
   console.log("✓ user_permissions table structure verified.");
@@ -57,12 +78,34 @@ async function runTests() {
   const [invCols] = await pool.query("SHOW COLUMNS FROM invoices");
   const invColNames = invCols.map((c) => c.Field);
   const requiredInvCols = [
-    "id", "workspace_id", "invoice_number", "customer_id", "lead_id",
-    "property_id", "assigned_to", "updated_by", "financial_year",
-    "invoice_type", "status", "currency", "subtotal", "discount",
-    "taxable_amount", "cgst", "sgst", "igst", "cess", "total",
-    "place_of_supply", "notes", "terms", "cancellation_reason",
-    "cancelled_at", "cancelled_by", "created_by", "created_at"
+    "id",
+    "workspace_id",
+    "invoice_number",
+    "customer_id",
+    "lead_id",
+    "property_id",
+    "assigned_to",
+    "updated_by",
+    "financial_year",
+    "invoice_type",
+    "status",
+    "currency",
+    "subtotal",
+    "discount",
+    "taxable_amount",
+    "cgst",
+    "sgst",
+    "igst",
+    "cess",
+    "total",
+    "place_of_supply",
+    "notes",
+    "terms",
+    "cancellation_reason",
+    "cancelled_at",
+    "cancelled_by",
+    "created_by",
+    "created_at",
   ];
   for (const col of requiredInvCols) {
     if (!invColNames.includes(col)) {
@@ -73,9 +116,22 @@ async function runTests() {
   const [itemCols] = await pool.query("SHOW COLUMNS FROM invoice_items");
   const itemColNames = itemCols.map((c) => c.Field);
   const requiredItemCols = [
-    "id", "workspace_id", "invoice_id", "description", "hsn_sac",
-    "quantity", "unit", "rate", "unit_amount", "discount",
-    "tax_rate", "tax_type", "tax_amount", "line_total", "amount", "position"
+    "id",
+    "workspace_id",
+    "invoice_id",
+    "description",
+    "hsn_sac",
+    "quantity",
+    "unit",
+    "rate",
+    "unit_amount",
+    "discount",
+    "tax_rate",
+    "tax_type",
+    "tax_amount",
+    "line_total",
+    "amount",
+    "position",
   ];
   for (const col of requiredItemCols) {
     if (!itemColNames.includes(col)) {
@@ -89,10 +145,24 @@ async function runTests() {
   const [payCols] = await pool.query("SHOW COLUMNS FROM payments");
   const payColNames = payCols.map((c) => c.Field);
   const requiredPayCols = [
-    "id", "workspace_id", "invoice_id", "customer_id", "assigned_to",
-    "updated_by", "amount", "currency", "method", "status", "paid_at",
-    "reference", "notes", "reversal_reason", "reversed_at", "reversed_by",
-    "created_by", "created_at"
+    "id",
+    "workspace_id",
+    "invoice_id",
+    "customer_id",
+    "assigned_to",
+    "updated_by",
+    "amount",
+    "currency",
+    "method",
+    "status",
+    "paid_at",
+    "reference",
+    "notes",
+    "reversal_reason",
+    "reversed_at",
+    "reversed_by",
+    "created_by",
+    "created_at",
   ];
   for (const col of requiredPayCols) {
     if (!payColNames.includes(col)) {
@@ -103,7 +173,9 @@ async function runTests() {
 
   // 5. Test Workspace Billing Profile Update and Inheritance
   console.log("\n[TEST 5] Testing Workspace Company Profile update & persistence...");
-  const [workspaces] = await pool.query("SELECT id, name FROM workspaces WHERE code = 'JAYSHREE' LIMIT 1");
+  const [workspaces] = await pool.query(
+    "SELECT id, name FROM workspaces WHERE code = 'JAYSHREE' LIMIT 1",
+  );
   if (workspaces.length === 0) throw new Error("Workspace JAYSHREE not found.");
   const ws = workspaces[0];
 
@@ -123,7 +195,7 @@ async function runTests() {
       default_invoice_notes = 'Thank you for your business with Jayshree Realty.',
       default_invoice_terms = '1. Payment due within 15 days. 2. Please quote invoice number during wire transfer.'
     WHERE id = ?`,
-    [ws.id]
+    [ws.id],
   );
 
   const [wsCheck] = await pool.query("SELECT * FROM workspaces WHERE id = ?", [ws.id]);
@@ -142,14 +214,14 @@ async function runTests() {
     // Find customer in workspace
     const [custRows] = await conn.execute(
       "SELECT id, name FROM customers WHERE workspace_id = ? LIMIT 1",
-      [ws.id]
+      [ws.id],
     );
     const customerId = custRows[0]?.id || null;
 
     // Find creator profile
     const [profRows] = await conn.execute(
       "SELECT id, full_name FROM profiles WHERE workspace_id = ? LIMIT 1",
-      [ws.id]
+      [ws.id],
     );
     const creatorId = profRows[0]?.id || null;
 
@@ -163,11 +235,28 @@ async function runTests() {
         place_of_supply, notes, terms, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        testInvoiceId, ws.id, invNumber, "2026-27", "Tax Invoice",
-        customerId, "Issued", "2026-09-28", "2026-10-13", "INR",
-        100000, 5000, 95000, 8550, 8550, 0, 112100,
-        "Maharashtra", "Test invoice notes", "Test terms", creatorId
-      ]
+        testInvoiceId,
+        ws.id,
+        invNumber,
+        "2026-27",
+        "Tax Invoice",
+        customerId,
+        "Issued",
+        "2026-09-28",
+        "2026-10-13",
+        "INR",
+        100000,
+        5000,
+        95000,
+        8550,
+        8550,
+        0,
+        112100,
+        "Maharashtra",
+        "Test invoice notes",
+        "Test terms",
+        creatorId,
+      ],
     );
 
     // Insert item
@@ -178,10 +267,23 @@ async function runTests() {
         tax_rate, tax_type, tax_amount, line_total, amount, position
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        "item-" + Date.now(), ws.id, testInvoiceId, "Real Estate Advisory", "997212",
-        1, "service", 100000, 100000, 5000,
-        18, "GST", 17100, 112100, 112100, 0
-      ]
+        "item-" + Date.now(),
+        ws.id,
+        testInvoiceId,
+        "Real Estate Advisory",
+        "997212",
+        1,
+        "service",
+        100000,
+        100000,
+        5000,
+        18,
+        "GST",
+        17100,
+        112100,
+        112100,
+        0,
+      ],
     );
 
     // Insert audit log
@@ -189,10 +291,15 @@ async function runTests() {
       `INSERT INTO audit_logs (id, workspace_id, actor_id, actor_label, action, entity_type, entity_id, metadata)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        "audit-" + Date.now(), ws.id, creatorId, "owner",
-        "invoice.create", "invoice", testInvoiceId,
-        JSON.stringify({ invoice_number: invNumber, total: 112100 })
-      ]
+        "audit-" + Date.now(),
+        ws.id,
+        creatorId,
+        "owner",
+        "invoice.create",
+        "invoice",
+        testInvoiceId,
+        JSON.stringify({ invoice_number: invNumber, total: 112100 }),
+      ],
     );
 
     await conn.commit();
@@ -217,18 +324,29 @@ async function runTests() {
         id, workspace_id, invoice_id, amount, currency, method, status, paid_at, reference, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        testPaymentId, ws.id, testInvoiceId, 50000, "INR", "Bank Transfer", "Received", "2026-09-28", "UTR-TEST-12345", "system"
-      ]
+        testPaymentId,
+        ws.id,
+        testInvoiceId,
+        50000,
+        "INR",
+        "Bank Transfer",
+        "Received",
+        "2026-09-28",
+        "UTR-TEST-12345",
+        "system",
+      ],
     );
 
     // Reconcile invoice status
     const [payRows] = await pConn.execute(
       "SELECT SUM(amount) as paid FROM payments WHERE invoice_id = ? AND status = 'Received'",
-      [testInvoiceId]
+      [testInvoiceId],
     );
     const paid = Number(payRows[0]?.paid || 0);
 
-    const [invRows] = await pConn.execute("SELECT total FROM invoices WHERE id = ?", [testInvoiceId]);
+    const [invRows] = await pConn.execute("SELECT total FROM invoices WHERE id = ?", [
+      testInvoiceId,
+    ]);
     const total = Number(invRows[0]?.total || 0);
 
     let newStatus = "Partially Paid";
@@ -238,7 +356,9 @@ async function runTests() {
     await pConn.execute("UPDATE invoices SET status = ? WHERE id = ?", [newStatus, testInvoiceId]);
 
     await pConn.commit();
-    console.log(`✓ Payment recorded (50,000). Total paid: ${paid}/${total}. Invoice status transitioned to: ${newStatus}`);
+    console.log(
+      `✓ Payment recorded (50,000). Total paid: ${paid}/${total}. Invoice status transitioned to: ${newStatus}`,
+    );
   } catch (err) {
     await pConn.rollback();
     throw err;
@@ -247,7 +367,9 @@ async function runTests() {
   }
 
   // Verify status in DB
-  const [invCheck] = await pool.query("SELECT status, total FROM invoices WHERE id = ?", [testInvoiceId]);
+  const [invCheck] = await pool.query("SELECT status, total FROM invoices WHERE id = ?", [
+    testInvoiceId,
+  ]);
   if (invCheck[0].status !== "Partially Paid") {
     throw new Error(`Expected status 'Partially Paid', got '${invCheck[0].status}'`);
   }
@@ -266,23 +388,31 @@ async function runTests() {
         reversed_at = NOW(),
         reversed_by = 'system'
        WHERE id = ?`,
-      [testPaymentId]
+      [testPaymentId],
     );
 
     // Re-reconcile
     const [payRows] = await rConn.execute(
       "SELECT SUM(amount) as paid FROM payments WHERE invoice_id = ? AND status = 'Received'",
-      [testInvoiceId]
+      [testInvoiceId],
     );
     const validPaid = Number(payRows[0]?.paid || 0);
-    const [invRows] = await rConn.execute("SELECT total FROM invoices WHERE id = ?", [testInvoiceId]);
+    const [invRows] = await rConn.execute("SELECT total FROM invoices WHERE id = ?", [
+      testInvoiceId,
+    ]);
     const total = Number(invRows[0]?.total || 0);
 
-    const revertedStatus = validPaid === 0 ? "Issued" : validPaid >= total ? "Paid" : "Partially Paid";
-    await rConn.execute("UPDATE invoices SET status = ? WHERE id = ?", [revertedStatus, testInvoiceId]);
+    const revertedStatus =
+      validPaid === 0 ? "Issued" : validPaid >= total ? "Paid" : "Partially Paid";
+    await rConn.execute("UPDATE invoices SET status = ? WHERE id = ?", [
+      revertedStatus,
+      testInvoiceId,
+    ]);
 
     await rConn.commit();
-    console.log(`✓ Payment reversed. Valid received payments sum: ${validPaid}. Invoice status returned to: ${revertedStatus}`);
+    console.log(
+      `✓ Payment reversed. Valid received payments sum: ${validPaid}. Invoice status returned to: ${revertedStatus}`,
+    );
   } catch (err) {
     await rConn.rollback();
     throw err;
@@ -296,25 +426,34 @@ async function runTests() {
     `SELECT p.id, p.user_code FROM profiles p
      JOIN user_roles ur ON p.id = ur.user_id
      WHERE p.workspace_id = ? AND ur.role = 'employee' LIMIT 1`,
-    [ws.id]
+    [ws.id],
   );
 
   if (employees.length > 0) {
     const emp = employees[0];
     // Grant granular permissions
-    await pool.query("DELETE FROM user_permissions WHERE workspace_id = ? AND user_id = ?", [ws.id, emp.id]);
+    await pool.query("DELETE FROM user_permissions WHERE workspace_id = ? AND user_id = ?", [
+      ws.id,
+      emp.id,
+    ]);
     await pool.query(
       `INSERT INTO user_permissions (id, workspace_id, user_id, permission)
        VALUES (?, ?, ?, ?), (?, ?, ?, ?)`,
       [
-        "p1-" + Date.now(), ws.id, emp.id, "finance.view",
-        "p2-" + Date.now(), ws.id, emp.id, "finance.invoices.create"
-      ]
+        "p1-" + Date.now(),
+        ws.id,
+        emp.id,
+        "finance.view",
+        "p2-" + Date.now(),
+        ws.id,
+        emp.id,
+        "finance.invoices.create",
+      ],
     );
 
     const [userPerms] = await pool.query(
       "SELECT permission FROM user_permissions WHERE workspace_id = ? AND user_id = ?",
-      [ws.id, emp.id]
+      [ws.id, emp.id],
     );
     const granted = userPerms.map((p) => p.permission);
     console.log(`✓ Permissions successfully assigned to employee ${emp.user_code}:`, granted);

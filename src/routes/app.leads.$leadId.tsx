@@ -76,6 +76,7 @@ import { DeleteLeadDialog } from "@/components/crm/DeleteLeadDialog";
 import { ConvertLeadDialog } from "@/components/crm/ConvertLeadDialog";
 import { AssignLeadDialog } from "@/components/crm/AssignLeadDialog";
 import { toast } from "sonner";
+import { formatErrorMessage } from "@/lib/error-formatter";
 import { Users } from "lucide-react";
 
 export const Route = createFileRoute("/app/leads/$leadId")({
@@ -199,8 +200,8 @@ function LeadDetailView({ lead }: { lead: Lead }) {
       queryClient.invalidateQueries({ queryKey: qk.leadActivity(lead.id) });
       toast.success(`Lead status updated to ${newStatus}`);
     },
-    onError: (err: Error) => {
-      toast.error(err.message || "Failed to update status.");
+    onError: (err: unknown) => {
+      toast.error(formatErrorMessage(err, "Failed to update status."));
     },
   });
 
@@ -223,8 +224,8 @@ function LeadDetailView({ lead }: { lead: Lead }) {
       queryClient.invalidateQueries({ queryKey: qk.leadActivity(lead.id) });
       toast.success("Follow-up marked as completed.");
     },
-    onError: (err: Error) => {
-      toast.error(err.message || "Failed to update follow-up.");
+    onError: (err: unknown) => {
+      toast.error(formatErrorMessage(err, "Failed to update follow-up."));
     },
   });
 
@@ -246,8 +247,8 @@ function LeadDetailView({ lead }: { lead: Lead }) {
       setActivityNote("");
       toast.success("Activity logged to timeline.");
     },
-    onError: (err: Error) => {
-      toast.error(err.message || "Failed to log activity.");
+    onError: (err: unknown) => {
+      toast.error(formatErrorMessage(err, "Failed to log activity."));
     },
   });
 

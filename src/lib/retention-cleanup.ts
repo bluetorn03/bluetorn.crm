@@ -46,10 +46,12 @@ export interface WorkspaceStorageBreakdown {
 /**
  * Runs the master centralized retention and cleanup service.
  */
-export async function runCentralizedCleanup(options: {
-  workspaceId?: string;
-  batchSize?: number;
-} = {}): Promise<CentralizedCleanupSummary> {
+export async function runCentralizedCleanup(
+  options: {
+    workspaceId?: string;
+    batchSize?: number;
+  } = {},
+): Promise<CentralizedCleanupSummary> {
   const startTime = Date.now();
   const batchSize = Math.min(options.batchSize ?? 1000, 5000);
 
@@ -69,10 +71,7 @@ export async function runCentralizedCleanup(options: {
         : "WHERE expires_at <= UTC_TIMESTAMP()";
       const params = options.workspaceId ? [options.workspaceId, batchSize] : [batchSize];
 
-      const res = await execute(
-        `DELETE FROM chat_messages ${chatCondition} LIMIT ?`,
-        params,
-      );
+      const res = await execute(`DELETE FROM chat_messages ${chatCondition} LIMIT ?`, params);
       const count = res.affectedRows ?? 0;
       chatMessagesDeleted += count;
       if (count < batchSize) break;
@@ -164,10 +163,18 @@ export async function runCentralizedCleanup(options: {
         if (files.length > 0 && !options.workspaceId) {
           // Query active media URLs from database
           const [propImages, profileAvatars, wsLogos, promoImages] = await Promise.all([
-            query<{ image_url: string }>("SELECT image_url FROM properties WHERE image_url IS NOT NULL"),
-            query<{ avatar_url: string }>("SELECT avatar_url FROM profiles WHERE avatar_url IS NOT NULL"),
-            query<{ logo_url: string }>("SELECT logo_url FROM workspaces WHERE logo_url IS NOT NULL"),
-            query<{ image_url: string }>("SELECT image_url FROM promo_media WHERE image_url IS NOT NULL"),
+            query<{ image_url: string }>(
+              "SELECT image_url FROM properties WHERE image_url IS NOT NULL",
+            ),
+            query<{ avatar_url: string }>(
+              "SELECT avatar_url FROM profiles WHERE avatar_url IS NOT NULL",
+            ),
+            query<{ logo_url: string }>(
+              "SELECT logo_url FROM workspaces WHERE logo_url IS NOT NULL",
+            ),
+            query<{ image_url: string }>(
+              "SELECT image_url FROM promo_media WHERE image_url IS NOT NULL",
+            ),
           ]);
 
           const activeReferences = new Set<string>();
@@ -192,7 +199,9 @@ export async function runCentralizedCleanup(options: {
               try {
                 fs.unlinkSync(filePath);
                 orphanedFilesCleaned++;
-              } catch {}
+              } catch {
+                // Ignore unlink error if file already removed or locked
+              }
             }
           }
         }
@@ -230,28 +239,38 @@ export async function runCentralizedCleanup(options: {
 export async function getWorkspaceStorageUsage(
   workspaceId: string,
 ): Promise<WorkspaceStorageBreakdown> {
-  const [
-    propRow,
-    custRow,
-    leadRow,
-    invRow,
-    payRow,
-    chatRow,
-    auditRow,
-    notifRow,
-  ] = await Promise.all([
-    queryOne<{ count: number; media_count: number }>(
-      "SELECT COUNT(*) as count, SUM(CASE WHEN image_url IS NOT NULL AND image_url != '' THEN 1 ELSE 0 END) as media_count FROM properties WHERE workspace_id = ?",
-      [workspaceId],
-    ),
-    queryOne<{ count: number }>("SELECT COUNT(*) as count FROM customers WHERE workspace_id = ?", [workspaceId]),
-    queryOne<{ count: number }>("SELECT COUNT(*) as count FROM leads WHERE workspace_id = ?", [workspaceId]),
-    queryOne<{ count: number }>("SELECT COUNT(*) as count FROM invoices WHERE workspace_id = ?", [workspaceId]),
-    queryOne<{ count: number }>("SELECT COUNT(*) as count FROM payments WHERE workspace_id = ?", [workspaceId]),
-    queryOne<{ count: number }>("SELECT COUNT(*) as count FROM chat_messages WHERE workspace_id = ?", [workspaceId]),
-    queryOne<{ count: number }>("SELECT COUNT(*) as count FROM audit_logs WHERE workspace_id = ?", [workspaceId]),
-    queryOne<{ count: number }>("SELECT COUNT(*) as count FROM notifications WHERE workspace_id = ?", [workspaceId]),
-  ]);
+  const [propRow, custRow, leadRow, invRow, payRow, chatRow, auditRow, notifRow] =
+    await Promise.all([
+      queryOne<{ count: number; media_count: number }>(
+        "SELECT COUNT(*) as count, SUM(CASE WHEN image_url IS NOT NULL AND image_url != '' THEN 1 ELSE 0 END) as media_count FROM properties WHERE workspace_id = ?",
+        [workspaceId],
+      ),
+      queryOne<{ count: number }>(
+        "SELECT COUNT(*) as count FROM customers WHERE workspace_id = ?",
+        [workspaceId],
+      ),
+      queryOne<{ count: number }>("SELECT COUNT(*) as count FROM leads WHERE workspace_id = ?", [
+        workspaceId,
+      ]),
+      queryOne<{ count: number }>("SELECT COUNT(*) as count FROM invoices WHERE workspace_id = ?", [
+        workspaceId,
+      ]),
+      queryOne<{ count: number }>("SELECT COUNT(*) as count FROM payments WHERE workspace_id = ?", [
+        workspaceId,
+      ]),
+      queryOne<{ count: number }>(
+        "SELECT COUNT(*) as count FROM chat_messages WHERE workspace_id = ?",
+        [workspaceId],
+      ),
+      queryOne<{ count: number }>(
+        "SELECT COUNT(*) as count FROM audit_logs WHERE workspace_id = ?",
+        [workspaceId],
+      ),
+      queryOne<{ count: number }>(
+        "SELECT COUNT(*) as count FROM notifications WHERE workspace_id = ?",
+        [workspaceId],
+      ),
+    ]);
 
   const propertyCount = Number(propRow?.count || 0);
   const propertyMediaCount = Number(propRow?.media_count || 0);
@@ -266,7 +285,14 @@ export async function getWorkspaceStorageUsage(
   // Estimate storage: ~250KB per media asset, ~2KB per structured business record
   const mediaBytes = propertyMediaCount * 250 * 1024;
   const dbBytes =
-    (propertyCount + customerCount + leadCount + invoiceCount + paymentCount + chatMessageCount + auditLogCount + notificationCount) *
+    (propertyCount +
+      customerCount +
+      leadCount +
+      invoiceCount +
+      paymentCount +
+      chatMessageCount +
+      auditLogCount +
+      notificationCount) *
     2048;
   const totalBytes = mediaBytes + dbBytes;
 

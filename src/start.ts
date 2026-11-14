@@ -2,14 +2,28 @@ import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/r
 
 import { renderErrorPage } from "./lib/error-page";
 
-const errorMiddleware = createMiddleware().server(async ({ next }) => {
+const errorMiddleware = createMiddleware().server(async ({ next, handlerType, request }) => {
   try {
     return await next();
   } catch (error) {
     if (error != null && typeof error === "object" && "statusCode" in error) {
       throw error;
     }
-    console.error(error);
+
+    // Never return an HTML error page for server functions or API RPC calls.
+    // Re-throwing preserves TanStack Start's expected RPC error serialization.
+    if (handlerType === "serverFn") {
+      console.error("[ServerFn Unhandled Error]", error);
+      throw error;
+    }
+
+    const accept = request.headers.get("accept") ?? "";
+    if (!accept.includes("text/html")) {
+      console.error("[API Unhandled Error]", error);
+      throw error;
+    }
+
+    console.error("[SSR Page Error]", error);
     return new Response(renderErrorPage(), {
       status: 500,
       headers: { "content-type": "text/html; charset=utf-8" },
