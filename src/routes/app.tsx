@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Outlet, type ErrorComponentProps } from "@tanstack/react-router";
 import {
   Building2,
   CalendarDays,
@@ -24,7 +24,7 @@ import { formatErrorMessage } from "@/lib/error-formatter";
 export const Route = createFileRoute("/app")({
   ssr: false,
   component: AppLayout,
-  errorComponent: ({ error }: { error: unknown }) => (
+  errorComponent: ({ error }: ErrorComponentProps) => (
     <div className="bg-background min-h-screen flex items-center justify-center p-6 text-center">
       <div className="max-w-md space-y-4">
         <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center">
