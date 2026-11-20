@@ -5,6 +5,13 @@ import { toast } from "sonner";
 
 export const getRouter = () => {
   const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30 * 1000,
+        refetchOnWindowFocus: false,
+        retry: 1,
+      },
+    },
     mutationCache: new MutationCache({
       onError: (error, _variables, _context, mutation) => {
         // Only trigger global error toast if the mutation didn't define its own onError handler

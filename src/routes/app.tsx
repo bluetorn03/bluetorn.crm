@@ -107,7 +107,7 @@ function AppLayout() {
   const { data: unreadData } = useQuery({
     queryKey: qk.chatUnreadCount(),
     queryFn: () => getChatUnreadCount(),
-    refetchInterval: 10000,
+    refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 45000),
   });
 
   const unreadCount = Number(unreadData ?? 0);

@@ -58,7 +58,7 @@ export function NotificationBell() {
   const countQuery = useQuery({
     queryKey: qk.notificationCount(),
     queryFn: getUnreadNotificationCount,
-    refetchInterval: 30000,
+    refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 60000),
   });
 
   const listQuery = useQuery({
