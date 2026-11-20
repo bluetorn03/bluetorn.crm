@@ -159,7 +159,7 @@ export function TeamChatPage() {
   } = useQuery({
     queryKey: qk.chatConversations(),
     queryFn: () => listChatConversations(),
-    refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 10000),
+    refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 15000),
     refetchOnWindowFocus: true,
   });
 
@@ -172,7 +172,7 @@ export function TeamChatPage() {
     queryKey: qk.chatMessages(activeConvId ?? ""),
     queryFn: () => getChatMessages(activeConvId!),
     enabled: Boolean(activeConvId),
-    refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 5000),
+    refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 10000),
     refetchOnWindowFocus: true,
   });
 
