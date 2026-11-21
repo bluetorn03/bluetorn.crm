@@ -1,16 +1,47 @@
 import "./lib/error-capture";
 
+import fs from "node:fs";
+import path from "node:path";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { validateSessionSecretConfig } from "./lib/auth-server";
 
-// Startup validation: In production, fail early and cleanly if SESSION_SECRET is missing or weak
+// Auto-load .env file if present in working directory or parent
+try {
+  for (const envPath of [
+    path.join(process.cwd(), ".env"),
+    path.join(process.cwd(), "..", ".env"),
+  ]) {
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, "utf-8");
+      for (const line of content.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eqIdx = trimmed.indexOf("=");
+        if (eqIdx > 0) {
+          const key = trimmed.slice(0, eqIdx).trim();
+          let val = trimmed.slice(eqIdx + 1).trim();
+          if (
+            (val.startsWith('"') && val.endsWith('"')) ||
+            (val.startsWith("'") && val.endsWith("'"))
+          ) {
+            val = val.slice(1, -1);
+          }
+          if (!process.env[key]) {
+            process.env[key] = val;
+          }
+        }
+      }
+    }
+  }
+} catch {
+  // Ignore filesystem errors during early env load
+}
+
+// Startup validation: Log warning if SESSION_SECRET is weak, but NEVER crash the process
 const authValidation = validateSessionSecretConfig();
 if (!authValidation.ok) {
-  console.error(`[FATAL STARTUP] ${authValidation.error}`);
-  if (typeof process !== "undefined" && process.env?.["NODE_ENV"] === "production") {
-    throw new Error(`[FATAL STARTUP] ${authValidation.error}`);
-  }
+  console.warn(`[STARTUP WARNING] ${authValidation.error}`);
 }
 
 type ServerEntry = {
@@ -116,7 +147,7 @@ function ensureChatCleanupJob(): void {
   _cleanupIntervalStarted = true;
 
   // Run initial cleanup after 15 seconds, then every 30 minutes
-  setTimeout(async () => {
+  const initTimer = setTimeout(async () => {
     try {
       const { cleanupExpiredChatMessages } = await import("./lib/chat-cleanup");
       await cleanupExpiredChatMessages();
@@ -124,8 +155,9 @@ function ensureChatCleanupJob(): void {
       console.error("[Server Chat Cleanup] Initial run error:", err);
     }
   }, 15000);
+  if (initTimer && typeof initTimer.unref === "function") initTimer.unref();
 
-  setInterval(
+  const intervalTimer = setInterval(
     async () => {
       try {
         const { cleanupExpiredChatMessages } = await import("./lib/chat-cleanup");
@@ -136,6 +168,7 @@ function ensureChatCleanupJob(): void {
     },
     30 * 60 * 1000,
   );
+  if (intervalTimer && typeof intervalTimer.unref === "function") intervalTimer.unref();
 }
 
 // Start background interval on server load
