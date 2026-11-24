@@ -28,6 +28,7 @@ import {
   qk,
   type Customer,
 } from "@/lib/crm-api";
+import { CustomFieldsRenderer } from "@/components/crm/CustomFieldsRenderer";
 import { MoneyInput } from "@/components/common/MoneyInput";
 import { useSession } from "@/hooks/use-session";
 import { toast } from "sonner";
@@ -62,6 +63,12 @@ export function EditCustomerDialog({
     value: customer.value !== undefined && customer.value !== null ? String(customer.value) : "0",
     assigned_to: customer.assigned_to ?? "unassigned",
     notes: customer.notes ?? "",
+    custom_fields:
+      customer.custom_fields
+        ? typeof customer.custom_fields === "string"
+          ? JSON.parse(customer.custom_fields)
+          : customer.custom_fields
+        : {},
   });
 
   useEffect(() => {
@@ -77,6 +84,12 @@ export function EditCustomerDialog({
           customer.value !== undefined && customer.value !== null ? String(customer.value) : "0",
         assigned_to: customer.assigned_to ?? "unassigned",
         notes: customer.notes ?? "",
+        custom_fields:
+          customer.custom_fields
+            ? typeof customer.custom_fields === "string"
+              ? JSON.parse(customer.custom_fields)
+              : customer.custom_fields
+            : {},
       });
     }
   }, [customer, open]);
@@ -98,6 +111,7 @@ export function EditCustomerDialog({
         city: form.city.trim() || null,
         value: parseFloat(form.value) || 0,
         notes: form.notes.trim() || null,
+        custom_fields: form.custom_fields,
       };
       if (canAssign) {
         payload.assigned_to = form.assigned_to === "unassigned" ? null : form.assigned_to;
@@ -262,6 +276,14 @@ export function EditCustomerDialog({
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </div>
+
+            {/* Dynamic Custom Fields */}
+            <CustomFieldsRenderer
+              workspaceId={workspace.id}
+              entityType="customer"
+              values={form.custom_fields}
+              onChange={(newVals) => setForm({ ...form, custom_fields: newVals })}
+            />
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

@@ -54,6 +54,7 @@ import {
 import { useSession } from "@/hooks/use-session";
 import { formatMoney, formatDate, relativeTime } from "@/lib/format";
 import { AmountInWords } from "@/components/common/AmountInWords";
+import { InvoiceUpiQrCard } from "@/components/crm/InvoiceUpiQrCard";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/finance/invoices/$invoiceId")({
@@ -574,6 +575,17 @@ function InvoiceDetailContent() {
                         </span>
                       </p>
                     </div>
+
+                    {/* Dynamic UPI Payment QR Code */}
+                    {workspace.upiId && balance > 0 && (
+                      <InvoiceUpiQrCard
+                        upiId={workspace.upiId}
+                        payeeName={workspace.upiMerchantName || workspace.name}
+                        amount={balance}
+                        invoiceNumber={inv.invoice_number}
+                        currency={currency}
+                      />
+                    )}
 
                     {inv.notes && (
                       <div className="pt-2">

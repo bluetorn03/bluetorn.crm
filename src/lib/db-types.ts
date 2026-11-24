@@ -32,6 +32,8 @@ export interface Workspace {
   bank_account_no?: string | null;
   bank_account_name?: string | null;
   bank_ifsc?: string | null;
+  upi_id?: string | null;
+  upi_merchant_name?: string | null;
   invoice_prefix?: string;
   default_payment_terms_days?: number;
   default_invoice_notes?: string | null;
@@ -92,6 +94,7 @@ export interface Customer {
   value: number;
   tags: string | null; // JSON string in MySQL
   notes: string | null;
+  custom_fields?: Record<string, any> | string | null;
   assigned_to: string | null;
   assigned_at: string | null;
   created_by: string | null;
@@ -167,6 +170,7 @@ export interface Lead {
   property_id: string | null;
   customer_id: string | null;
   notes: string | null;
+  custom_fields?: Record<string, any> | string | null;
   created_by: string | null;
   converted_at: string | null;
   created_at: string;

@@ -31,6 +31,7 @@ import {
   type Lead,
 } from "@/lib/crm-api";
 import { LeadOptionSelect } from "@/components/crm/LeadOptionSelect";
+import { CustomFieldsRenderer } from "@/components/crm/CustomFieldsRenderer";
 import { MoneyInput } from "@/components/common/MoneyInput";
 import { useSession } from "@/hooks/use-session";
 import { toast } from "sonner";
@@ -53,6 +54,7 @@ interface EditLeadFormState {
   possession_timeline_option_id: string | null;
   transaction_timeline_option_id: string | null;
   phase_option_id: string | null;
+  custom_fields: Record<string, any>;
 }
 
 export function EditLeadDialog({
@@ -93,6 +95,12 @@ export function EditLeadDialog({
     possession_timeline_option_id: lead.possession_timeline_option_id ?? null,
     transaction_timeline_option_id: lead.transaction_timeline_option_id ?? null,
     phase_option_id: lead.phase_option_id ?? null,
+    custom_fields:
+      lead.custom_fields
+        ? typeof lead.custom_fields === "string"
+          ? JSON.parse(lead.custom_fields)
+          : lead.custom_fields
+        : {},
   });
 
   useEffect(() => {
@@ -115,6 +123,12 @@ export function EditLeadDialog({
         possession_timeline_option_id: lead.possession_timeline_option_id ?? null,
         transaction_timeline_option_id: lead.transaction_timeline_option_id ?? null,
         phase_option_id: lead.phase_option_id ?? null,
+        custom_fields:
+          lead.custom_fields
+            ? typeof lead.custom_fields === "string"
+              ? JSON.parse(lead.custom_fields)
+              : lead.custom_fields
+            : {},
       });
     }
   }, [lead, open]);
@@ -157,6 +171,7 @@ export function EditLeadDialog({
         possession_timeline_option_id: form.possession_timeline_option_id,
         transaction_timeline_option_id: form.transaction_timeline_option_id,
         phase_option_id: form.phase_option_id,
+        custom_fields: form.custom_fields,
       };
 
       if (canAssign) {
@@ -479,6 +494,14 @@ export function EditLeadDialog({
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </div>
+
+            {/* Dynamic Custom Fields */}
+            <CustomFieldsRenderer
+              workspaceId={workspace.id}
+              entityType="lead"
+              values={form.custom_fields}
+              onChange={(newVals) => setForm({ ...form, custom_fields: newVals })}
+            />
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">

@@ -12,6 +12,8 @@ import {
   Trash2,
   UserCheck,
   Zap,
+  Upload,
+  Download,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SectionCard } from "@/components/common/SectionCard";
@@ -43,6 +45,10 @@ import { EditLeadDialog } from "@/components/crm/EditLeadDialog";
 import { ScheduleFollowUpDialog } from "@/components/crm/ScheduleFollowUpDialog";
 import { DeleteLeadDialog } from "@/components/crm/DeleteLeadDialog";
 import { AssignLeadDialog } from "@/components/crm/AssignLeadDialog";
+import {
+  BulkImportExportDialog,
+  exportContactsToCsv,
+} from "@/components/crm/BulkImportExportDialog";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/leads/")({
@@ -75,6 +81,7 @@ function LeadsPage() {
   const [status, setStatus] = useState<string>("All");
   const [q, setQ] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [activeSourceKey, setActiveSourceKey] = useState<string | null>(null);
   const [activeSourceName, setActiveSourceName] = useState<string | null>(null);
 
@@ -89,6 +96,51 @@ function LeadsPage() {
     queryFn: () => listLeads(workspace.id),
     enabled: !!workspace.id,
   });
+
+  const handleExportCsv = () => {
+    const list = leadsQuery.data || [];
+    if (list.length === 0) {
+      toast.error("No leads available to export.");
+      return;
+    }
+
+    const headers = [
+      "ID",
+      "Name",
+      "Phone",
+      "Email",
+      "Source",
+      "Status",
+      "Budget",
+      "Requirement",
+      "Score",
+      "Assigned To",
+      "Next Follow Up",
+      "Created At",
+    ];
+
+    const rows = list.map((l) => [
+      l.id,
+      l.name,
+      l.phone || "",
+      l.email || "",
+      l.source || "",
+      l.status || "",
+      l.budget || 0,
+      l.requirement || "",
+      l.score || 0,
+      memberMap.get(l.assigned_to || "") || "Unassigned",
+      l.next_follow_up || "",
+      l.created_at || "",
+    ]);
+
+    exportContactsToCsv({
+      filename: `leads_${workspace.code.toLowerCase()}_${new Date().toISOString().slice(0, 10)}`,
+      headers,
+      rows,
+    });
+    toast.success(`Exported ${list.length} leads to CSV.`);
+  };
 
   const membersQuery = useQuery({
     queryKey: qk.members(workspace.id),
@@ -116,6 +168,22 @@ function LeadsPage() {
         description="Captured automatically from ads, forms and WhatsApp."
         actions={
           <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCsv}
+              title="Export leads to CSV spreadsheet"
+            >
+              <Download className="mr-1.5 h-4 w-4" /> Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setImportOpen(true)}
+              title="Bulk import leads from CSV / Excel"
+            >
+              <Upload className="mr-1.5 h-4 w-4" /> Import CSV
+            </Button>
             <Button asChild variant="outline" size="sm">
               <Link to="/app/leads/pipeline">Pipeline View</Link>
             </Button>
@@ -127,6 +195,12 @@ function LeadsPage() {
       />
 
       <AddLeadDialog open={addOpen} onOpenChange={setAddOpen} />
+      <BulkImportExportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        workspaceId={workspace.id}
+        entityType="lead"
+      />
 
       {/* Automation Cards — clickable source filters backed by stable source identity */}
       <SectionCard title="Automatic lead capture" description="Live sources feeding this workspace">

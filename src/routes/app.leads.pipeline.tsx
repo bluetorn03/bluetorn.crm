@@ -38,6 +38,8 @@ function PipelinePage() {
   const { workspace, user } = useSession();
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
+  const [draggedLead, setDraggedLead] = useState<{ id: string; currentStage: string } | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
 
   const leadsQuery = useQuery({
     queryKey: qk.leads(workspace.id),
@@ -110,33 +112,78 @@ function PipelinePage() {
                   (sum, item) => sum + (Number(item.budget) || 0),
                   0,
                 );
+                const isDragOver = dragOverStage === col.stage;
                 return (
-                  <SectionCard
+                  <div
                     key={col.stage}
-                    title={col.stage}
-                    description={`${col.items.length} deals · ${formatMoney(totalValue, (workspace.currency ?? "INR") as any, true)}`}
-                    bodyClassName="p-2 space-y-2 bg-muted/20 min-h-[400px]"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dragOverStage !== col.stage) setDragOverStage(col.stage);
+                    }}
+                    onDragLeave={(e) => {
+                      // Only reset if leaving the column boundary
+                      if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                        setDragOverStage(null);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOverStage(null);
+                      if (draggedLead && draggedLead.currentStage !== col.stage) {
+                        moveStageMutation.mutate({
+                          leadId: draggedLead.id,
+                          currentStage: draggedLead.currentStage,
+                          newStage: col.stage,
+                        });
+                      }
+                    }}
+                    className={`rounded-xl transition-all duration-200 ${
+                      isDragOver
+                        ? "ring-2 ring-primary ring-offset-2 scale-[1.01]"
+                        : ""
+                    }`}
                   >
-                    {col.items.length === 0 ? (
-                      <div className="p-4 text-center">
-                        <EmptyState
-                          icon={Sparkles}
-                          title="Empty"
-                          description="No deals in this stage."
-                        />
-                      </div>
-                    ) : (
-                      <ul className="space-y-2">
-                        {col.items.map((l) => (
-                          <li
-                            key={l.id}
-                            className="bg-card border-border rounded-lg border p-3 shadow-xs hover:border-primary/50 transition-colors"
-                          >
-                            <Link
-                              to="/app/leads/$leadId"
-                              params={{ leadId: l.id }}
-                              className="block"
-                            >
+                    <SectionCard
+                      title={col.stage}
+                      description={`${col.items.length} deals · ${formatMoney(totalValue, (workspace.currency ?? "INR") as any, true)}`}
+                      bodyClassName={`p-2 space-y-2 min-h-[420px] transition-colors rounded-b-xl ${
+                        isDragOver ? "bg-primary/10 border-dashed border-primary" : "bg-muted/20"
+                      }`}
+                    >
+                      {col.items.length === 0 ? (
+                        <div className="p-4 text-center">
+                          <EmptyState
+                            icon={Sparkles}
+                            title="Empty"
+                            description="No deals in this stage. Drag leads here."
+                          />
+                        </div>
+                      ) : (
+                        <ul className="space-y-2">
+                          {col.items.map((l) => {
+                            const isBeingDragged = draggedLead?.id === l.id;
+                            return (
+                              <li
+                                key={l.id}
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData("text/plain", l.id);
+                                  setDraggedLead({ id: l.id, currentStage: l.status });
+                                }}
+                                onDragEnd={() => {
+                                  setDraggedLead(null);
+                                  setDragOverStage(null);
+                                }}
+                                className={`bg-card border-border rounded-lg border p-3 shadow-xs hover:border-primary/50 cursor-grab active:cursor-grabbing transition-all select-none ${
+                                  isBeingDragged ? "opacity-40 scale-95 border-dashed border-primary" : "hover:-translate-y-0.5"
+                                }`}
+                              >
+                                <Link
+                                  to="/app/leads/$leadId"
+                                  params={{ leadId: l.id }}
+                                  className="block"
+                                >
                               <div className="flex items-start justify-between gap-2">
                                 <p className="font-semibold text-sm hover:text-primary transition-colors truncate">
                                   {l.name}
@@ -212,14 +259,16 @@ function PipelinePage() {
                               </Button>
                             </div>
                           </li>
-                        ))}
-                      </ul>
-                    )}
-                  </SectionCard>
-                );
-              })}
-            </div>
-          );
+                        );
+                      })}
+                    </ul>
+                  )}
+                </SectionCard>
+              </div>
+            );
+          })}
+        </div>
+      );
         }}
       </DataState>
     </div>
