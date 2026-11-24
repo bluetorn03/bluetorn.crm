@@ -130,6 +130,33 @@ import {
 
 import type { CentralizedCleanupSummary, WorkspaceStorageBreakdown } from "./retention-cleanup";
 
+import {
+  listWorkspaceCustomFieldsFn,
+  saveWorkspaceCustomFieldFn,
+  deleteWorkspaceCustomFieldFn,
+  type WorkspaceCustomField,
+  type CustomFieldType,
+  type CustomFieldEntity,
+} from "./custom-fields.functions";
+
+import {
+  checkDuplicatesBatchFn,
+  bulkImportLeadsFn,
+  bulkImportCustomersFn,
+  reassignContactFn,
+  type ExistingContactMatch,
+  type DuplicateCheckResult,
+  type ImportLeadItem,
+  type ImportCustomerItem,
+} from "./import-export.functions";
+
+import {
+  listDocumentsFn,
+  uploadDocumentFn,
+  deleteDocumentFn,
+  type DocumentAttachmentItem,
+} from "./document-vault.functions";
+
 import { invoiceTotals, computeInvoiceTotals, type InvoiceLineInput } from "./invoice-calculations";
 
 export type {
@@ -157,6 +184,14 @@ export type {
   AuditLogListResponse,
   CentralizedCleanupSummary,
   WorkspaceStorageBreakdown,
+  WorkspaceCustomField,
+  CustomFieldType,
+  CustomFieldEntity,
+  ExistingContactMatch,
+  DuplicateCheckResult,
+  ImportLeadItem,
+  ImportCustomerItem,
+  DocumentAttachmentItem,
 };
 
 export type Activity = DashboardData["recentActivities"][number];
@@ -247,6 +282,10 @@ export const qk = {
     ["chat", "retention-policy", workspaceId || ""] as const,
   chatGroupMembers: (conversationId: string) => ["chat", "group-members", conversationId] as const,
   chatArchivedGroups: () => ["chat", "archived-groups"] as const,
+  customFields: (ws: string, entityType?: string) =>
+    ["custom-fields", ws, entityType || "all"] as const,
+  documents: (ws: string, entityType: string, entityId: string) =>
+    ["documents", ws, entityType, entityId] as const,
 };
 
 /* -------------------------------- members --------------------------------- */
@@ -788,3 +827,98 @@ export async function deleteChatGroup(conversationId: string): Promise<{ success
 export async function listArchivedChatGroups(): Promise<ChatConversationSummary[]> {
   return listArchivedChatGroupsFn();
 }
+
+/* --------------------------- Custom Fields -------------------------------- */
+
+export async function listWorkspaceCustomFields(
+  workspaceId: string,
+  entityType?: CustomFieldEntity,
+): Promise<WorkspaceCustomField[]> {
+  return listWorkspaceCustomFieldsFn({
+    data: entityType ? { workspaceId, entityType } : { workspaceId },
+  });
+}
+
+export async function saveWorkspaceCustomField(input: {
+  workspaceId: string;
+  fieldId?: string | null;
+  entityType: CustomFieldEntity;
+  fieldKey: string;
+  fieldLabel: string;
+  fieldType: CustomFieldType;
+  options?: string[] | null;
+  isRequired?: boolean;
+  sortOrder?: number;
+}): Promise<{ success: boolean; id: string }> {
+  return saveWorkspaceCustomFieldFn({ data: input });
+}
+
+export async function deleteWorkspaceCustomField(
+  workspaceId: string,
+  fieldId: string,
+): Promise<{ success: boolean }> {
+  return deleteWorkspaceCustomFieldFn({ data: { workspaceId, fieldId } });
+}
+
+/* ---------------------- Bulk Import & Duplicate Checks -------------------- */
+
+export async function checkDuplicatesBatch(
+  workspaceId: string,
+  entityType: "lead" | "customer",
+  items: Array<{ tempId: string; phone?: string | null; email?: string | null }>,
+): Promise<DuplicateCheckResult> {
+  return checkDuplicatesBatchFn({ data: { workspaceId, entityType, items } });
+}
+
+export async function bulkImportLeads(
+  workspaceId: string,
+  leads: ImportLeadItem[],
+): Promise<{ importedCount: number; errors: string[] }> {
+  return bulkImportLeadsFn({ data: { workspaceId, leads } });
+}
+
+export async function bulkImportCustomers(
+  workspaceId: string,
+  customers: ImportCustomerItem[],
+): Promise<{ importedCount: number; errors: string[] }> {
+  return bulkImportCustomersFn({ data: { workspaceId, customers } });
+}
+
+export async function reassignContact(
+  workspaceId: string,
+  entityType: "lead" | "customer",
+  entityId: string,
+  targetUserId: string,
+): Promise<{ success: boolean }> {
+  return reassignContactFn({ data: { workspaceId, entityType, entityId, targetUserId } });
+}
+
+/* --------------------------- Document Vault ------------------------------- */
+
+export async function listDocuments(
+  workspaceId: string,
+  entityType: "lead" | "customer" | "property",
+  entityId: string,
+): Promise<DocumentAttachmentItem[]> {
+  return listDocumentsFn({ data: { workspaceId, entityType, entityId } });
+}
+
+export async function uploadDocument(input: {
+  workspaceId: string;
+  entityType: "lead" | "customer" | "property";
+  entityId: string;
+  fileName: string;
+  fileBase64: string;
+  mimeType: string;
+  category?: string;
+}): Promise<{ document: DocumentAttachmentItem }> {
+  return uploadDocumentFn({ data: input });
+}
+
+export async function deleteDocument(
+  workspaceId: string,
+  documentId: string,
+): Promise<{ success: boolean }> {
+  return deleteDocumentFn({ data: { workspaceId, documentId } });
+}
+

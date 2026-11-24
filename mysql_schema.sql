@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS `workspaces` (
   `bank_account_no` VARCHAR(64) DEFAULT NULL,
   `bank_account_name` VARCHAR(128) DEFAULT NULL,
   `bank_ifsc` VARCHAR(32) DEFAULT NULL,
+  `upi_id` VARCHAR(128) DEFAULT NULL,
+  `upi_merchant_name` VARCHAR(128) DEFAULT NULL,
   `invoice_prefix` VARCHAR(32) NOT NULL DEFAULT 'INV',
   `default_payment_terms_days` INT NOT NULL DEFAULT 14,
   `default_invoice_notes` TEXT DEFAULT NULL,
@@ -117,6 +119,7 @@ CREATE TABLE IF NOT EXISTS `customers` (
   `value` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `tags` JSON DEFAULT NULL,
   `notes` TEXT DEFAULT NULL,
+  `custom_fields` JSON DEFAULT NULL,
   `assigned_to` VARCHAR(36) DEFAULT NULL,
   `assigned_at` DATETIME DEFAULT NULL,
   `created_by` VARCHAR(36) DEFAULT NULL,
@@ -210,6 +213,7 @@ CREATE TABLE IF NOT EXISTS `leads` (
   `property_id` VARCHAR(36) DEFAULT NULL,
   `customer_id` VARCHAR(36) DEFAULT NULL,
   `notes` TEXT DEFAULT NULL,
+  `custom_fields` JSON DEFAULT NULL,
   `created_by` VARCHAR(36) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -578,5 +582,49 @@ CREATE TABLE IF NOT EXISTS `chat_messages` (
   CONSTRAINT `fk_chat_msg_sender` FOREIGN KEY (`sender_id`) REFERENCES `profiles` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_chat_msg_receiver` FOREIGN KEY (`receiver_id`) REFERENCES `profiles` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------------
+-- 21. WORKSPACE CUSTOM FIELDS METADATA
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `workspace_custom_fields` (
+  `id` VARCHAR(36) NOT NULL,
+  `workspace_id` VARCHAR(36) NOT NULL,
+  `entity_type` ENUM('lead', 'customer') NOT NULL,
+  `field_key` VARCHAR(64) NOT NULL,
+  `field_label` VARCHAR(128) NOT NULL,
+  `field_type` ENUM('text', 'number', 'date', 'select', 'textarea') NOT NULL DEFAULT 'text',
+  `options` JSON DEFAULT NULL,
+  `is_required` TINYINT(1) NOT NULL DEFAULT 0,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_wcf_ws_entity_key` (`workspace_id`, `entity_type`, `field_key`),
+  KEY `idx_wcf_ws_entity` (`workspace_id`, `entity_type`, `sort_order`),
+  CONSTRAINT `fk_wcf_ws` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------------
+-- 22. DOCUMENT ATTACHMENTS VAULT
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `document_attachments` (
+  `id` VARCHAR(36) NOT NULL,
+  `workspace_id` VARCHAR(36) NOT NULL,
+  `entity_type` ENUM('lead', 'customer', 'property') NOT NULL,
+  `entity_id` VARCHAR(36) NOT NULL,
+  `file_name` VARCHAR(255) NOT NULL,
+  `file_url` TEXT NOT NULL,
+  `file_size` BIGINT NOT NULL DEFAULT 0,
+  `mime_type` VARCHAR(128) NOT NULL,
+  `category` VARCHAR(64) NOT NULL DEFAULT 'General',
+  `uploaded_by` VARCHAR(36) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_doc_ws_entity` (`workspace_id`, `entity_type`, `entity_id`),
+  KEY `idx_doc_uploader` (`uploaded_by`),
+  CONSTRAINT `fk_doc_ws` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_doc_uploader` FOREIGN KEY (`uploaded_by`) REFERENCES `profiles` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 

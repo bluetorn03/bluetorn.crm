@@ -179,9 +179,16 @@ export const createCustomerFn = createServerFn({ method: "POST" })
       assignedTo = creatorId;
     }
 
+    const customFieldsJson =
+      data.custom_fields !== undefined && data.custom_fields !== null
+        ? typeof data.custom_fields === "string"
+          ? data.custom_fields
+          : JSON.stringify(data.custom_fields)
+        : null;
+
     await execute(
-      `INSERT INTO customers (id, workspace_id, name, phone, email, type, status, city, currency, value, tags, notes, assigned_to, assigned_at, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO customers (id, workspace_id, name, phone, email, type, status, city, currency, value, tags, notes, custom_fields, assigned_to, assigned_at, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         wsId,
@@ -195,6 +202,7 @@ export const createCustomerFn = createServerFn({ method: "POST" })
         data.value ?? 0,
         data.tags ? JSON.stringify(data.tags) : null,
         data.notes ?? null,
+        customFieldsJson,
         assignedTo,
         assignedTo ? new Date().toISOString().slice(0, 19).replace("T", " ") : null,
         creatorId,
@@ -270,7 +278,11 @@ export const updateCustomerFn = createServerFn({ method: "POST" })
     for (const [key, val] of Object.entries(data.patch)) {
       if (key === "id" || key === "created_at" || key === "workspace_id") continue;
       sets.push(`\`${key}\` = ?`);
-      vals.push(key === "tags" && val !== null ? JSON.stringify(val) : val);
+      vals.push(
+        (key === "tags" || key === "custom_fields") && typeof val === "object" && val !== null
+          ? JSON.stringify(val)
+          : val,
+      );
     }
     if (sets.length === 0) return existing;
 
@@ -859,6 +871,12 @@ export async function createLeadCore(
     customer_id: data.customer_id === "none" ? null : (data.customer_id ?? null),
     converted_at: null,
     notes: data.notes ?? null,
+    custom_fields:
+      data.custom_fields !== undefined && data.custom_fields !== null
+        ? typeof data.custom_fields === "string"
+          ? data.custom_fields
+          : JSON.stringify(data.custom_fields)
+        : null,
     created_by: creatorId,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -872,8 +890,8 @@ export async function createLeadCore(
       location_option_id, purpose_option_id, possession_timeline_option_id,
       transaction_timeline_option_id, phase_option_id, campaign, external_id,
       status, requirement, budget, currency, score, next_follow_up, received_at,
-      assigned_to, assigned_at, property_id, customer_id, notes, created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      assigned_to, assigned_at, property_id, customer_id, notes, custom_fields, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       wsId,
@@ -901,6 +919,7 @@ export async function createLeadCore(
       candidateLead.property_id,
       candidateLead.customer_id,
       candidateLead.notes,
+      candidateLead.custom_fields,
       candidateLead.created_by,
     ],
   );
@@ -1082,7 +1101,11 @@ export async function updateLeadCore(
   for (const [key, val] of Object.entries(patchWithScore)) {
     if (key === "id" || key === "created_at" || key === "workspace_id") continue;
     sets.push(`\`${key}\` = ?`);
-    vals.push(val);
+    vals.push(
+      key === "custom_fields" && typeof val === "object" && val !== null
+        ? JSON.stringify(val)
+        : val,
+    );
   }
   if (sets.length === 0) {
     return (await queryOne<Lead>(

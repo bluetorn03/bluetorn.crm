@@ -42,6 +42,7 @@ import { formatDate, formatDateTime, formatMoney, initials, type CurrencyCode } 
 import { EditCustomerDialog } from "@/components/crm/EditCustomerDialog";
 import { DeleteCustomerDialog } from "@/components/crm/DeleteCustomerDialog";
 import { AssignCustomerDialog } from "@/components/crm/AssignCustomerDialog";
+import { DocumentVault } from "@/components/crm/DocumentVault";
 import { toast } from "sonner";
 import { formatWhatsAppUrl, getGmailComposeUrl, normalizePhoneForTel } from "@/lib/communication";
 
@@ -58,7 +59,7 @@ export const Route = createFileRoute("/app/customers/$customerId")({
   component: CustomerDetailPage,
 });
 
-const tabs = ["Overview", "Timeline", "Leads", "Invoices", "Tasks", "Properties"] as const;
+const tabs = ["Overview", "Timeline", "Leads", "Invoices", "Tasks", "Properties", "Documents"] as const;
 
 function CustomerDetailPage() {
   const { customerId } = Route.useParams();
@@ -409,6 +410,36 @@ function CustomerDetailPage() {
                 ))}
               </div>
             )}
+
+            {/* Custom Fields */}
+            {(() => {
+              const cf =
+                customer.custom_fields && typeof customer.custom_fields === "string"
+                  ? JSON.parse(customer.custom_fields)
+                  : (customer.custom_fields as Record<string, any> | null);
+
+              if (!cf || Object.keys(cf).length === 0) return null;
+
+              return (
+                <div className="mt-5 pt-4 border-t border-border">
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    Custom Attributes
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(cf).map(([k, v]) => (
+                      <div key={k} className="p-2 rounded bg-muted/20 border border-border">
+                        <span className="text-[10px] text-muted-foreground block capitalize">
+                          {k.replace(/_/g, " ")}
+                        </span>
+                        <span className="text-xs font-medium text-foreground">
+                          {String(v ?? "—")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </SectionCard>
           <div className="space-y-4">
             <SectionCard title="Assigned employee">
@@ -675,6 +706,19 @@ function CustomerDetailPage() {
             <p className="text-muted-foreground text-sm">
               {customer.notes || "No notes added for this customer."}
             </p>
+          </SectionCard>
+        </TabsContent>
+
+        <TabsContent value="Documents" className="mt-4">
+          <SectionCard
+            title="Customer Document Vault"
+            description="Agreements, KYC proofs, and transaction files"
+          >
+            <DocumentVault
+              workspaceId={workspace.id}
+              entityType="customer"
+              entityId={customer.id}
+            />
           </SectionCard>
         </TabsContent>
       </Tabs>

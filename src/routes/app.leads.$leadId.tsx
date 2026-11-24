@@ -75,6 +75,7 @@ import { ScheduleFollowUpDialog } from "@/components/crm/ScheduleFollowUpDialog"
 import { DeleteLeadDialog } from "@/components/crm/DeleteLeadDialog";
 import { ConvertLeadDialog } from "@/components/crm/ConvertLeadDialog";
 import { AssignLeadDialog } from "@/components/crm/AssignLeadDialog";
+import { DocumentVault } from "@/components/crm/DocumentVault";
 import { toast } from "sonner";
 import { formatErrorMessage } from "@/lib/error-formatter";
 import { Users } from "lucide-react";
@@ -550,6 +551,45 @@ function LeadDetailView({ lead }: { lead: Lead }) {
               </p>
             </SectionCard>
           )}
+
+          {/* Custom Fields */}
+          {(() => {
+            const cf =
+              lead.custom_fields && typeof lead.custom_fields === "string"
+                ? JSON.parse(lead.custom_fields)
+                : (lead.custom_fields as Record<string, any> | null);
+
+            if (!cf || Object.keys(cf).length === 0) return null;
+
+            return (
+              <SectionCard title="Workspace Custom Fields" description="Tailored attributes defined for this lead">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {Object.entries(cf).map(([k, v]) => (
+                    <div key={k} className="p-2.5 rounded-lg border border-border bg-muted/20">
+                      <p className="text-[11px] font-medium text-muted-foreground capitalize">
+                        {k.replace(/_/g, " ")}
+                      </p>
+                      <p className="text-xs font-semibold text-foreground mt-0.5">
+                        {String(v ?? "—")}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+            );
+          })()}
+
+          {/* Document Vault */}
+          <SectionCard
+            title="Document Vault"
+            description="Agreements, KYC, floor plans, and client attachments"
+          >
+            <DocumentVault
+              workspaceId={workspace.id}
+              entityType="lead"
+              entityId={lead.id}
+            />
+          </SectionCard>
 
           {/* Matched Properties */}
           <SectionCard

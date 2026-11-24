@@ -19,7 +19,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { createCustomer, listMembers, customerTypes, customerStatuses, qk } from "@/lib/crm-api";
+import {
+  createCustomer,
+  listMembers,
+  customerTypes,
+  customerStatuses,
+  checkDuplicatesBatch,
+  reassignContact,
+  qk,
+  type ExistingContactMatch,
+} from "@/lib/crm-api";
+import { CustomFieldsRenderer } from "@/components/crm/CustomFieldsRenderer";
+import { DuplicateContactModal } from "@/components/crm/DuplicateContactModal";
 import { MoneyInput } from "@/components/common/MoneyInput";
 import { useSession } from "@/hooks/use-session";
 import { toast } from "sonner";
@@ -33,6 +44,7 @@ const emptyForm = {
   city: "",
   value: "",
   assigned_to: "unassigned",
+  custom_fields: {} as Record<string, any>,
 };
 
 export function AddCustomerDialog({
@@ -54,6 +66,10 @@ export function AddCustomerDialog({
     dbRole === "super_admin";
 
   const [form, setForm] = useState(emptyForm);
+  const [duplicateMatch, setDuplicateMatch] = useState<ExistingContactMatch | null>(null);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const [isReassigning, setIsReassigning] = useState(false);
 
   const membersQuery = useQuery({
     queryKey: qk.members(workspace.id),
@@ -74,6 +90,7 @@ export function AddCustomerDialog({
         city: form.city.trim() || null,
         value: parseFloat(form.value) || 0,
         assigned_to: canAssign && form.assigned_to !== "unassigned" ? form.assigned_to : null,
+        custom_fields: form.custom_fields,
         currency: workspace.currency,
       }),
     onSuccess: () => {
@@ -87,13 +104,50 @@ export function AddCustomerDialog({
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) {
       toast.error("Customer name is required.");
       return;
     }
+
+    if (form.phone.trim() || form.email.trim()) {
+      setCheckingDuplicate(true);
+      try {
+        const res = await checkDuplicatesBatch(workspace.id, "customer", [
+          { tempId: "form", phone: form.phone.trim(), email: form.email.trim() },
+        ]);
+        if (res.matches["form"]) {
+          setDuplicateMatch(res.matches["form"]);
+          setDuplicateOpen(true);
+          setCheckingDuplicate(false);
+          return;
+        }
+      } catch {
+        // Proceed if duplicate check fails
+      } finally {
+        setCheckingDuplicate(false);
+      }
+    }
+
     mutation.mutate();
+  };
+
+  const handleReassign = async () => {
+    if (!duplicateMatch) return;
+    setIsReassigning(true);
+    try {
+      const targetUser = form.assigned_to !== "unassigned" ? form.assigned_to : user.id;
+      await reassignContact(workspace.id, "customer", duplicateMatch.id, targetUser);
+      queryClient.invalidateQueries({ queryKey: qk.customers(workspace.id) });
+      toast.success("Existing customer successfully reassigned!");
+      setDuplicateOpen(false);
+      onOpenChange(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reassign contact.");
+    } finally {
+      setIsReassigning(false);
+    }
   };
 
   return (
@@ -215,18 +269,38 @@ export function AddCustomerDialog({
                 </Select>
               </div>
             )}
+
+            {/* Custom Fields */}
+            <CustomFieldsRenderer
+              workspaceId={workspace.id}
+              entityType="customer"
+              values={form.custom_fields}
+              onChange={(newVals) => setForm({ ...form, custom_fields: newVals })}
+            />
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            <Button type="submit" disabled={mutation.isPending || checkingDuplicate}>
+              {(mutation.isPending || checkingDuplicate) && (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              )}
               Create Customer
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <DuplicateContactModal
+        open={duplicateOpen}
+        onOpenChange={setDuplicateOpen}
+        match={duplicateMatch}
+        phoneNumber={form.phone}
+        isEmployee={!canAssign}
+        onReassign={handleReassign}
+        isReassigning={isReassigning}
+      />
     </Dialog>
   );
 }

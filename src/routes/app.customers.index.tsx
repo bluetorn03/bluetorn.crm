@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Edit, MoreVertical, Plus, Search, Trash2, Users, UserCheck } from "lucide-react";
+import { Edit, MoreVertical, Plus, Search, Trash2, Users, UserCheck, Upload, Download } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -23,6 +23,11 @@ import { AddCustomerDialog } from "@/components/crm/AddCustomerDialog";
 import { EditCustomerDialog } from "@/components/crm/EditCustomerDialog";
 import { DeleteCustomerDialog } from "@/components/crm/DeleteCustomerDialog";
 import { AssignCustomerDialog } from "@/components/crm/AssignCustomerDialog";
+import {
+  BulkImportExportDialog,
+  exportContactsToCsv,
+} from "@/components/crm/BulkImportExportDialog";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/customers/")({
   head: () => ({
@@ -55,6 +60,7 @@ function CustomersPage() {
   const [view, setView] = useState<(typeof views)[number]>("All");
   const [q, setQ] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [assigningCustomer, setAssigningCustomer] = useState<Customer | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
@@ -72,19 +78,84 @@ function CustomersPage() {
   });
   const memberMap = new Map((membersQuery.data ?? []).map((m) => [m.id, m.full_name]));
 
+  const handleExportCsv = () => {
+    const list = customersQuery.data || [];
+    if (list.length === 0) {
+      toast.error("No customers available to export.");
+      return;
+    }
+
+    const headers = [
+      "ID",
+      "Name",
+      "Phone",
+      "Email",
+      "Type",
+      "Status",
+      "City",
+      "Deal Value",
+      "Assigned To",
+      "Created At",
+    ];
+
+    const rows = list.map((c) => [
+      c.id,
+      c.name,
+      c.phone || "",
+      c.email || "",
+      c.type || "",
+      c.status || "",
+      c.city || "",
+      c.value || 0,
+      memberMap.get(c.assigned_to || "") || "Unassigned",
+      c.created_at || "",
+    ]);
+
+    exportContactsToCsv({
+      filename: `customers_${workspace.code.toLowerCase()}_${new Date().toISOString().slice(0, 10)}`,
+      headers,
+      rows,
+    });
+    toast.success(`Exported ${list.length} customers to CSV.`);
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="Customers"
         description="Relationships, not records."
         actions={
-          <Button size="sm" onClick={() => setAddOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" /> Add Customer
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCsv}
+              title="Export customers to CSV spreadsheet"
+            >
+              <Download className="mr-1.5 h-4 w-4" /> Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setImportOpen(true)}
+              title="Bulk import customers from CSV / Excel"
+            >
+              <Upload className="mr-1.5 h-4 w-4" /> Import CSV
+            </Button>
+            <Button size="sm" onClick={() => setAddOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" /> Add Customer
+            </Button>
+          </>
         }
       />
 
       <AddCustomerDialog open={addOpen} onOpenChange={setAddOpen} />
+      <BulkImportExportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        workspaceId={workspace.id}
+        entityType="customer"
+      />
       <AssignCustomerDialog
         open={!!assigningCustomer}
         onOpenChange={(open) => !open && setAssigningCustomer(null)}

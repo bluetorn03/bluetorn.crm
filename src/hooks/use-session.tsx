@@ -172,6 +172,8 @@ export type SessionWorkspace = {
   bankAccountNo?: string | null;
   bankAccountName?: string | null;
   bankIfsc?: string | null;
+  upiId?: string | null;
+  upiMerchantName?: string | null;
   invoicePrefix?: string;
   defaultPaymentTermsDays?: number;
   defaultInvoiceNotes?: string | null;

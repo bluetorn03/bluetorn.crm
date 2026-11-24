@@ -296,6 +296,8 @@ export const getSessionAction = createServerFn({ method: "GET" }).handler(async 
       bankAccountNo: w.bank_account_no ?? null,
       bankAccountName: w.bank_account_name ?? null,
       bankIfsc: w.bank_ifsc ?? null,
+      upiId: (w as any).upi_id ?? null,
+      upiMerchantName: (w as any).upi_merchant_name ?? null,
       invoicePrefix: w.invoice_prefix ?? "INV",
       defaultPaymentTermsDays: w.default_payment_terms_days ?? 14,
       defaultInvoiceNotes: w.default_invoice_notes ?? null,

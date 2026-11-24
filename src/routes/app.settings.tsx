@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CustomFieldsManager } from "@/components/crm/CustomFieldsManager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -114,6 +115,7 @@ function SettingsPage() {
         <Tabs defaultValue={defaultTab}>
           <TabsList>
             {canManageSettings && <TabsTrigger value="workspace">Workspace</TabsTrigger>}
+            {canManageSettings && <TabsTrigger value="custom-fields">Custom Columns</TabsTrigger>}
             {canManageTeam && <TabsTrigger value="team">Team</TabsTrigger>}
             <TabsTrigger value="account">My account</TabsTrigger>
           </TabsList>
@@ -121,6 +123,17 @@ function SettingsPage() {
           {canManageSettings && (
             <TabsContent value="workspace" className="mt-4">
               <WorkspaceTab canEdit={canManageSettings} onSaved={refresh} />
+            </TabsContent>
+          )}
+
+          {canManageSettings && (
+            <TabsContent value="custom-fields" className="mt-4">
+              <SectionCard
+                title="Workspace Custom Fields"
+                description="Configure custom columns and input types for Leads and Customers in your workspace."
+              >
+                <CustomFieldsManager workspaceId={workspace.id} />
+              </SectionCard>
             </TabsContent>
           )}
 
@@ -167,6 +180,8 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
     bankAccountNo: "",
     bankAccountName: "",
     bankIfsc: "",
+    upiId: "",
+    upiMerchantName: "",
     invoicePrefix: "INV",
     defaultPaymentTermsDays: 14,
     defaultInvoiceNotes: "",
@@ -199,6 +214,8 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
           bankAccountNo: data.bank_account_no ?? "",
           bankAccountName: data.bank_account_name ?? "",
           bankIfsc: data.bank_ifsc ?? "",
+          upiId: data.upi_id ?? "",
+          upiMerchantName: data.upi_merchant_name ?? "",
           invoicePrefix: data.invoice_prefix ?? "INV",
           defaultPaymentTermsDays: data.default_payment_terms_days ?? 14,
           defaultInvoiceNotes: data.default_invoice_notes ?? "",
@@ -262,6 +279,8 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
             bankAccountNo: form.bankAccountNo.trim() || null,
             bankAccountName: form.bankAccountName.trim() || null,
             bankIfsc: form.bankIfsc.trim() || null,
+            upiId: form.upiId.trim() || null,
+            upiMerchantName: form.upiMerchantName.trim() || null,
             invoicePrefix: form.invoicePrefix.trim() || "INV",
             defaultPaymentTermsDays: Number(form.defaultPaymentTermsDays) || 14,
             defaultInvoiceNotes: form.defaultInvoiceNotes.trim() || null,
@@ -409,6 +428,18 @@ function WorkspaceTab({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => P
               label="IFSC Code"
               value={form.bankIfsc}
               onChange={(v) => setForm({ ...form, bankIfsc: v.toUpperCase() })}
+              disabled={!canEdit}
+            />
+            <Field
+              label="UPI ID / VPA (e.g. business@okhdfcbank)"
+              value={form.upiId}
+              onChange={(v) => setForm({ ...form, upiId: v.toLowerCase() })}
+              disabled={!canEdit}
+            />
+            <Field
+              label="UPI Payee / Merchant Name (for QR code)"
+              value={form.upiMerchantName}
+              onChange={(v) => setForm({ ...form, upiMerchantName: v })}
               disabled={!canEdit}
             />
           </div>

@@ -19,8 +19,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { createLead, listCustomers, listProperties, listMembers, qk } from "@/lib/crm-api";
+import {
+  createLead,
+  listCustomers,
+  listProperties,
+  listMembers,
+  checkDuplicatesBatch,
+  reassignContact,
+  qk,
+  type ExistingContactMatch,
+} from "@/lib/crm-api";
 import { LeadOptionSelect } from "@/components/crm/LeadOptionSelect";
+import { CustomFieldsRenderer } from "@/components/crm/CustomFieldsRenderer";
+import { DuplicateContactModal } from "@/components/crm/DuplicateContactModal";
 import { MoneyInput } from "@/components/common/MoneyInput";
 import { useSession } from "@/hooks/use-session";
 import { toast } from "sonner";
@@ -40,6 +51,7 @@ interface AddLeadFormState {
   possession_timeline_option_id: string | null;
   transaction_timeline_option_id: string | null;
   phase_option_id: string | null;
+  custom_fields: Record<string, any>;
 }
 
 const emptyForm: AddLeadFormState = {
@@ -57,6 +69,7 @@ const emptyForm: AddLeadFormState = {
   possession_timeline_option_id: null,
   transaction_timeline_option_id: null,
   phase_option_id: null,
+  custom_fields: {},
 };
 
 export function AddLeadDialog({
@@ -92,6 +105,11 @@ export function AddLeadDialog({
     enabled: !!workspace.id && open,
   });
 
+  const [duplicateMatch, setDuplicateMatch] = useState<ExistingContactMatch | null>(null);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const [isReassigning, setIsReassigning] = useState(false);
+
   const mutation = useMutation({
     mutationFn: () =>
       createLead({
@@ -113,6 +131,7 @@ export function AddLeadDialog({
         possession_timeline_option_id: form.possession_timeline_option_id,
         transaction_timeline_option_id: form.transaction_timeline_option_id,
         phase_option_id: form.phase_option_id,
+        custom_fields: form.custom_fields,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qk.leads(workspace.id) });
@@ -128,7 +147,7 @@ export function AddLeadDialog({
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) {
       toast.error("Lead name is required.");
@@ -138,7 +157,44 @@ export function AddLeadDialog({
       toast.error("Source is required. Please select a lead source.");
       return;
     }
+
+    if (form.phone.trim() || form.email.trim()) {
+      setCheckingDuplicate(true);
+      try {
+        const res = await checkDuplicatesBatch(workspace.id, "lead", [
+          { tempId: "form", phone: form.phone.trim(), email: form.email.trim() },
+        ]);
+        if (res.matches["form"]) {
+          setDuplicateMatch(res.matches["form"]);
+          setDuplicateOpen(true);
+          setCheckingDuplicate(false);
+          return;
+        }
+      } catch {
+        // Proceed if duplicate check fails
+      } finally {
+        setCheckingDuplicate(false);
+      }
+    }
+
     mutation.mutate();
+  };
+
+  const handleReassign = async () => {
+    if (!duplicateMatch) return;
+    setIsReassigning(true);
+    try {
+      const targetUser = form.assigned_to !== "unassigned" ? form.assigned_to : user.id;
+      await reassignContact(workspace.id, "lead", duplicateMatch.id, targetUser);
+      queryClient.invalidateQueries({ queryKey: qk.leads(workspace.id) });
+      toast.success("Existing lead successfully reassigned!");
+      setDuplicateOpen(false);
+      onOpenChange(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reassign contact.");
+    } finally {
+      setIsReassigning(false);
+    }
   };
 
   return (
@@ -327,19 +383,39 @@ export function AddLeadDialog({
                 </div>
               </div>
             </div>
+
+            {/* Dynamic Custom Fields per Workspace */}
+            <CustomFieldsRenderer
+              workspaceId={workspace.id}
+              entityType="lead"
+              values={form.custom_fields}
+              onChange={(newVals) => setForm({ ...form, custom_fields: newVals })}
+            />
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            <Button type="submit" disabled={mutation.isPending || checkingDuplicate}>
+              {(mutation.isPending || checkingDuplicate) && (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              )}
               Create Lead
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <DuplicateContactModal
+        open={duplicateOpen}
+        onOpenChange={setDuplicateOpen}
+        match={duplicateMatch}
+        phoneNumber={form.phone}
+        isEmployee={isEmployeeRole}
+        onReassign={handleReassign}
+        isReassigning={isReassigning}
+      />
     </Dialog>
   );
 }
