@@ -57,7 +57,7 @@ interface BulkImportExportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspaceId: string;
-  entityType: CustomFieldEntity;
+  entityType: "lead" | "customer";
 }
 
 /**

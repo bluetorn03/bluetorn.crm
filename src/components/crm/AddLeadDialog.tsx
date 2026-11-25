@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,10 +24,12 @@ import {
   listCustomers,
   listProperties,
   listMembers,
+  listWorkspaceCustomFields,
   checkDuplicatesBatch,
   reassignContact,
   qk,
   type ExistingContactMatch,
+  type WorkspaceCustomField,
 } from "@/lib/crm-api";
 import { LeadOptionSelect } from "@/components/crm/LeadOptionSelect";
 import { CustomFieldsRenderer } from "@/components/crm/CustomFieldsRenderer";
@@ -104,6 +106,23 @@ export function AddLeadDialog({
     queryFn: () => listMembers(workspace.id),
     enabled: !!workspace.id && open,
   });
+
+  const fieldsQuery = useQuery({
+    queryKey: qk.customFields(workspace.id, "lead"),
+    queryFn: () => listWorkspaceCustomFields(workspace.id, "lead"),
+    enabled: !!workspace.id && open,
+  });
+
+  const fieldsMap = useMemo(() => {
+    const map = new Map<string, WorkspaceCustomField>();
+    (fieldsQuery.data || []).forEach((f) => map.set(f.field_key, f));
+    return map;
+  }, [fieldsQuery.data]);
+
+  const isVisible = (key: string) => fieldsMap.get(key)?.is_visible !== false;
+  const getLabel = (key: string, def: string) => fieldsMap.get(key)?.field_label || def;
+  const getPlaceholder = (key: string, def: string) => fieldsMap.get(key)?.placeholder || def;
+  const isRequired = (key: string, def = false) => fieldsMap.get(key)?.is_required ?? def;
 
   const [duplicateMatch, setDuplicateMatch] = useState<ExistingContactMatch | null>(null);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
@@ -210,61 +229,83 @@ export function AddLeadDialog({
 
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
-              <Label htmlFor="leadName">Name *</Label>
+              <Label htmlFor="leadName">{getLabel("name", "Name")} *</Label>
               <Input
                 id="leadName"
-                placeholder="Full name"
+                placeholder={getPlaceholder("name", "Full name")}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="leadPhone">Phone</Label>
-                <Input
-                  id="leadPhone"
-                  placeholder="+91 98200 00000"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                />
+            {(isVisible("phone") || isVisible("email")) && (
+              <div className="grid grid-cols-2 gap-3">
+                {isVisible("phone") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="leadPhone">
+                      {getLabel("phone", "Phone")}
+                      {isRequired("phone") && <span className="text-destructive ml-0.5">*</span>}
+                    </Label>
+                    <Input
+                      id="leadPhone"
+                      placeholder={getPlaceholder("phone", "+91 98200 00000")}
+                      value={form.phone}
+                      required={isRequired("phone")}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    />
+                  </div>
+                )}
+                {isVisible("email") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="leadEmail">
+                      {getLabel("email", "Email")}
+                      {isRequired("email") && <span className="text-destructive ml-0.5">*</span>}
+                    </Label>
+                    <Input
+                      id="leadEmail"
+                      type="email"
+                      placeholder={getPlaceholder("email", "name@example.com")}
+                      value={form.email}
+                      required={isRequired("email")}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    />
+                  </div>
+                )}
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="leadEmail">Email</Label>
-                <Input
-                  id="leadEmail"
-                  type="email"
-                  placeholder="name@example.com"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
-              </div>
-            </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <LeadOptionSelect
-                type="source"
-                label="Source"
-                required
-                value={form.source_option_id}
-                onChange={(v) => setForm({ ...form, source_option_id: v })}
-                placeholder="Select source"
-              />
-              <div className="space-y-1.5">
-                <Label htmlFor="leadBudget">Budget ({workspace.currency})</Label>
-                <MoneyInput
-                  id="leadBudget"
-                  currency={workspace.currency}
-                  placeholder="e.g. 50,00,000"
-                  value={form.budget}
-                  onChange={(numericVal) =>
-                    setForm({ ...form, budget: numericVal > 0 ? String(numericVal) : "" })
-                  }
-                  showAmountInWords
-                />
+            {(isVisible("source") || isVisible("budget")) && (
+              <div className="grid grid-cols-2 gap-3">
+                {isVisible("source") && (
+                  <LeadOptionSelect
+                    type="source"
+                    label={getLabel("source", "Source")}
+                    required={isRequired("source", true)}
+                    value={form.source_option_id}
+                    onChange={(v) => setForm({ ...form, source_option_id: v })}
+                    placeholder={getPlaceholder("source", "Select source")}
+                  />
+                )}
+                {isVisible("budget") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="leadBudget">
+                      {getLabel("budget", `Budget (${workspace.currency})`)}
+                    </Label>
+                    <MoneyInput
+                      id="leadBudget"
+                      currency={workspace.currency}
+                      placeholder={getPlaceholder("budget", "e.g. 50,00,000")}
+                      value={form.budget}
+                      onChange={(numericVal) =>
+                        setForm({ ...form, budget: numericVal > 0 ? String(numericVal) : "" })
+                      }
+                      showAmountInWords
+                    />
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -308,9 +349,9 @@ export function AddLeadDialog({
               </div>
             </div>
 
-            {!isEmployeeRole && (
+            {!isEmployeeRole && isVisible("assigned_to") && (
               <div className="space-y-1.5">
-                <Label htmlFor="leadAssigned">Assigned To</Label>
+                <Label htmlFor="leadAssigned">{getLabel("assigned_to", "Assigned To")}</Label>
                 <Select
                   value={form.assigned_to}
                   onValueChange={(v) => setForm({ ...form, assigned_to: v })}
@@ -336,51 +377,63 @@ export function AddLeadDialog({
                 Preferences & Timelines
               </h4>
               <div className="grid grid-cols-2 gap-3">
-                <LeadOptionSelect
-                  type="location"
-                  label="Location"
-                  value={form.location_option_id}
-                  onChange={(v) => setForm({ ...form, location_option_id: v })}
-                />
-                <LeadOptionSelect
-                  type="purpose"
-                  label="Purpose"
-                  value={form.purpose_option_id}
-                  onChange={(v) => setForm({ ...form, purpose_option_id: v })}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <LeadOptionSelect
-                  type="possession_timeline"
-                  label="Possession Timeline"
-                  value={form.possession_timeline_option_id}
-                  onChange={(v) => setForm({ ...form, possession_timeline_option_id: v })}
-                />
-                <LeadOptionSelect
-                  type="transaction_timeline"
-                  label="Transaction Timeline"
-                  value={form.transaction_timeline_option_id}
-                  onChange={(v) => setForm({ ...form, transaction_timeline_option_id: v })}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <LeadOptionSelect
-                  type="phase"
-                  label="Phase"
-                  value={form.phase_option_id}
-                  onChange={(v) => setForm({ ...form, phase_option_id: v })}
-                />
-                <div className="space-y-1.5">
-                  <Label htmlFor="leadReq">Requirement</Label>
-                  <Input
-                    id="leadReq"
-                    placeholder="e.g. 3 BHK, sea facing, Bandra"
-                    value={form.requirement}
-                    onChange={(e) => setForm({ ...form, requirement: e.target.value })}
+                {isVisible("location") && (
+                  <LeadOptionSelect
+                    type="location"
+                    label={getLabel("location", "Location")}
+                    value={form.location_option_id}
+                    onChange={(v) => setForm({ ...form, location_option_id: v })}
                   />
-                </div>
+                )}
+                {isVisible("purpose") && (
+                  <LeadOptionSelect
+                    type="purpose"
+                    label={getLabel("purpose", "Purpose")}
+                    value={form.purpose_option_id}
+                    onChange={(v) => setForm({ ...form, purpose_option_id: v })}
+                  />
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {isVisible("possession_timeline") && (
+                  <LeadOptionSelect
+                    type="possession_timeline"
+                    label={getLabel("possession_timeline", "Possession Timeline")}
+                    value={form.possession_timeline_option_id}
+                    onChange={(v) => setForm({ ...form, possession_timeline_option_id: v })}
+                  />
+                )}
+                {isVisible("transaction_timeline") && (
+                  <LeadOptionSelect
+                    type="transaction_timeline"
+                    label={getLabel("transaction_timeline", "Transaction Timeline")}
+                    value={form.transaction_timeline_option_id}
+                    onChange={(v) => setForm({ ...form, transaction_timeline_option_id: v })}
+                  />
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {isVisible("phase") && (
+                  <LeadOptionSelect
+                    type="phase"
+                    label={getLabel("phase", "Phase")}
+                    value={form.phase_option_id}
+                    onChange={(v) => setForm({ ...form, phase_option_id: v })}
+                  />
+                )}
+                {isVisible("requirement") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="leadReq">{getLabel("requirement", "Requirement")}</Label>
+                    <Input
+                      id="leadReq"
+                      placeholder={getPlaceholder("requirement", "e.g. 3 BHK, sea facing, Bandra")}
+                      value={form.requirement}
+                      onChange={(e) => setForm({ ...form, requirement: e.target.value })}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

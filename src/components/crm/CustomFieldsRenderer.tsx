@@ -37,8 +37,8 @@ export function CustomFieldsRenderer({
     enabled: Boolean(workspaceId),
   });
 
-  const fields = fieldsQuery.data || [];
-  if (fields.length === 0) return null;
+  const customFields = (fieldsQuery.data || []).filter((f) => !f.is_system && f.is_visible);
+  if (customFields.length === 0) return null;
 
   const handleFieldChange = (fieldKey: string, val: any) => {
     onChange({
@@ -48,16 +48,17 @@ export function CustomFieldsRenderer({
   };
 
   return (
-    <div className={`space-y-3 pt-2 border-t border-border ${className || ""}`}>
+    <div className={`space-y-3 pt-3 border-t border-border ${className || ""}`}>
       <div className="flex items-center justify-between">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Custom Fields ({fields.length})
+          Custom Fields ({customFields.length})
         </h4>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {fields.map((f: WorkspaceCustomField) => {
+        {customFields.map((f: WorkspaceCustomField) => {
           const val = values[f.field_key] ?? "";
+          const placeholder = f.placeholder || `Enter ${f.field_label.toLowerCase()}`;
 
           return (
             <div key={f.id} className="space-y-1.5">
@@ -70,7 +71,8 @@ export function CustomFieldsRenderer({
                 <Input
                   value={val}
                   onChange={(e) => handleFieldChange(f.field_key, e.target.value)}
-                  placeholder={`Enter ${f.field_label.toLowerCase()}`}
+                  placeholder={placeholder}
+                  required={f.is_required}
                   className="h-9 text-sm"
                 />
               )}
@@ -80,7 +82,8 @@ export function CustomFieldsRenderer({
                   type="number"
                   value={val}
                   onChange={(e) => handleFieldChange(f.field_key, e.target.value)}
-                  placeholder="0"
+                  placeholder={f.placeholder || "0"}
+                  required={f.is_required}
                   className="h-9 text-sm"
                 />
               )}
@@ -90,6 +93,7 @@ export function CustomFieldsRenderer({
                   type="date"
                   value={val ? String(val).slice(0, 10) : ""}
                   onChange={(e) => handleFieldChange(f.field_key, e.target.value)}
+                  required={f.is_required}
                   className="h-9 text-sm"
                 />
               )}
@@ -99,7 +103,8 @@ export function CustomFieldsRenderer({
                   value={val}
                   onChange={(e) => handleFieldChange(f.field_key, e.target.value)}
                   rows={2}
-                  placeholder={`Enter ${f.field_label.toLowerCase()}`}
+                  placeholder={placeholder}
+                  required={f.is_required}
                   className="text-sm"
                 />
               )}
@@ -112,7 +117,7 @@ export function CustomFieldsRenderer({
                   }
                 >
                   <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder={`Select ${f.field_label}`} />
+                    <SelectValue placeholder={placeholder} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">-- Select option --</SelectItem>

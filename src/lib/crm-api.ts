@@ -283,7 +283,7 @@ export const qk = {
   chatGroupMembers: (conversationId: string) => ["chat", "group-members", conversationId] as const,
   chatArchivedGroups: () => ["chat", "archived-groups"] as const,
   customFields: (ws: string, entityType?: string) =>
-    ["custom-fields", ws, entityType || "all"] as const,
+    entityType ? (["custom-fields", ws, entityType] as const) : (["custom-fields", ws] as const),
   documents: (ws: string, entityType: string, entityId: string) =>
     ["documents", ws, entityType, entityId] as const,
 };
@@ -845,9 +845,13 @@ export async function saveWorkspaceCustomField(input: {
   entityType: CustomFieldEntity;
   fieldKey: string;
   fieldLabel: string;
+  placeholder?: string | null;
   fieldType: CustomFieldType;
   options?: string[] | null;
   isRequired?: boolean;
+  isUnique?: boolean;
+  isSystem?: boolean;
+  isVisible?: boolean;
   sortOrder?: number;
 }): Promise<{ success: boolean; id: string }> {
   return saveWorkspaceCustomFieldFn({ data: input });
@@ -856,8 +860,11 @@ export async function saveWorkspaceCustomField(input: {
 export async function deleteWorkspaceCustomField(
   workspaceId: string,
   fieldId: string,
+  entityType?: CustomFieldEntity,
 ): Promise<{ success: boolean }> {
-  return deleteWorkspaceCustomFieldFn({ data: { workspaceId, fieldId } });
+  return deleteWorkspaceCustomFieldFn({
+    data: entityType ? { workspaceId, fieldId, entityType } : { workspaceId, fieldId },
+  });
 }
 
 /* ---------------------- Bulk Import & Duplicate Checks -------------------- */

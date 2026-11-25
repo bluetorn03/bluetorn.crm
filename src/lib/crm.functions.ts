@@ -33,6 +33,7 @@ import type {
   AuditLog,
   Notification,
 } from "./db-types";
+import { assertCustomFieldsUnique } from "./custom-fields.functions";
 
 export type { InvoiceLineInput, LeadOption, LeadOptionType };
 export type Member = { id: string; full_name: string; email: string | null; is_active: boolean };
@@ -177,6 +178,10 @@ export const createCustomerFn = createServerFn({ method: "POST" })
     // When employee creates customer: Created By = Employee, Assigned To = Employee (persisted in MySQL)
     if (isEmployee(context) && creatorId) {
       assignedTo = creatorId;
+    }
+
+    if (data.custom_fields) {
+      await assertCustomFieldsUnique(wsId, "customer", data.custom_fields);
     }
 
     const customFieldsJson =
@@ -380,25 +385,38 @@ export const listPropertiesFn = createServerFn({ method: "GET" })
   .handler(async ({ data, context }): Promise<Property[]> => {
     const wsId = getTargetWorkspaceId(data.workspaceId, context);
     const ef = employeeFilter(context);
-    return query<Property>(
+    const rows = await query<any>(
       `SELECT * FROM properties WHERE workspace_id = ?${ef.sql} ORDER BY created_at DESC`,
       [wsId, ...ef.params],
     );
+    return rows.map((r) => ({
+      ...r,
+      custom_fields:
+        typeof r.custom_fields === "string" ? JSON.parse(r.custom_fields) : (r.custom_fields ?? null),
+    }));
   });
 
 export const getPropertyFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
   .validator((input: { id: string }) => input)
   .handler(async ({ data, context }): Promise<Property | null> => {
+    let row: any = null;
     if (context.role === "super_admin") {
-      return queryOne<Property>("SELECT * FROM properties WHERE id = ?", [data.id]);
+      row = await queryOne<any>("SELECT * FROM properties WHERE id = ?", [data.id]);
+    } else {
+      const wsId = getTargetWorkspaceId(undefined, context);
+      const ef = employeeFilter(context);
+      row = await queryOne<any>(
+        `SELECT * FROM properties WHERE id = ? AND workspace_id = ?${ef.sql}`,
+        [data.id, wsId, ...ef.params],
+      );
     }
-    const wsId = getTargetWorkspaceId(undefined, context);
-    const ef = employeeFilter(context);
-    return queryOne<Property>(
-      `SELECT * FROM properties WHERE id = ? AND workspace_id = ?${ef.sql}`,
-      [data.id, wsId, ...ef.params],
-    );
+    if (!row) return null;
+    return {
+      ...row,
+      custom_fields:
+        typeof row.custom_fields === "string" ? JSON.parse(row.custom_fields) : (row.custom_fields ?? null),
+    };
   });
 
 export const createPropertyFn = createServerFn({ method: "POST" })
@@ -414,9 +432,15 @@ export const createPropertyFn = createServerFn({ method: "POST" })
       assignedTo = creatorId;
     }
 
+    if ((data as any).custom_fields) {
+      await assertCustomFieldsUnique(wsId, "property", (data as any).custom_fields);
+    }
+
+    const customJson = (data as any).custom_fields ? JSON.stringify((data as any).custom_fields) : null;
+
     await execute(
-      `INSERT INTO properties (id, workspace_id, name, location, type, status, price, currency, bedrooms, area_sqft, image_url, description, assigned_to, assigned_at, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO properties (id, workspace_id, name, location, type, status, price, currency, bedrooms, area_sqft, image_url, description, custom_fields, assigned_to, assigned_at, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         wsId,
@@ -430,6 +454,7 @@ export const createPropertyFn = createServerFn({ method: "POST" })
         data.area_sqft ?? null,
         data.image_url ?? null,
         data.description ?? null,
+        customJson,
         assignedTo,
         assignedTo ? new Date().toISOString().slice(0, 19).replace("T", " ") : null,
         creatorId,
@@ -506,7 +531,11 @@ export const updatePropertyFn = createServerFn({ method: "POST" })
     for (const [key, val] of Object.entries(data.patch)) {
       if (key === "id" || key === "created_at" || key === "workspace_id") continue;
       sets.push(`\`${key}\` = ?`);
-      vals.push(val);
+      if (key === "custom_fields" && val) {
+        vals.push(typeof val === "string" ? val : JSON.stringify(val));
+      } else {
+        vals.push(val);
+      }
     }
     if (sets.length === 0) return existing;
 
@@ -841,6 +870,10 @@ export async function createLeadCore(
       sourceOptionId = matched.id;
       sourceName = matched.name;
     }
+  }
+
+  if (data.custom_fields) {
+    await assertCustomFieldsUnique(wsId, "lead", data.custom_fields);
   }
 
   const candidateLead: Lead = {
@@ -1886,7 +1919,11 @@ export const updateTaskFn = createServerFn({ method: "POST" })
     for (const [key, val] of Object.entries(data.patch)) {
       if (key === "id" || key === "created_at" || key === "workspace_id") continue;
       sets.push(`\`${key}\` = ?`);
-      vals.push(val);
+      if (key === "custom_fields" && val) {
+        vals.push(typeof val === "string" ? val : JSON.stringify(val));
+      } else {
+        vals.push(val);
+      }
     }
     if (sets.length === 0) return existing;
 
@@ -2071,7 +2108,11 @@ export const updateEventFn = createServerFn({ method: "POST" })
     for (const [key, val] of Object.entries(data.patch)) {
       if (key === "id" || key === "created_at" || key === "workspace_id") continue;
       sets.push(`\`${key}\` = ?`);
-      vals.push(val);
+      if (key === "custom_fields" && val) {
+        vals.push(typeof val === "string" ? val : JSON.stringify(val));
+      } else {
+        vals.push(val);
+      }
     }
     if (sets.length === 0)
       return (await queryOne<CalendarEvent>("SELECT * FROM calendar_events WHERE id = ?", [
