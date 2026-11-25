@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,9 +26,11 @@ import {
   listMembers,
   listProperties,
   listCustomers,
+  listWorkspaceCustomFields,
   leadStatuses,
   qk,
   type Lead,
+  type WorkspaceCustomField,
 } from "@/lib/crm-api";
 import { LeadOptionSelect } from "@/components/crm/LeadOptionSelect";
 import { CustomFieldsRenderer } from "@/components/crm/CustomFieldsRenderer";
@@ -151,6 +153,22 @@ export function EditLeadDialog({
     enabled: !!workspace.id && open,
   });
 
+  const fieldsQuery = useQuery({
+    queryKey: qk.customFields(workspace.id, "lead"),
+    queryFn: () => listWorkspaceCustomFields(workspace.id, "lead"),
+    enabled: !!workspace.id && open,
+  });
+
+  const fieldsMap = useMemo(() => {
+    const map = new Map<string, WorkspaceCustomField>();
+    (fieldsQuery.data || []).forEach((f) => map.set(f.field_key, f));
+    return map;
+  }, [fieldsQuery.data]);
+
+  const isVisible = (key: string) => fieldsMap.get(key)?.is_visible !== false;
+  const getLabel = (key: string, def: string) => fieldsMap.get(key)?.field_label || def;
+  const getPlaceholder = (key: string, def: string) => fieldsMap.get(key)?.placeholder || def;
+
   const mutation = useMutation({
     mutationFn: async () => {
       const budgetNum = parseFloat(form.budget);
@@ -228,37 +246,43 @@ export function EditLeadDialog({
 
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
-              <Label htmlFor="editLeadName">Name *</Label>
+              <Label htmlFor="editLeadName">{getLabel("name", "Name")} *</Label>
               <Input
                 id="editLeadName"
-                placeholder="Full name"
+                placeholder={getPlaceholder("name", "Full name")}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="editLeadPhone">Phone</Label>
-                <Input
-                  id="editLeadPhone"
-                  placeholder="+91 98200 00000"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                />
+            {(isVisible("phone") || isVisible("email")) && (
+              <div className="grid grid-cols-2 gap-3">
+                {isVisible("phone") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="editLeadPhone">{getLabel("phone", "Phone")}</Label>
+                    <Input
+                      id="editLeadPhone"
+                      placeholder={getPlaceholder("phone", "+91 98200 00000")}
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    />
+                  </div>
+                )}
+                {isVisible("email") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="editLeadEmail">{getLabel("email", "Email")}</Label>
+                    <Input
+                      id="editLeadEmail"
+                      type="email"
+                      placeholder={getPlaceholder("email", "name@example.com")}
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    />
+                  </div>
+                )}
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="editLeadEmail">Email</Label>
-                <Input
-                  id="editLeadEmail"
-                  type="email"
-                  placeholder="name@example.com"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
-              </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -288,38 +312,47 @@ export function EditLeadDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <LeadOptionSelect
-                type="source"
-                label="Source"
-                required
-                value={form.source_option_id}
-                onChange={(v) => setForm({ ...form, source_option_id: v })}
-                historicalValue={
-                  lead.source_option_id
-                    ? {
-                        id: lead.source_option_id,
-                        name: lead.source_option_name || lead.source,
-                        is_active: false,
-                      }
-                    : null
-                }
-              />
+            {(isVisible("source") || isVisible("budget")) && (
+              <div className="grid grid-cols-2 gap-3">
+                {isVisible("source") && (
+                  <LeadOptionSelect
+                    type="source"
+                    label={getLabel("source", "Source")}
+                    required
+                    value={form.source_option_id}
+                    onChange={(v) => setForm({ ...form, source_option_id: v })}
+                    placeholder={getPlaceholder("source", "Select source")}
+                    historicalValue={
+                      lead.source_option_id
+                        ? {
+                            id: lead.source_option_id,
+                            name: lead.source_option_name || lead.source,
+                            is_active: false,
+                          }
+                        : null
+                    }
+                  />
+                )}
 
-              <div className="space-y-1.5">
-                <Label htmlFor="editLeadBudget">Budget ({workspace.currency})</Label>
-                <MoneyInput
-                  id="editLeadBudget"
-                  currency={workspace.currency}
-                  placeholder="e.g. 50,00,000"
-                  value={form.budget}
-                  onChange={(numericVal) =>
-                    setForm({ ...form, budget: numericVal > 0 ? String(numericVal) : "" })
-                  }
-                  showAmountInWords
-                />
+                {isVisible("budget") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="editLeadBudget">
+                      {getLabel("budget", `Budget (${workspace.currency})`)}
+                    </Label>
+                    <MoneyInput
+                      id="editLeadBudget"
+                      currency={workspace.currency}
+                      placeholder={getPlaceholder("budget", "e.g. 50,00,000")}
+                      value={form.budget}
+                      onChange={(numericVal) =>
+                        setForm({ ...form, budget: numericVal > 0 ? String(numericVal) : "" })
+                      }
+                      showAmountInWords
+                    />
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -363,9 +396,9 @@ export function EditLeadDialog({
               </div>
             </div>
 
-            {canAssign && (
+            {canAssign && isVisible("assigned_to") && (
               <div className="space-y-1.5">
-                <Label htmlFor="editLeadAssigned">Assigned To</Label>
+                <Label htmlFor="editLeadAssigned">{getLabel("assigned_to", "Assigned To")}</Label>
                 <Select
                   value={form.assigned_to}
                   onValueChange={(v) => setForm({ ...form, assigned_to: v })}
@@ -391,96 +424,108 @@ export function EditLeadDialog({
                 Preferences & Timelines
               </h4>
               <div className="grid grid-cols-2 gap-3">
-                <LeadOptionSelect
-                  type="location"
-                  label="Location"
-                  value={form.location_option_id}
-                  onChange={(v) => setForm({ ...form, location_option_id: v })}
-                  historicalValue={
-                    lead.location_option_id
-                      ? {
-                          id: lead.location_option_id,
-                          name: lead.location_name || "Historical Location",
-                          is_active: false,
-                        }
-                      : null
-                  }
-                />
-                <LeadOptionSelect
-                  type="purpose"
-                  label="Purpose"
-                  value={form.purpose_option_id}
-                  onChange={(v) => setForm({ ...form, purpose_option_id: v })}
-                  historicalValue={
-                    lead.purpose_option_id
-                      ? {
-                          id: lead.purpose_option_id,
-                          name: lead.purpose_name || "Historical Purpose",
-                          is_active: false,
-                        }
-                      : null
-                  }
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <LeadOptionSelect
-                  type="possession_timeline"
-                  label="Possession Timeline"
-                  value={form.possession_timeline_option_id}
-                  onChange={(v) => setForm({ ...form, possession_timeline_option_id: v })}
-                  historicalValue={
-                    lead.possession_timeline_option_id
-                      ? {
-                          id: lead.possession_timeline_option_id,
-                          name: lead.possession_timeline_name || "Historical Possession Timeline",
-                          is_active: false,
-                        }
-                      : null
-                  }
-                />
-                <LeadOptionSelect
-                  type="transaction_timeline"
-                  label="Transaction Timeline"
-                  value={form.transaction_timeline_option_id}
-                  onChange={(v) => setForm({ ...form, transaction_timeline_option_id: v })}
-                  historicalValue={
-                    lead.transaction_timeline_option_id
-                      ? {
-                          id: lead.transaction_timeline_option_id,
-                          name: lead.transaction_timeline_name || "Historical Transaction Timeline",
-                          is_active: false,
-                        }
-                      : null
-                  }
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <LeadOptionSelect
-                  type="phase"
-                  label="Phase"
-                  value={form.phase_option_id}
-                  onChange={(v) => setForm({ ...form, phase_option_id: v })}
-                  historicalValue={
-                    lead.phase_option_id
-                      ? {
-                          id: lead.phase_option_id,
-                          name: lead.phase_name || "Historical Phase",
-                          is_active: false,
-                        }
-                      : null
-                  }
-                />
-                <div className="space-y-1.5">
-                  <Label htmlFor="editLeadReq">Requirement</Label>
-                  <Input
-                    id="editLeadReq"
-                    placeholder="e.g. 3 BHK, sea facing, Bandra"
-                    value={form.requirement}
-                    onChange={(e) => setForm({ ...form, requirement: e.target.value })}
+                {isVisible("location") && (
+                  <LeadOptionSelect
+                    type="location"
+                    label={getLabel("location", "Location")}
+                    value={form.location_option_id}
+                    onChange={(v) => setForm({ ...form, location_option_id: v })}
+                    historicalValue={
+                      lead.location_option_id
+                        ? {
+                            id: lead.location_option_id,
+                            name: lead.location_name || "Historical Location",
+                            is_active: false,
+                          }
+                        : null
+                    }
                   />
-                </div>
+                )}
+                {isVisible("purpose") && (
+                  <LeadOptionSelect
+                    type="purpose"
+                    label={getLabel("purpose", "Purpose")}
+                    value={form.purpose_option_id}
+                    onChange={(v) => setForm({ ...form, purpose_option_id: v })}
+                    historicalValue={
+                      lead.purpose_option_id
+                        ? {
+                            id: lead.purpose_option_id,
+                            name: lead.purpose_name || "Historical Purpose",
+                            is_active: false,
+                          }
+                        : null
+                    }
+                  />
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {isVisible("possession_timeline") && (
+                  <LeadOptionSelect
+                    type="possession_timeline"
+                    label={getLabel("possession_timeline", "Possession Timeline")}
+                    value={form.possession_timeline_option_id}
+                    onChange={(v) => setForm({ ...form, possession_timeline_option_id: v })}
+                    historicalValue={
+                      lead.possession_timeline_option_id
+                        ? {
+                            id: lead.possession_timeline_option_id,
+                            name: lead.possession_timeline_name || "Historical Possession Timeline",
+                            is_active: false,
+                          }
+                        : null
+                    }
+                  />
+                )}
+                {isVisible("transaction_timeline") && (
+                  <LeadOptionSelect
+                    type="transaction_timeline"
+                    label={getLabel("transaction_timeline", "Transaction Timeline")}
+                    value={form.transaction_timeline_option_id}
+                    onChange={(v) => setForm({ ...form, transaction_timeline_option_id: v })}
+                    historicalValue={
+                      lead.transaction_timeline_option_id
+                        ? {
+                            id: lead.transaction_timeline_option_id,
+                            name: lead.transaction_timeline_name || "Historical Transaction Timeline",
+                            is_active: false,
+                          }
+                        : null
+                    }
+                  />
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {isVisible("phase") && (
+                  <LeadOptionSelect
+                    type="phase"
+                    label={getLabel("phase", "Phase")}
+                    value={form.phase_option_id}
+                    onChange={(v) => setForm({ ...form, phase_option_id: v })}
+                    historicalValue={
+                      lead.phase_option_id
+                        ? {
+                            id: lead.phase_option_id,
+                            name: lead.phase_name || "Historical Phase",
+                            is_active: false,
+                          }
+                        : null
+                    }
+                  />
+                )}
+                {isVisible("requirement") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="editLeadReq">{getLabel("requirement", "Requirement")}</Label>
+                    <Input
+                      id="editLeadReq"
+                      placeholder={getPlaceholder("requirement", "e.g. 3 BHK, sea facing, Bandra")}
+                      value={form.requirement}
+                      onChange={(e) => setForm({ ...form, requirement: e.target.value })}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

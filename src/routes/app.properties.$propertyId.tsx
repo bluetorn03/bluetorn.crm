@@ -13,6 +13,7 @@ import propertyImgDefault from "@/assets/property-1.jpg";
 import { EditPropertyDialog } from "@/components/crm/EditPropertyDialog";
 import { DeletePropertyDialog } from "@/components/crm/DeletePropertyDialog";
 import { AssignPropertyDialog } from "@/components/crm/AssignPropertyDialog";
+import { DocumentVault } from "@/components/crm/DocumentVault";
 
 export const Route = createFileRoute("/app/properties/$propertyId")({
   head: () => ({
@@ -192,6 +193,31 @@ function PropertyDetailPage() {
               </p>
             </SectionCard>
           )}
+
+          {/* Dynamic Custom Fields */}
+          {p.custom_fields && Object.keys(p.custom_fields).length > 0 && (
+            <SectionCard title="Additional Information">
+              <dl className="grid gap-3 sm:grid-cols-2">
+                {Object.entries(p.custom_fields).map(([k, v]) => (
+                  <div key={k} className="rounded-lg border border-border/50 p-2.5 bg-muted/20">
+                    <dt className="text-muted-foreground text-xs capitalize font-medium">
+                      {k.replace(/_/g, " ")}
+                    </dt>
+                    <dd className="mt-0.5 text-sm font-semibold text-foreground">
+                      {typeof v === "boolean" ? (v ? "Yes" : "No") : String(v || "—")}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </SectionCard>
+          )}
+
+          {/* Document Vault */}
+          <DocumentVault
+            workspaceId={workspace.id}
+            entityType="property"
+            entityId={p.id}
+          />
 
           <SectionCard
             title="Scheduled site visits"

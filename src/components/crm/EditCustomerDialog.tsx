@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,10 +23,12 @@ import {
 import {
   updateCustomer,
   listMembers,
+  listWorkspaceCustomFields,
   customerTypes,
   customerStatuses,
   qk,
   type Customer,
+  type WorkspaceCustomField,
 } from "@/lib/crm-api";
 import { CustomFieldsRenderer } from "@/components/crm/CustomFieldsRenderer";
 import { MoneyInput } from "@/components/common/MoneyInput";
@@ -80,8 +82,7 @@ export function EditCustomerDialog({
         type: customer.type ?? "Buyer",
         status: customer.status ?? "Prospect",
         city: customer.city ?? "",
-        value:
-          customer.value !== undefined && customer.value !== null ? String(customer.value) : "0",
+        value: customer.value !== undefined && customer.value !== null ? String(customer.value) : "0",
         assigned_to: customer.assigned_to ?? "unassigned",
         notes: customer.notes ?? "",
         custom_fields:
@@ -100,9 +101,25 @@ export function EditCustomerDialog({
     enabled: !!workspace.id && open,
   });
 
+  const fieldsQuery = useQuery({
+    queryKey: qk.customFields(workspace.id, "customer"),
+    queryFn: () => listWorkspaceCustomFields(workspace.id, "customer"),
+    enabled: !!workspace.id && open,
+  });
+
+  const fieldsMap = useMemo(() => {
+    const map = new Map<string, WorkspaceCustomField>();
+    (fieldsQuery.data || []).forEach((f) => map.set(f.field_key, f));
+    return map;
+  }, [fieldsQuery.data]);
+
+  const isVisible = (key: string) => fieldsMap.get(key)?.is_visible !== false;
+  const getLabel = (key: string, def: string) => fieldsMap.get(key)?.field_label || def;
+  const getPlaceholder = (key: string, def: string) => fieldsMap.get(key)?.placeholder || def;
+
   const mutation = useMutation({
     mutationFn: () => {
-      const payload: Parameters<typeof updateCustomer>[1] = {
+      const payload: Partial<Customer> = {
         name: form.name.trim(),
         phone: form.phone.trim() || null,
         email: form.email.trim() || null,
@@ -111,10 +128,10 @@ export function EditCustomerDialog({
         city: form.city.trim() || null,
         value: parseFloat(form.value) || 0,
         notes: form.notes.trim() || null,
-        custom_fields: form.custom_fields,
+        custom_fields: Object.keys(form.custom_fields).length > 0 ? form.custom_fields : null,
       };
       if (canAssign) {
-        payload.assigned_to = form.assigned_to === "unassigned" ? null : form.assigned_to;
+        payload.assigned_to = form.assigned_to !== "unassigned" ? form.assigned_to : null;
       }
       return updateCustomer(customer.id, payload);
     },
@@ -142,7 +159,7 @@ export function EditCustomerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Edit Customer</DialogTitle>
@@ -150,134 +167,172 @@ export function EditCustomerDialog({
               Update contact information, classification, and details.
             </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4 py-4">
+            {/* Core Name */}
             <div className="space-y-1.5">
-              <Label htmlFor="editCustName">Name *</Label>
+              <Label htmlFor="editCustName">{getLabel("name", "Name")} *</Label>
               <Input
                 id="editCustName"
-                placeholder="Full name"
+                placeholder={getPlaceholder("name", "Full name")}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="editCustPhone">Phone</Label>
-                <Input
-                  id="editCustPhone"
-                  placeholder="+91 98200 00000"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="editCustEmail">Email</Label>
-                <Input
-                  id="editCustEmail"
-                  type="email"
-                  placeholder="name@example.com"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="editCustType">Type</Label>
-                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
-                  <SelectTrigger id="editCustType">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customerTypes.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="editCustStatus">Status</Label>
-                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
-                  <SelectTrigger id="editCustStatus">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customerStatuses.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="editCustCity">City</Label>
-                <Input
-                  id="editCustCity"
-                  placeholder="e.g. Mumbai"
-                  value={form.city}
-                  onChange={(e) => setForm({ ...form, city: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="editCustValue">Customer Value ({workspace.currency})</Label>
-                <MoneyInput
-                  id="editCustValue"
-                  currency={workspace.currency}
-                  placeholder="e.g. 50,00,000"
-                  value={form.value}
-                  onChange={(numericVal) =>
-                    setForm({ ...form, value: numericVal > 0 ? String(numericVal) : "" })
-                  }
-                  showAmountInWords
-                />
-              </div>
-            </div>
-            {canAssign ? (
-              <div className="space-y-1.5">
-                <Label htmlFor="editCustAssigned">Assigned Employee</Label>
-                <Select
-                  value={form.assigned_to}
-                  onValueChange={(v) => setForm({ ...form, assigned_to: v })}
-                >
-                  <SelectTrigger id="editCustAssigned">
-                    <SelectValue placeholder="Unassigned" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Unassigned (No owner)</SelectItem>
-                    {membersQuery.data?.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.full_name} {m.email ? `(${m.email})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <Label>Assigned Employee</Label>
-                <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-foreground font-medium">
-                  {assignedMember ? assignedMember.full_name : "Unassigned"}
-                </div>
+
+            {/* Phone & Email */}
+            {(isVisible("phone") || isVisible("email")) && (
+              <div className="grid grid-cols-2 gap-3">
+                {isVisible("phone") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="editCustPhone">{getLabel("phone", "Phone")}</Label>
+                    <Input
+                      id="editCustPhone"
+                      placeholder={getPlaceholder("phone", "+91 98200 00000")}
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    />
+                  </div>
+                )}
+                {isVisible("email") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="editCustEmail">{getLabel("email", "Email")}</Label>
+                    <Input
+                      id="editCustEmail"
+                      type="email"
+                      placeholder={getPlaceholder("email", "name@example.com")}
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    />
+                  </div>
+                )}
               </div>
             )}
-            <div className="space-y-1.5">
-              <Label htmlFor="editCustNotes">Notes</Label>
-              <Textarea
-                id="editCustNotes"
-                placeholder="Relationship notes or preferences..."
-                rows={3}
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              />
-            </div>
 
-            {/* Dynamic Custom Fields */}
+            {/* Type & Status */}
+            {(isVisible("type") || isVisible("status")) && (
+              <div className="grid grid-cols-2 gap-3">
+                {isVisible("type") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="editCustType">{getLabel("type", "Type")}</Label>
+                    <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+                      <SelectTrigger id="editCustType">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customerTypes.map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {isVisible("status") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="editCustStatus">{getLabel("status", "Status")}</Label>
+                    <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                      <SelectTrigger id="editCustStatus">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customerStatuses.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* City & Value */}
+            {(isVisible("city") || isVisible("value")) && (
+              <div className="grid grid-cols-2 gap-3">
+                {isVisible("city") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="editCustCity">{getLabel("city", "City")}</Label>
+                    <Input
+                      id="editCustCity"
+                      placeholder={getPlaceholder("city", "e.g. Mumbai")}
+                      value={form.city}
+                      onChange={(e) => setForm({ ...form, city: e.target.value })}
+                    />
+                  </div>
+                )}
+
+                {isVisible("value") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="editCustValue">
+                      {getLabel("value", `Customer Value (${workspace.currency})`)}
+                    </Label>
+                    <MoneyInput
+                      id="editCustValue"
+                      currency={workspace.currency}
+                      placeholder={getPlaceholder("value", "e.g. 50,00,000")}
+                      value={form.value}
+                      onChange={(numericVal) =>
+                        setForm({ ...form, value: numericVal > 0 ? String(numericVal) : "" })
+                      }
+                      showAmountInWords
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Assigned Employee */}
+            {isVisible("assigned_to") && (
+              canAssign ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="editCustAssigned">{getLabel("assigned_to", "Assigned Employee")}</Label>
+                  <Select
+                    value={form.assigned_to}
+                    onValueChange={(v) => setForm({ ...form, assigned_to: v })}
+                  >
+                    <SelectTrigger id="editCustAssigned">
+                      <SelectValue placeholder="Unassigned" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Unassigned (No owner)</SelectItem>
+                      {membersQuery.data?.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.full_name} {m.email ? `(${m.email})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label>{getLabel("assigned_to", "Assigned Employee")}</Label>
+                  <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-foreground font-medium">
+                    {assignedMember ? assignedMember.full_name : "Unassigned"}
+                  </div>
+                </div>
+              )
+            )}
+
+            {/* Notes */}
+            {isVisible("notes") && (
+              <div className="space-y-1.5">
+                <Label htmlFor="editCustNotes">{getLabel("notes", "Notes")}</Label>
+                <Textarea
+                  id="editCustNotes"
+                  placeholder={getPlaceholder("notes", "Additional context, requirements, or discussion notes...")}
+                  rows={2}
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                />
+              </div>
+            )}
+
+            {/* DYNAMIC CUSTOM FIELDS */}
             <CustomFieldsRenderer
               workspaceId={workspace.id}
               entityType="customer"
@@ -285,6 +340,7 @@ export function EditCustomerDialog({
               onChange={(newVals) => setForm({ ...form, custom_fields: newVals })}
             />
           </div>
+
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

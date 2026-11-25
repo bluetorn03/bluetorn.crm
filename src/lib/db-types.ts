@@ -116,6 +116,7 @@ export interface Property {
   area_sqft: number | null;
   image_url: string | null;
   description: string | null;
+  custom_fields: Record<string, any> | null;
   assigned_to: string | null;
   assigned_at: string | null;
   created_by: string | null;

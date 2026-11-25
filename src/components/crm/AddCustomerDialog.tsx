@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,12 +22,14 @@ import {
 import {
   createCustomer,
   listMembers,
-  customerTypes,
-  customerStatuses,
+  listWorkspaceCustomFields,
   checkDuplicatesBatch,
   reassignContact,
+  customerTypes,
+  customerStatuses,
   qk,
   type ExistingContactMatch,
+  type WorkspaceCustomField,
 } from "@/lib/crm-api";
 import { CustomFieldsRenderer } from "@/components/crm/CustomFieldsRenderer";
 import { DuplicateContactModal } from "@/components/crm/DuplicateContactModal";
@@ -43,6 +45,7 @@ const emptyForm = {
   status: "Prospect" as string,
   city: "",
   value: "",
+  notes: "",
   assigned_to: "unassigned",
   custom_fields: {} as Record<string, any>,
 };
@@ -77,6 +80,23 @@ export function AddCustomerDialog({
     enabled: !!workspace.id && open,
   });
 
+  const fieldsQuery = useQuery({
+    queryKey: qk.customFields(workspace.id, "customer"),
+    queryFn: () => listWorkspaceCustomFields(workspace.id, "customer"),
+    enabled: !!workspace.id && open,
+  });
+
+  const fieldsMap = useMemo(() => {
+    const map = new Map<string, WorkspaceCustomField>();
+    (fieldsQuery.data || []).forEach((f) => map.set(f.field_key, f));
+    return map;
+  }, [fieldsQuery.data]);
+
+  const isVisible = (key: string) => fieldsMap.get(key)?.is_visible !== false;
+  const getLabel = (key: string, def: string) => fieldsMap.get(key)?.field_label || def;
+  const getPlaceholder = (key: string, def: string) => fieldsMap.get(key)?.placeholder || def;
+  const isRequired = (key: string, def = false) => fieldsMap.get(key)?.is_required ?? def;
+
   const mutation = useMutation({
     mutationFn: () =>
       createCustomer({
@@ -89,8 +109,9 @@ export function AddCustomerDialog({
         status: form.status,
         city: form.city.trim() || null,
         value: parseFloat(form.value) || 0,
+        notes: form.notes.trim() || null,
         assigned_to: canAssign && form.assigned_to !== "unassigned" ? form.assigned_to : null,
-        custom_fields: form.custom_fields,
+        custom_fields: Object.keys(form.custom_fields).length > 0 ? form.custom_fields : null,
         currency: workspace.currency,
       }),
     onSuccess: () => {
@@ -124,7 +145,7 @@ export function AddCustomerDialog({
           return;
         }
       } catch {
-        // Proceed if duplicate check fails
+        // Proceed if duplicate check encounters issue
       } finally {
         setCheckingDuplicate(false);
       }
@@ -152,7 +173,7 @@ export function AddCustomerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Add Customer</DialogTitle>
@@ -160,97 +181,137 @@ export function AddCustomerDialog({
               Create a customer profile with contact and classification.
             </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4 py-4">
+            {/* Core Name */}
             <div className="space-y-1.5">
-              <Label htmlFor="custName">Name *</Label>
+              <Label htmlFor="custName">{getLabel("name", "Name")} *</Label>
               <Input
                 id="custName"
-                placeholder="Full name"
+                placeholder={getPlaceholder("name", "Full name")}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="custPhone">Phone</Label>
-                <Input
-                  id="custPhone"
-                  placeholder="+91 98200 00000"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                />
+
+            {/* Phone & Email */}
+            {(isVisible("phone") || isVisible("email")) && (
+              <div className="grid grid-cols-2 gap-3">
+                {isVisible("phone") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="custPhone">
+                      {getLabel("phone", "Phone")}
+                      {isRequired("phone") && <span className="text-destructive ml-0.5">*</span>}
+                    </Label>
+                    <Input
+                      id="custPhone"
+                      placeholder={getPlaceholder("phone", "+91 98200 00000")}
+                      value={form.phone}
+                      required={isRequired("phone")}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    />
+                  </div>
+                )}
+                {isVisible("email") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="custEmail">
+                      {getLabel("email", "Email")}
+                      {isRequired("email") && <span className="text-destructive ml-0.5">*</span>}
+                    </Label>
+                    <Input
+                      id="custEmail"
+                      type="email"
+                      placeholder={getPlaceholder("email", "name@example.com")}
+                      value={form.email}
+                      required={isRequired("email")}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    />
+                  </div>
+                )}
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="custEmail">Email</Label>
-                <Input
-                  id="custEmail"
-                  type="email"
-                  placeholder="name@example.com"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
+            )}
+
+            {/* Type & Status */}
+            {(isVisible("type") || isVisible("status")) && (
+              <div className="grid grid-cols-2 gap-3">
+                {isVisible("type") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="custType">{getLabel("type", "Type")}</Label>
+                    <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+                      <SelectTrigger id="custType">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customerTypes.map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {isVisible("status") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="custStatus">{getLabel("status", "Status")}</Label>
+                    <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                      <SelectTrigger id="custStatus">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customerStatuses.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="custType">Type</Label>
-                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
-                  <SelectTrigger id="custType">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customerTypes.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            )}
+
+            {/* City & Value */}
+            {(isVisible("city") || isVisible("value")) && (
+              <div className="grid grid-cols-2 gap-3">
+                {isVisible("city") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="custCity">{getLabel("city", "City")}</Label>
+                    <Input
+                      id="custCity"
+                      placeholder={getPlaceholder("city", "e.g. Mumbai")}
+                      value={form.city}
+                      onChange={(e) => setForm({ ...form, city: e.target.value })}
+                    />
+                  </div>
+                )}
+
+                {isVisible("value") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="custValue">
+                      {getLabel("value", `Value (${workspace.currency})`)}
+                    </Label>
+                    <MoneyInput
+                      id="custValue"
+                      currency={workspace.currency}
+                      placeholder={getPlaceholder("value", "e.g. 50,00,000")}
+                      value={form.value}
+                      onChange={(numericVal) =>
+                        setForm({ ...form, value: numericVal > 0 ? String(numericVal) : "" })
+                      }
+                      showAmountInWords
+                    />
+                  </div>
+                )}
               </div>
+            )}
+
+            {/* Assigned Employee */}
+            {canAssign && isVisible("assigned_to") && (
               <div className="space-y-1.5">
-                <Label htmlFor="custStatus">Status</Label>
-                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
-                  <SelectTrigger id="custStatus">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customerStatuses.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="custCity">City</Label>
-                <Input
-                  id="custCity"
-                  placeholder="e.g. Mumbai"
-                  value={form.city}
-                  onChange={(e) => setForm({ ...form, city: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="custValue">Value ({workspace.currency})</Label>
-                <MoneyInput
-                  id="custValue"
-                  currency={workspace.currency}
-                  placeholder="e.g. 50,00,000"
-                  value={form.value}
-                  onChange={(numericVal) =>
-                    setForm({ ...form, value: numericVal > 0 ? String(numericVal) : "" })
-                  }
-                  showAmountInWords
-                />
-              </div>
-            </div>
-            {canAssign && (
-              <div className="space-y-1.5">
-                <Label htmlFor="custAssigned">Assigned Employee</Label>
+                <Label htmlFor="custAssigned">{getLabel("assigned_to", "Assigned Employee")}</Label>
                 <Select
                   value={form.assigned_to}
                   onValueChange={(v) => setForm({ ...form, assigned_to: v })}
@@ -262,7 +323,7 @@ export function AddCustomerDialog({
                     <SelectItem value="unassigned">Unassigned (No owner)</SelectItem>
                     {membersQuery.data?.map((m) => (
                       <SelectItem key={m.id} value={m.id}>
-                        {m.full_name} {m.email ? `(${m.email})` : ""}
+                        {m.full_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -270,7 +331,20 @@ export function AddCustomerDialog({
               </div>
             )}
 
-            {/* Custom Fields */}
+            {/* Notes */}
+            {isVisible("notes") && (
+              <div className="space-y-1.5">
+                <Label htmlFor="custNotes">{getLabel("notes", "Notes")}</Label>
+                <Input
+                  id="custNotes"
+                  placeholder={getPlaceholder("notes", "Customer notes...")}
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                />
+              </div>
+            )}
+
+            {/* Dynamic Custom Fields */}
             <CustomFieldsRenderer
               workspaceId={workspace.id}
               entityType="customer"
@@ -278,6 +352,7 @@ export function AddCustomerDialog({
               onChange={(newVals) => setForm({ ...form, custom_fields: newVals })}
             />
           </div>
+
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
@@ -297,7 +372,7 @@ export function AddCustomerDialog({
         onOpenChange={setDuplicateOpen}
         match={duplicateMatch}
         phoneNumber={form.phone}
-        isEmployee={!canAssign}
+        isEmployee={role === "Employee" || dbRole === "employee"}
         onReassign={handleReassign}
         isReassigning={isReassigning}
       />
