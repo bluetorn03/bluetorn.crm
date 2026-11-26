@@ -36,8 +36,9 @@ Every feature, bug fix, or refactor must strictly follow:
 3. **Branch**: Work on a dedicated feature/fix branch (`feature/<name>`, `fix/<name>`, `chore/<name>`). Never work directly on `main`.
 4. **Implement Locally**: Apply code changes.
 5. **Database Changes**:
-   - If schema changes are required, create a NEW sequential migration file (e.g., `005_*.sql`).
-   - **NEVER** edit, rename, delete, or re-run historical migrations (`001`, `002`, `003`, `004`).
+   - If schema changes are required, create a NEW sequential migration file (e.g., `008_*.sql`).
+   - **NEVER** edit, rename, delete, or re-run historical migrations (`001` through `007`).
+   - **Automatic `_schema_migrations` Tracking**: Every new migration file must include the metadata record at the end (`INSERT INTO _schema_migrations ... ON DUPLICATE KEY UPDATE applied_at = NOW();`) so phpMyAdmin manual import and CLI migration automatically stay 100% in sync.
    - Run migrations against **LOCAL MySQL ONLY**.
    - **NEVER** export local DB dumps as a production deployment mechanism.
 6. **Local Testing**: Test the feature and run regression checks on affected modules.
@@ -62,4 +63,14 @@ Every feature, bug fix, or refactor must strictly follow:
 ## 5. Branch & Release Policy
 - **Protected Main**: Direct pushes to `main` are prohibited.
 - **Release Sequence**: Feature Branch → Local Verify → QA Report → User Approval → Push Branch → Pull Request → CI Quality Gate → User Review & Merge → Hostinger Deployment.
+
+## 6. Mandatory Database Status Disclosure (Every Conversation & Upgrade)
+In EVERY response after implementing, fixing, or completing an upgrade/feature:
+1. **Explicit DB Change Status**: Antigravity MUST unambiguously state whether any database changes (schema modifications or DDL) occurred.
+2. **If DB Changes Occurred**:
+   - Create a new sequential migration file (e.g. `008_*.sql`) with trailing `_schema_migrations` tracking.
+   - Provide step-by-step phpMyAdmin manual import instructions for the Hostinger production database.
+3. **If NO DB Changes Occurred**:
+   - Explicitly confirm: *"No database changes occurred in this update. No SQL migration file is required, and no database action on Hostinger phpMyAdmin is needed. Only code commit and deployment are required."*
+
 

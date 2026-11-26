@@ -529,16 +529,18 @@ export function EditLeadDialog({
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="editLeadNotes">Notes</Label>
-              <Textarea
-                id="editLeadNotes"
-                placeholder="Key remarks or preferences..."
-                rows={3}
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              />
-            </div>
+            {isVisible("notes") && (
+              <div className="space-y-1.5">
+                <Label htmlFor="editLeadNotes">{getLabel("notes", "Notes")}</Label>
+                <Textarea
+                  id="editLeadNotes"
+                  placeholder={getPlaceholder("notes", "Key remarks or preferences...")}
+                  rows={3}
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                />
+              </div>
+            )}
 
             {/* Dynamic Custom Fields */}
             <CustomFieldsRenderer

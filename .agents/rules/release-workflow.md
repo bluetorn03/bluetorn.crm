@@ -16,7 +16,7 @@ description: "Feature development lifecycle, local verification gates, and relea
 1. Inspect current implementation.
 2. Plan changes.
 3. Implement locally.
-4. If DB changes needed: create new sequential migration; never edit applied migrations.
+4. If DB changes needed: create new sequential migration (e.g. `008_*.sql`) with trailing `_schema_migrations` tracking statement; never edit applied migrations.
 5. Apply migration to LOCAL DB only.
 6. Test feature locally.
 7. Test affected existing features.
