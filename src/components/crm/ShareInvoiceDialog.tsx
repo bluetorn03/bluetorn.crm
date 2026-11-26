@@ -9,7 +9,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { MessageSquare, Copy, Check, ExternalLink, Mail, Share2, Globe, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { formatMoney, formatDate } from "@/lib/format";
@@ -32,7 +31,6 @@ export function ShareInvoiceDialog({
 }: ShareInvoiceDialogProps) {
   const [copiedPublic, setCopiedPublic] = useState(false);
   const [copiedInternal, setCopiedInternal] = useState(false);
-  const [copiedEmail, setCopiedEmail] = useState(false);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const publicUrl = `${origin}/invoice/${invoice.id}`;
@@ -65,7 +63,6 @@ Thank you!
 — ${workspaceName}`;
 
   const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipientEmail)}&su=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(whatsappMessage)}`;
-  const mailtoUrl = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(whatsappMessage)}`;
 
   const handleCopyPublic = () => {
     navigator.clipboard.writeText(publicUrl);
@@ -79,14 +76,6 @@ Thank you!
     setCopiedInternal(true);
     toast.success("CRM internal reference copied!");
     setTimeout(() => setCopiedInternal(false), 2000);
-  };
-
-  const handleCopyEmail = () => {
-    const textToCopy = `To: ${recipientEmail || "(Customer Email)"}\nSubject: ${emailSubject}\n\n${whatsappMessage}`;
-    navigator.clipboard.writeText(textToCopy);
-    setCopiedEmail(true);
-    toast.success("Email text & subject copied to clipboard!");
-    setTimeout(() => setCopiedEmail(false), 2000);
   };
 
   const handleWhatsApp = () => {
@@ -189,11 +178,10 @@ Thank you!
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button
+            <Button
                 size="sm"
                 variant="outline"
-                className="h-8 gap-1.5 text-xs flex-1"
+                className="h-8 gap-1.5 text-xs w-full"
                 asChild
               >
                 <a href={gmailComposeUrl} target="_blank" rel="noopener noreferrer">
@@ -201,34 +189,6 @@ Thank you!
                   <span>Open in Gmail</span>
                 </a>
               </Button>
-
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5 text-xs flex-1"
-                asChild
-              >
-                <a href={mailtoUrl}>
-                  <Mail className="h-3.5 w-3.5" />
-                  <span>Default Mail</span>
-                </a>
-              </Button>
-
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5 text-xs"
-                onClick={handleCopyEmail}
-                title="Copy subject and email body to clipboard"
-              >
-                {copiedEmail ? (
-                  <Check className="h-3.5 w-3.5 text-emerald-600" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-                <span>{copiedEmail ? "Copied" : "Copy Draft"}</span>
-              </Button>
-            </div>
           </div>
 
           {/* CRM Internal Link (For Team) */}
