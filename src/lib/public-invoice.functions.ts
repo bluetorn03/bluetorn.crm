@@ -38,20 +38,22 @@ export const getPublicInvoiceFn = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<PublicInvoiceData | null> => {
     if (!data.id || data.id.trim().length === 0) return null;
 
+    const trimmedId = data.id.trim();
+
     const invoice = await queryOne<Invoice>(
       `SELECT i.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone, c.city as customer_city
        FROM invoices i
        LEFT JOIN customers c ON i.customer_id = c.id
-       WHERE i.id = ? LIMIT 1`,
-      [data.id],
+       WHERE (i.id = ? OR i.invoice_number = ?) LIMIT 1`,
+      [trimmedId, trimmedId],
     );
 
     if (!invoice) return null;
 
     const [items, workspace, payments] = await Promise.all([
       query<InvoiceItem>(
-        "SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY sort_order ASC, id ASC",
-        [data.id],
+        "SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY position ASC, id ASC",
+        [invoice.id],
       ),
       queryOne<Workspace>(
         `SELECT id, name, legal_name, gstin, pan, state, state_code, contact_email, contact_phone,
@@ -61,7 +63,7 @@ export const getPublicInvoiceFn = createServerFn({ method: "GET" })
       ),
       query<Payment>(
         "SELECT amount FROM payments WHERE invoice_id = ? AND status = 'Received'",
-        [data.id],
+        [invoice.id],
       ),
     ]);
 
