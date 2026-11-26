@@ -157,6 +157,11 @@ import {
   type DocumentAttachmentItem,
 } from "./document-vault.functions";
 
+import {
+  getPublicInvoiceFn,
+  type PublicInvoiceData,
+} from "./public-invoice.functions";
+
 import { invoiceTotals, computeInvoiceTotals, type InvoiceLineInput } from "./invoice-calculations";
 
 export type {
@@ -267,6 +272,7 @@ export const qk = {
   events: (ws: string) => ["events", ws] as const,
   invoices: (ws: string) => ["invoices", ws] as const,
   invoice: (id: string) => ["invoice", id] as const,
+  publicInvoice: (id: string) => ["public-invoice", id] as const,
   payments: (ws: string) => ["payments", ws] as const,
   members: (ws: string) => ["members", ws] as const,
   plans: () => ["plans"] as const,
@@ -490,6 +496,12 @@ export async function getInvoice(id: string): Promise<{
 } | null> {
   return getInvoiceFn({ data: { id } });
 }
+
+export async function getPublicInvoice(id: string): Promise<PublicInvoiceData | null> {
+  return getPublicInvoiceFn({ data: { id } });
+}
+
+export type { PublicInvoiceData };
 
 export async function nextInvoiceNumber(
   workspaceId: string,

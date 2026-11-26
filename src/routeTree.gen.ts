@@ -31,6 +31,7 @@ import { Route as AppChatRouteImport } from './routes/app.chat'
 import { Route as AppReportsRouteImport } from './routes/app.reports'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as AppTasksRouteImport } from './routes/app.tasks'
+import { Route as InvoiceInvoiceIdRouteImport } from './routes/invoice.$invoiceId'
 import { Route as AdminWorkspacesIndexRouteImport } from './routes/admin.workspaces.index'
 import { Route as AdminWorkspacesWorkspaceIdRouteImport } from './routes/admin.workspaces.$workspaceId'
 import { Route as AdminWorkspacesNewRouteImport } from './routes/admin.workspaces.new'
@@ -157,6 +158,11 @@ const AppTasksRoute = AppTasksRouteImport.update({
   path: '/tasks',
   getParentRoute: () => AppRoute,
 } as any)
+const InvoiceInvoiceIdRoute = InvoiceInvoiceIdRouteImport.update({
+  id: '/invoice/$invoiceId',
+  path: '/invoice/$invoiceId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminWorkspacesIndexRoute = AdminWorkspacesIndexRouteImport.update({
   id: '/workspaces/',
   path: '/workspaces/',
@@ -256,6 +262,7 @@ export interface FileRoutesByFullPath {
   '/app/reports': typeof AppReportsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
+  '/invoice/$invoiceId': typeof InvoiceInvoiceIdRoute
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
   '/admin/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRoute
@@ -293,6 +300,7 @@ export interface FileRoutesByTo {
   '/app/reports': typeof AppReportsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
+  '/invoice/$invoiceId': typeof InvoiceInvoiceIdRoute
   '/admin': typeof AdminIndexRoute
   '/app': typeof AppIndexRoute
   '/admin/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRoute
@@ -333,6 +341,7 @@ export interface FileRoutesById {
   '/app/reports': typeof AppReportsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
+  '/invoice/$invoiceId': typeof InvoiceInvoiceIdRoute
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
   '/admin/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRoute
@@ -374,6 +383,7 @@ export interface FileRouteTypes {
     | '/app/reports'
     | '/app/settings'
     | '/app/tasks'
+    | '/invoice/$invoiceId'
     | '/admin/'
     | '/app/'
     | '/admin/workspaces/$workspaceId'
@@ -411,6 +421,7 @@ export interface FileRouteTypes {
     | '/app/reports'
     | '/app/settings'
     | '/app/tasks'
+    | '/invoice/$invoiceId'
     | '/admin'
     | '/app'
     | '/admin/workspaces/$workspaceId'
@@ -450,6 +461,7 @@ export interface FileRouteTypes {
     | '/app/reports'
     | '/app/settings'
     | '/app/tasks'
+    | '/invoice/$invoiceId'
     | '/admin/'
     | '/app/'
     | '/admin/workspaces/$workspaceId'
@@ -478,6 +490,7 @@ export interface RootRouteChildren {
   SessionExpiredRoute: typeof SessionExpiredRoute
   SetupRoute: typeof SetupRoute
   WorkspaceInactiveRoute: typeof WorkspaceInactiveRoute
+  InvoiceInvoiceIdRoute: typeof InvoiceInvoiceIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -635,6 +648,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/tasks'
       preLoaderRoute: typeof AppTasksRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/invoice/$invoiceId': {
+      id: '/invoice/$invoiceId'
+      path: '/invoice/$invoiceId'
+      fullPath: '/invoice/$invoiceId'
+      preLoaderRoute: typeof InvoiceInvoiceIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/admin/workspaces/': {
       id: '/admin/workspaces/'
@@ -827,6 +847,7 @@ const rootRouteChildren: RootRouteChildren = {
   SessionExpiredRoute: SessionExpiredRoute,
   SetupRoute: SetupRoute,
   WorkspaceInactiveRoute: WorkspaceInactiveRoute,
+  InvoiceInvoiceIdRoute: InvoiceInvoiceIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

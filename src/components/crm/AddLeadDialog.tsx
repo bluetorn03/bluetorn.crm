@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -48,6 +49,7 @@ interface AddLeadFormState {
   property_id: string;
   assigned_to: string;
   requirement: string;
+  notes: string;
   location_option_id: string | null;
   purpose_option_id: string | null;
   possession_timeline_option_id: string | null;
@@ -66,6 +68,7 @@ const emptyForm: AddLeadFormState = {
   property_id: "none",
   assigned_to: "unassigned",
   requirement: "",
+  notes: "",
   location_option_id: null,
   purpose_option_id: null,
   possession_timeline_option_id: null,
@@ -139,6 +142,7 @@ export function AddLeadDialog({
         email: form.email.trim() || null,
         source_option_id: form.source_option_id,
         requirement: form.requirement.trim() || null,
+        notes: form.notes.trim() || null,
         budget: parseFloat(form.budget) || 0,
         currency: workspace.currency,
         status: "New",
@@ -436,6 +440,20 @@ export function AddLeadDialog({
                 )}
               </div>
             </div>
+
+            {/* Lead Notes */}
+            {isVisible("notes") && (
+              <div className="space-y-1.5">
+                <Label htmlFor="leadNotes">{getLabel("notes", "Notes")}</Label>
+                <Textarea
+                  id="leadNotes"
+                  placeholder={getPlaceholder("notes", "Client conversation notes...")}
+                  rows={3}
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                />
+              </div>
+            )}
 
             {/* Dynamic Custom Fields per Workspace */}
             <CustomFieldsRenderer

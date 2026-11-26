@@ -55,6 +55,7 @@ import { useSession } from "@/hooks/use-session";
 import { formatMoney, formatDate, relativeTime } from "@/lib/format";
 import { AmountInWords } from "@/components/common/AmountInWords";
 import { InvoiceUpiQrCard } from "@/components/crm/InvoiceUpiQrCard";
+import { ShareInvoiceDialog } from "@/components/crm/ShareInvoiceDialog";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/finance/invoices/$invoiceId")({
@@ -97,6 +98,7 @@ function InvoiceDetailContent() {
   const [payOpen, setPayOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
 
   // Payment form state
@@ -217,6 +219,7 @@ function InvoiceDetailContent() {
           const currency = (inv.currency ?? "INR") as any;
           const totalPaid = paidAmount(payments);
           const balance = Math.max(0, inv.total - totalPaid);
+          const effectiveUpiId = workspace.upiId;
           const isOverdue =
             inv.due_date &&
             new Date(inv.due_date).getTime() < Date.now() &&
@@ -236,6 +239,43 @@ function InvoiceDetailContent() {
 
           return (
             <>
+              {/* Print Styles for Guaranteed Single-Page A4 Layout */}
+              <style>{`
+                @media print {
+                  @page {
+                    size: A4 portrait;
+                    margin: 10mm 12mm;
+                  }
+                  *, *::before, *::after {
+                    box-sizing: border-box !important;
+                  }
+                  html, body {
+                    background: #ffffff !important;
+                    color: #000000 !important;
+                    font-size: 11px !important;
+                    line-height: 1.3 !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    width: 100% !important;
+                  }
+                  .no-print, nav, aside, header, footer, [role="navigation"] {
+                    display: none !important;
+                  }
+                  #invoice-document {
+                    border: none !important;
+                    box-shadow: none !important;
+                    padding: 0 4mm !important;
+                    margin: 0 !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                  }
+                  .print-avoid-break {
+                    break-inside: avoid !important;
+                    page-break-inside: avoid !important;
+                  }
+                }
+              `}</style>
+
               {/* Action Toolbar (Hidden during Print) */}
               <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-border no-print">
                 <div className="flex items-center gap-3">
@@ -267,7 +307,7 @@ function InvoiceDetailContent() {
                   )}
 
                   {canShare && (
-                    <Button size="sm" variant="outline" onClick={() => handleShare(inv)}>
+                    <Button size="sm" variant="outline" onClick={() => setShareOpen(true)}>
                       <Share2 className="mr-1.5 h-3.5 w-3.5" /> Share
                     </Button>
                   )}
@@ -346,10 +386,10 @@ function InvoiceDetailContent() {
               {/* Printable Invoice Sheet */}
               <div
                 id="invoice-document"
-                className="bg-card text-card-foreground border border-border rounded-xl p-6 sm:p-8 shadow-sm space-y-8 print:border-none print:shadow-none print:p-0"
+                className="bg-card text-card-foreground border border-border rounded-xl p-6 sm:p-8 shadow-sm space-y-5 print:space-y-3 print:border-none print:shadow-none print:p-0"
               >
                 {/* Header: Workspace Supplier & Invoice Metadata */}
-                <div className="flex flex-col sm:flex-row justify-between items-start gap-6 border-b border-border pb-6 print-avoid-break">
+                <div className="flex flex-col sm:flex-row justify-between items-start gap-4 border-b border-border pb-4 print:pb-3 print-avoid-break">
                   <div className="space-y-2 max-w-sm">
                     {workspace.logoUrl ? (
                       <img
@@ -491,49 +531,49 @@ function InvoiceDetailContent() {
 
                 {/* Line Items Table */}
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
+                  <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        <th className="py-2.5 px-3">#</th>
-                        <th className="py-2.5 px-3">Description</th>
-                        <th className="py-2.5 px-3">HSN/SAC</th>
-                        <th className="py-2.5 px-3 text-right">Qty</th>
-                        <th className="py-2.5 px-3 text-right">Rate</th>
-                        <th className="py-2.5 px-3 text-right">Disc</th>
-                        <th className="py-2.5 px-3 text-right">GST %</th>
-                        <th className="py-2.5 px-3 text-right">Line Total</th>
+                      <tr className="border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        <th className="py-2 px-2.5 print:py-1 print:px-2">#</th>
+                        <th className="py-2 px-2.5 print:py-1 print:px-2">Description</th>
+                        <th className="py-2 px-2.5 print:py-1 print:px-2">HSN/SAC</th>
+                        <th className="py-2 px-2.5 print:py-1 print:px-2 text-right">Qty</th>
+                        <th className="py-2 px-2.5 print:py-1 print:px-2 text-right">Rate</th>
+                        <th className="py-2 px-2.5 print:py-1 print:px-2 text-right">Disc</th>
+                        <th className="py-2 px-2.5 print:py-1 print:px-2 text-right">GST %</th>
+                        <th className="py-2 px-2.5 print:py-1 print:px-2 text-right">Line Total</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
                       {items.map((item, idx) => (
                         <tr key={item.id} className="hover:bg-muted/10">
-                          <td className="py-3 px-3 text-muted-foreground text-xs">{idx + 1}</td>
-                          <td className="py-3 px-3 font-medium text-foreground">
+                          <td className="py-2 px-2.5 print:py-1 print:px-2 text-muted-foreground text-xs">{idx + 1}</td>
+                          <td className="py-2 px-2.5 print:py-1 print:px-2 font-medium text-foreground">
                             {item.description}
                           </td>
-                          <td className="py-3 px-3 text-muted-foreground text-xs font-mono">
+                          <td className="py-2 px-2.5 print:py-1 print:px-2 text-muted-foreground text-xs font-mono">
                             {item.hsn_sac || "—"}
                           </td>
-                          <td className="py-3 px-3 text-right">
+                          <td className="py-2 px-2.5 print:py-1 print:px-2 text-right">
                             {item.quantity}{" "}
                             {item.unit ? (
-                              <span className="text-xs text-muted-foreground">{item.unit}</span>
+                              <span className="text-[11px] text-muted-foreground">{item.unit}</span>
                             ) : (
                               ""
                             )}
                           </td>
-                          <td className="py-3 px-3 text-right">
+                          <td className="py-2 px-2.5 print:py-1 print:px-2 text-right">
                             {formatMoney(Number(item.rate ?? item.unit_amount), currency)}
                           </td>
-                          <td className="py-3 px-3 text-right text-muted-foreground">
+                          <td className="py-2 px-2.5 print:py-1 print:px-2 text-right text-muted-foreground">
                             {Number(item.discount) > 0
                               ? formatMoney(Number(item.discount), currency)
                               : "—"}
                           </td>
-                          <td className="py-3 px-3 text-right text-xs">
+                          <td className="py-2 px-2.5 print:py-1 print:px-2 text-right text-xs">
                             {item.tax_rate ?? inv.tax_rate}%
                           </td>
-                          <td className="py-3 px-3 text-right font-semibold text-foreground">
+                          <td className="py-2 px-2.5 print:py-1 print:px-2 text-right font-semibold text-foreground">
                             {formatMoney(Number(item.line_total ?? item.amount), currency)}
                           </td>
                         </tr>
@@ -577,14 +617,30 @@ function InvoiceDetailContent() {
                     </div>
 
                     {/* Dynamic UPI Payment QR Code */}
-                    {workspace.upiId && balance > 0 && (
+                    {effectiveUpiId && balance > 0 ? (
                       <InvoiceUpiQrCard
-                        upiId={workspace.upiId}
-                        payeeName={workspace.upiMerchantName || workspace.name}
+                        upiId={effectiveUpiId}
+                        payeeName={
+                          workspace.upiMerchantName ||
+                          workspace.legalName ||
+                          workspace.name
+                        }
                         amount={balance}
                         invoiceNumber={inv.invoice_number}
                         currency={currency}
                       />
+                    ) : (
+                      !effectiveUpiId && (
+                        <div className="no-print p-2 rounded border border-dashed border-amber-500/30 bg-amber-500/5 text-[11px] text-muted-foreground flex items-center justify-between gap-2">
+                          <span>UPI ID not configured for instant payment QR.</span>
+                          <Link
+                            to="/app/settings"
+                            className="text-primary hover:underline font-medium"
+                          >
+                            Configure in Settings
+                          </Link>
+                        </div>
+                      )
                     )}
 
                     {inv.notes && (
@@ -609,7 +665,7 @@ function InvoiceDetailContent() {
                   </div>
 
                   {/* Calculations Breakdown */}
-                  <div className="space-y-2 text-sm sm:max-w-sm sm:ml-auto w-full">
+                  <div className="space-y-2 text-sm sm:max-w-sm sm:ml-auto w-full print:pr-1">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Subtotal</span>
                       <span className="font-medium text-foreground">
@@ -692,41 +748,18 @@ function InvoiceDetailContent() {
                         />
                       </div>
                     )}
+
+                    {/* Authorised Signatory */}
+                    <div className="pt-4 text-center sm:text-right print:pt-4">
+                      <div className="inline-block border-t border-muted-foreground/40 pt-1 px-4 text-[10px] text-muted-foreground">
+                        For {workspace.legalName || workspace.name}
+                        <div className="font-bold text-foreground text-[11px] mt-0.5">
+                          Authorised Signatory
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                {/* Recorded Payments (Printed on Invoice if payments exist) */}
-                {payments.length > 0 && (
-                  <div className="hidden print:block print-avoid-break pt-4 border-t border-border space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-foreground">
-                      Payment Receipts &amp; Settlement History
-                    </p>
-                    <table className="w-full text-left text-xs border border-border">
-                      <thead>
-                        <tr className="bg-muted/40 border-b border-border font-semibold">
-                          <th className="py-1.5 px-2">Date</th>
-                          <th className="py-1.5 px-2">Reference / UTR</th>
-                          <th className="py-1.5 px-2">Method</th>
-                          <th className="py-1.5 px-2 text-right">Amount Paid</th>
-                          <th className="py-1.5 px-2 text-center">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {payments.map((p) => (
-                          <tr key={p.id}>
-                            <td className="py-1.5 px-2">{formatDate(p.paid_at)}</td>
-                            <td className="py-1.5 px-2 font-mono">{p.reference || "—"}</td>
-                            <td className="py-1.5 px-2">{p.method}</td>
-                            <td className="py-1.5 px-2 text-right font-medium">
-                              {formatMoney(p.amount, currency)}
-                            </td>
-                            <td className="py-1.5 px-2 text-center">{p.status}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
               </div>
 
               {/* Payment History & Reconciliations */}
@@ -942,6 +975,15 @@ function InvoiceDetailContent() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+
+              {/* Share Invoice Dialog */}
+              <ShareInvoiceDialog
+                open={shareOpen}
+                onOpenChange={setShareOpen}
+                invoice={inv}
+                workspaceName={workspace.legalName || workspace.name}
+                balance={balance}
+              />
             </>
           );
         }}
