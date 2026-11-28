@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   CalendarClock,
   ChevronRight,
@@ -14,7 +14,9 @@ import {
   Zap,
   Upload,
   Download,
+  X,
 } from "lucide-react";
+import { parseDbUtcTimestamp } from "@/lib/format";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SectionCard } from "@/components/common/SectionCard";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -32,8 +34,6 @@ import {
 import {
   listLeads,
   listMembers,
-  updateLead,
-  logLeadActivity,
   leadStatuses,
   qk,
   type Lead,
@@ -68,7 +68,6 @@ export const Route = createFileRoute("/app/leads/")({
 
 function LeadsPage() {
   const { workspace, user, role, dbRole } = useSession();
-  const queryClient = useQueryClient();
 
   const canAssign =
     role === "Owner" ||
@@ -84,6 +83,9 @@ function LeadsPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [activeSourceKey, setActiveSourceKey] = useState<string | null>(null);
   const [activeSourceName, setActiveSourceName] = useState<string | null>(null);
+  // Date range filter: from / to as YYYY-MM-DD strings (empty = no filter)
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   // Active dialog states
   const [assigningLead, setAssigningLead] = useState<Lead | null>(null);
@@ -104,6 +106,21 @@ function LeadsPage() {
       return;
     }
 
+    // Apply the same filter logic as the list so export matches what is shown
+    const filteredForExport = list.filter((l) => {
+      if (status !== "All" && l.status !== status) return false;
+      if (!l.name.toLowerCase().includes(q.toLowerCase())) return false;
+      if (activeSourceKey && getLeadSourceStableKey(l) !== activeSourceKey) return false;
+      if (dateFrom || dateTo) {
+        const ts = parseDbUtcTimestamp(l.received_at || l.created_at);
+        if (!ts) return false;
+        const dateStr = ts.toISOString().slice(0, 10); // YYYY-MM-DD UTC
+        if (dateFrom && dateStr < dateFrom) return false;
+        if (dateTo && dateStr > dateTo) return false;
+      }
+      return true;
+    });
+
     const headers = [
       "ID",
       "Name",
@@ -119,7 +136,7 @@ function LeadsPage() {
       "Created At",
     ];
 
-    const rows = list.map((l) => [
+    const rows = filteredForExport.map((l) => [
       l.id,
       l.name,
       l.phone || "",
@@ -139,7 +156,7 @@ function LeadsPage() {
       headers,
       rows,
     });
-    toast.success(`Exported ${list.length} leads to CSV.`);
+    toast.success(`Exported ${filteredForExport.length} leads to CSV.`);
   };
 
   const membersQuery = useQuery({
@@ -325,6 +342,45 @@ function LeadsPage() {
             </button>
           ))}
         </div>
+
+        {/* Date range filter: From */}
+        <div className="flex items-center gap-1">
+          <label className="text-muted-foreground text-xs whitespace-nowrap">From</label>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              // Clamp: if dateTo is before new dateFrom, clear dateTo
+              if (dateTo && e.target.value && dateTo < e.target.value) setDateTo("");
+            }}
+            className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+          />
+        </div>
+
+        {/* Date range filter: To */}
+        <div className="flex items-center gap-1">
+          <label className="text-muted-foreground text-xs whitespace-nowrap">To</label>
+          <input
+            type="date"
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+          />
+        </div>
+
+        {/* Clear date filter button — visible only when a date is set */}
+        {(dateFrom || dateTo) && (
+          <button
+            onClick={() => { setDateFrom(""); setDateTo(""); }}
+            className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/30 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+          >
+            Date filter
+            <X className="h-3 w-3 ml-0.5" />
+          </button>
+        )}
+
         {/* Active source filter indicator */}
         {activeSourceName && (
           <button
@@ -335,7 +391,7 @@ function LeadsPage() {
             className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/30 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
           >
             Source: {activeSourceName}
-            <span className="ml-0.5 text-[10px]">✕</span>
+            <X className="h-3 w-3 ml-0.5" />
           </button>
         )}
       </div>
@@ -343,12 +399,19 @@ function LeadsPage() {
       {/* Leads List */}
       <DataState query={leadsQuery} loadingLabel="Loading leads…">
         {(leads) => {
-          const rows = leads.filter(
-            (l) =>
-              (status === "All" || l.status === status) &&
-              l.name.toLowerCase().includes(q.toLowerCase()) &&
-              (!activeSourceKey || getLeadSourceStableKey(l) === activeSourceKey),
-          );
+          const rows = leads.filter((l) => {
+            if (status !== "All" && l.status !== status) return false;
+            if (!l.name.toLowerCase().includes(q.toLowerCase())) return false;
+            if (activeSourceKey && getLeadSourceStableKey(l) !== activeSourceKey) return false;
+            if (dateFrom || dateTo) {
+              const ts = parseDbUtcTimestamp(l.received_at || l.created_at);
+              if (!ts) return false;
+              const dateStr = ts.toISOString().slice(0, 10); // YYYY-MM-DD UTC
+              if (dateFrom && dateStr < dateFrom) return false;
+              if (dateTo && dateStr > dateTo) return false;
+            }
+            return true;
+          });
 
           if (rows.length === 0) {
             return (
