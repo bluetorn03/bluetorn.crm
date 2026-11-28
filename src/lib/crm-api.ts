@@ -578,8 +578,12 @@ export async function deletePayment(id: string): Promise<void> {
   await deletePaymentFn({ data: { id } });
 }
 
-export async function getFinanceReports(workspaceId: string): Promise<FinanceReportsData> {
-  return getFinanceReportsFn({ data: { workspaceId } });
+export async function getFinanceReports(
+  workspaceId: string,
+  dateFrom?: string | null,
+  dateTo?: string | null,
+): Promise<FinanceReportsData> {
+  return getFinanceReportsFn({ data: { workspaceId, dateFrom, dateTo } });
 }
 
 export async function reconcileInvoice(invoiceId: string): Promise<void> {

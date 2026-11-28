@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, Edit, MoreVertical, Plus, Trash2, UserCheck } from "lucide-react";
+import { Building2, Edit, MoreVertical, Plus, Trash2, UserCheck, X } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -14,9 +14,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { listProperties, qk, type Property } from "@/lib/crm-api";
+import { listProperties, propertyTypes, qk, type Property } from "@/lib/crm-api";
 import { useSession } from "@/hooks/use-session";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, parseDbUtcTimestamp } from "@/lib/format";
 import { AddPropertyDialog } from "@/components/crm/AddPropertyDialog";
 import { EditPropertyDialog } from "@/components/crm/EditPropertyDialog";
 import { DeletePropertyDialog } from "@/components/crm/DeletePropertyDialog";
@@ -54,6 +54,9 @@ function PropertiesPage() {
     dbRole === "super_admin";
 
   const [filter, setFilter] = useState<(typeof filters)[number]>("All");
+  const [propertyType, setPropertyType] = useState<string>("All");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [sort, setSort] = useState<"price-desc" | "price-asc">("price-desc");
   const [addOpen, setAddOpen] = useState(false);
   const [assigningProperty, setAssigningProperty] = useState<Property | null>(null);
@@ -65,6 +68,19 @@ function PropertiesPage() {
     queryFn: () => listProperties(workspace.id),
     enabled: !!workspace.id,
   });
+
+  const filterProperty = (p: Property) => {
+    if (filter !== "All" && p.status !== filter) return false;
+    if (propertyType !== "All" && p.type !== propertyType) return false;
+    if (dateFrom || dateTo) {
+      const ts = parseDbUtcTimestamp(p.created_at);
+      if (!ts) return false;
+      const dateStr = ts.toISOString().slice(0, 10);
+      if (dateFrom && dateStr < dateFrom) return false;
+      if (dateTo && dateStr > dateTo) return false;
+    }
+    return true;
+  };
 
   return (
     <div className="space-y-5">
@@ -101,23 +117,80 @@ function PropertiesPage() {
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        {filters.map((f) => (
+        <div className="flex flex-wrap gap-1">
+          {filters.map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={
+                "rounded-full border px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors " +
+                (filter === f
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "border-border text-muted-foreground hover:text-foreground")
+              }
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+
+        {/* Property Type Filter */}
+        <select
+          value={propertyType}
+          onChange={(e) => setPropertyType(e.target.value)}
+          className="rounded-md border border-border bg-background px-2.5 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer h-8"
+        >
+          <option value="All">All Types</option>
+          {propertyTypes.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+
+        {/* Date range filter: From */}
+        <div className="flex items-center gap-1">
+          <label className="text-muted-foreground text-xs whitespace-nowrap">From</label>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              if (dateTo && e.target.value && dateTo < e.target.value) setDateTo("");
+            }}
+            className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer h-8"
+          />
+        </div>
+
+        {/* Date range filter: To */}
+        <div className="flex items-center gap-1">
+          <label className="text-muted-foreground text-xs whitespace-nowrap">To</label>
+          <input
+            type="date"
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer h-8"
+          />
+        </div>
+
+        {/* Reset button */}
+        {(dateFrom || dateTo || propertyType !== "All" || filter !== "All") && (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={
-              "rounded-full border px-3 py-1.5 text-xs font-medium " +
-              (filter === f
-                ? "bg-primary text-primary-foreground border-primary"
-                : "border-border text-muted-foreground")
-            }
+            onClick={() => {
+              setDateFrom("");
+              setDateTo("");
+              setPropertyType("All");
+              setFilter("All");
+            }}
+            className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/30 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
           >
-            {f}
+            Reset Filters
+            <X className="h-3 w-3 ml-0.5" />
           </button>
-        ))}
+        )}
+
         <button
           onClick={() => setSort(sort === "price-desc" ? "price-asc" : "price-desc")}
-          className="border-border text-muted-foreground ml-auto rounded-full border px-3 py-1.5 text-xs font-medium"
+          className="border-border text-muted-foreground ml-auto rounded-full border px-3 py-1.5 text-xs font-medium cursor-pointer hover:text-foreground transition-colors"
         >
           Price: {sort === "price-desc" ? "High to low" : "Low to high"}
         </button>
@@ -126,7 +199,7 @@ function PropertiesPage() {
       <DataState query={propertiesQuery} loadingLabel="Loading properties…">
         {(properties) => {
           const rows = properties
-            .filter((p) => filter === "All" || p.status === filter)
+            .filter(filterProperty)
             .sort((a, b) => (sort === "price-desc" ? b.price - a.price : a.price - b.price));
 
           if (rows.length === 0) {

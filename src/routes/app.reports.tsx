@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -13,6 +14,7 @@ import {
   TrendingUp,
   Users,
   Wallet,
+  X,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { MetricCard } from "@/components/common/MetricCard";
@@ -29,7 +31,7 @@ import {
   type FinanceReportsData,
 } from "@/lib/crm-api";
 import { useSession } from "@/hooks/use-session";
-import { formatMoney, formatDate } from "@/lib/format";
+import { formatMoney, formatDate, parseDbUtcTimestamp } from "@/lib/format";
 
 export const Route = createFileRoute("/app/reports")({
   head: () => ({
@@ -63,6 +65,9 @@ function ReportsContent() {
   const { workspace, can } = useSession();
   const canViewFinanceReports = can("finance.reports.view");
 
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
   const leadsQuery = useQuery({
     queryKey: qk.leads(workspace.id),
     queryFn: () => listLeads(workspace.id),
@@ -70,8 +75,8 @@ function ReportsContent() {
   });
 
   const financeReportsQuery = useQuery({
-    queryKey: ["finance-reports", workspace.id],
-    queryFn: () => getFinanceReports(workspace.id),
+    queryKey: ["finance-reports", workspace.id, dateFrom, dateTo],
+    queryFn: () => getFinanceReports(workspace.id, dateFrom || null, dateTo || null),
     enabled: !!workspace.id && canViewFinanceReports,
   });
 
@@ -79,10 +84,50 @@ function ReportsContent() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Reports & Analytics"
-        description="Live workspace performance aggregated directly from your MySQL database."
-      />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <PageHeader
+          title="Reports & Analytics"
+          description="Live workspace performance aggregated directly from your MySQL database."
+        />
+
+        {/* Global Date Range Filter */}
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-2 text-xs">
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground whitespace-nowrap">From:</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                if (dateTo && e.target.value && dateTo < e.target.value) setDateTo("");
+              }}
+              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer h-8"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground whitespace-nowrap">To:</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer h-8"
+            />
+          </div>
+          {(dateFrom || dateTo) && (
+            <button
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+              }}
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/30 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+            >
+              Reset
+              <X className="h-3 w-3 ml-0.5" />
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Finance & Collections Section (Shown if user has finance.reports.view permission) */}
       {canViewFinanceReports && (
@@ -295,7 +340,18 @@ function ReportsContent() {
         </div>
 
         <DataState query={leadsQuery} loadingLabel="Loading lead analytics…">
-          {(leads) => {
+          {(allLeads) => {
+            const leads = allLeads.filter((l) => {
+              if (dateFrom || dateTo) {
+                const ts = parseDbUtcTimestamp(l.received_at || l.created_at);
+                if (!ts) return false;
+                const dateStr = ts.toISOString().slice(0, 10);
+                if (dateFrom && dateStr < dateFrom) return false;
+                if (dateTo && dateStr > dateTo) return false;
+              }
+              return true;
+            });
+
             const totalLeads = leads.length;
             const wonLeads = leads.filter((l) => l.status === "Won").length;
             const overallConversionRate =
