@@ -3155,7 +3155,13 @@ export type FinanceReportsData = {
 
 export const getFinanceReportsFn = createServerFn({ method: "GET" })
   .middleware([requireMySqlAuth])
-  .validator((input: { workspaceId: string }) => input)
+  .validator(
+    (input: {
+      workspaceId: string;
+      dateFrom?: string | null | undefined;
+      dateTo?: string | null | undefined;
+    }) => input,
+  )
   .handler(async ({ data, context }): Promise<FinanceReportsData> => {
     const wsId = getTargetWorkspaceId(data.workspaceId, context);
     await assertPermission(context, "finance.reports.view", wsId);
@@ -3171,6 +3177,27 @@ export const getFinanceReportsFn = createServerFn({ method: "GET" })
     const fyStart = currentMonth >= 4 ? currentYear : currentYear - 1;
     const firstDayOfFy = `${fyStart}-04-01 00:00:00`;
 
+    // Date range filter conditions for payments and invoices
+    let payDateSql = "";
+    const payDateParams: unknown[] = [];
+    let invDateSql = "";
+    const invDateParams: unknown[] = [];
+
+    if (data.dateFrom) {
+      const fromUtc = convertIstDateToUtcBounds(data.dateFrom, false);
+      payDateSql += " AND paid_at >= ?";
+      payDateParams.push(fromUtc);
+      invDateSql += " AND issue_date >= ?";
+      invDateParams.push(fromUtc);
+    }
+    if (data.dateTo) {
+      const toUtc = convertIstDateToUtcBounds(data.dateTo, true);
+      payDateSql += " AND paid_at <= ?";
+      payDateParams.push(toUtc);
+      invDateSql += " AND issue_date <= ?";
+      invDateParams.push(toUtc);
+    }
+
     // 1. Revenue MTD & YTD (Real cash collected)
     const revMtdRow = await queryOne<{ val: number }>(
       "SELECT COALESCE(SUM(amount), 0) as val FROM payments WHERE workspace_id = ? AND status = 'Received' AND paid_at >= ?",
@@ -3183,18 +3210,21 @@ export const getFinanceReportsFn = createServerFn({ method: "GET" })
 
     // 2. Total Invoiced & Invoice count (Excluding Draft and Cancelled)
     const invSumRow = await queryOne<{ total: number; cnt: number }>(
-      "SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as cnt FROM invoices WHERE workspace_id = ? AND status NOT IN ('Draft', 'Cancelled')",
-      [wsId],
+      `SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as cnt 
+       FROM invoices 
+       WHERE workspace_id = ? AND status NOT IN ('Draft', 'Cancelled')${invDateSql}`,
+      [wsId, ...invDateParams],
     );
 
     // 3. Total Received & Payment count
     const paySumRow = await queryOne<{ total: number; cnt: number }>(
-      "SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as cnt FROM payments WHERE workspace_id = ? AND status = 'Received'",
-      [wsId],
+      `SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as cnt 
+       FROM payments 
+       WHERE workspace_id = ? AND status = 'Received'${payDateSql}`,
+      [wsId, ...payDateParams],
     );
 
     // 4. Outstanding Receivables (Collectible balance from applicable issued/partially-paid/overdue invoices)
-    // Draft invoices MUST NOT be included. Cancelled invoices MUST NOT be included.
     const outstandingRow = await queryOne<{ total: number }>(
       `SELECT COALESCE(SUM(GREATEST(0, i.total - COALESCE(p.paid, 0))), 0) as total
        FROM invoices i
@@ -3205,8 +3235,8 @@ export const getFinanceReportsFn = createServerFn({ method: "GET" })
          GROUP BY invoice_id
        ) p ON i.id = p.invoice_id
        WHERE i.workspace_id = ? 
-         AND i.status NOT IN ('Draft', 'Cancelled', 'Paid')`,
-      [wsId, wsId],
+         AND i.status NOT IN ('Draft', 'Cancelled', 'Paid')${invDateSql.replace(/issue_date/g, "i.issue_date")}`,
+      [wsId, wsId, ...invDateParams],
     );
 
     // 5. Overdue Outstanding Balance (Real remaining unpaid balance of overdue invoices)
@@ -3221,8 +3251,8 @@ export const getFinanceReportsFn = createServerFn({ method: "GET" })
        ) p ON i.id = p.invoice_id
        WHERE i.workspace_id = ? 
          AND (i.status = 'Overdue' OR (i.due_date IS NOT NULL AND i.due_date < CURDATE() AND i.status NOT IN ('Draft', 'Cancelled', 'Paid')))
-         AND (i.total - COALESCE(p.paid, 0)) > 0`,
-      [wsId, wsId],
+         AND (i.total - COALESCE(p.paid, 0)) > 0${invDateSql.replace(/issue_date/g, "i.issue_date")}`,
+      [wsId, wsId, ...invDateParams],
     );
 
     const totalInvoiced = Number(invSumRow?.total ?? 0);
@@ -3230,19 +3260,25 @@ export const getFinanceReportsFn = createServerFn({ method: "GET" })
     const totalOutstanding = Number(outstandingRow?.total ?? 0);
     const totalOverdue = Number(overdueRow?.total ?? 0);
 
-    // 5. Status distribution
+    // 6. Status distribution
     const statusRows = await query<{ status: string; count: number; total: number }>(
-      "SELECT status, COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM invoices WHERE workspace_id = ? GROUP BY status",
-      [wsId],
+      `SELECT status, COUNT(*) as count, COALESCE(SUM(total), 0) as total 
+       FROM invoices 
+       WHERE workspace_id = ?${invDateSql}
+       GROUP BY status`,
+      [wsId, ...invDateParams],
     );
 
-    // 6. Method distribution
+    // 7. Method distribution
     const methodRows = await query<{ method: string; count: number; total: number }>(
-      "SELECT method, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM payments WHERE workspace_id = ? AND status = 'Received' GROUP BY method",
-      [wsId],
+      `SELECT method, COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+       FROM payments 
+       WHERE workspace_id = ? AND status = 'Received'${payDateSql}
+       GROUP BY method`,
+      [wsId, ...payDateParams],
     );
 
-    // 7. Team attribution
+    // 8. Team attribution
     const teamInvoices = await query<{ created_by: string; cnt: number }>(
       "SELECT created_by, COUNT(*) as cnt FROM invoices WHERE workspace_id = ? AND created_by IS NOT NULL GROUP BY created_by",
       [wsId],

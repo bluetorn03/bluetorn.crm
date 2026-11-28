@@ -8,8 +8,10 @@ import {
   Loader2,
   Plus,
   RotateCcw,
+  Search,
   User,
   Wallet,
+  X,
   XCircle,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -46,7 +48,7 @@ import {
   qk,
 } from "@/lib/crm-api";
 import { useSession } from "@/hooks/use-session";
-import { formatMoney, formatDate, relativeTime } from "@/lib/format";
+import { formatMoney, formatDate, relativeTime, parseDbUtcTimestamp } from "@/lib/format";
 import { toast } from "sonner";
 import { MoneyInput } from "@/components/common/MoneyInput";
 import type { Payment } from "@/lib/db-types";
@@ -94,6 +96,13 @@ function PaymentsContent() {
   const [reverseOpen, setReverseOpen] = useState(false);
   const [reverseReason, setReverseReason] = useState("");
   const [form, setForm] = useState(emptyForm);
+
+  // Filter states
+  const [q, setQ] = useState("");
+  const [methodFilter, setMethodFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const paymentsQuery = useQuery({
     queryKey: qk.payments(workspace.id),
@@ -172,6 +181,30 @@ function PaymentsContent() {
   const canRecordPayment = can("finance.payments.record");
   const canReversePayment = can("finance.payments.reverse");
 
+  const filterPayment = (p: Payment) => {
+    if (statusFilter !== "All" && p.status !== statusFilter) return false;
+    if (methodFilter !== "All" && p.method !== methodFilter) return false;
+
+    if (q) {
+      const qLower = q.toLowerCase();
+      const matchesRef = (p.reference || "").toLowerCase().includes(qLower);
+      const matchesCust = (p.customer_name || "").toLowerCase().includes(qLower);
+      const matchesInv = (p.invoice_number || "").toLowerCase().includes(qLower);
+      const matchesUser = (p.creator_name || "").toLowerCase().includes(qLower);
+      if (!matchesRef && !matchesCust && !matchesInv && !matchesUser) return false;
+    }
+
+    if (dateFrom || dateTo) {
+      const ts = parseDbUtcTimestamp(p.paid_at || p.created_at);
+      if (!ts) return false;
+      const dateStr = ts.toISOString().slice(0, 10);
+      if (dateFrom && dateStr < dateFrom) return false;
+      if (dateTo && dateStr > dateTo) return false;
+    }
+
+    return true;
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -185,6 +218,85 @@ function PaymentsContent() {
           )
         }
       />
+
+      {/* Filter and Search Bar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-0 flex-1 sm:max-w-xs">
+          <Search className="text-muted-foreground absolute top-2.5 left-3 h-4 w-4" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search ref/UTR, customer, invoice..."
+            className="pl-9 h-9 text-xs"
+          />
+        </div>
+
+        {/* Method Filter */}
+        <select
+          value={methodFilter}
+          onChange={(e) => setMethodFilter(e.target.value)}
+          className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer h-9"
+        >
+          <option value="All">All Methods</option>
+          {paymentMethods.map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
+
+        {/* Status Filter */}
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer h-9"
+        >
+          <option value="All">All Statuses</option>
+          <option value="Received">Received</option>
+          <option value="Reversed">Reversed</option>
+        </select>
+
+        {/* Date range filter: From */}
+        <div className="flex items-center gap-1">
+          <label className="text-muted-foreground text-xs whitespace-nowrap">From</label>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              if (dateTo && e.target.value && dateTo < e.target.value) setDateTo("");
+            }}
+            className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer h-9"
+          />
+        </div>
+
+        {/* Date range filter: To */}
+        <div className="flex items-center gap-1">
+          <label className="text-muted-foreground text-xs whitespace-nowrap">To</label>
+          <input
+            type="date"
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer h-9"
+          />
+        </div>
+
+        {/* Reset button */}
+        {(dateFrom || dateTo || methodFilter !== "All" || statusFilter !== "All" || q) && (
+          <button
+            onClick={() => {
+              setDateFrom("");
+              setDateTo("");
+              setMethodFilter("All");
+              setStatusFilter("All");
+              setQ("");
+            }}
+            className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/30 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+          >
+            Reset Filters
+            <X className="h-3 w-3 ml-0.5" />
+          </button>
+        )}
+      </div>
 
       {/* Record Payment Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -487,14 +599,23 @@ function PaymentsContent() {
       {/* Payments Table */}
       <DataState query={paymentsQuery} loadingLabel="Loading payments…">
         {(payments) => {
-          if (payments.length === 0) {
+          const rows = payments.filter(filterPayment);
+          const totalReceivedAmount = rows
+            .filter((p) => p.status === "Received")
+            .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+          if (rows.length === 0) {
             return (
               <EmptyState
                 icon={Wallet}
-                title="No payments recorded"
-                description="Record your first payment to start tracking collections."
+                title="No payments match this view"
+                description={
+                  payments.length === 0
+                    ? "Record your first payment to start tracking collections."
+                    : "Try adjusting or resetting your search, method or date filters."
+                }
                 action={
-                  canRecordPayment ? (
+                  canRecordPayment && payments.length === 0 ? (
                     <Button onClick={() => setDialogOpen(true)}>Record Payment</Button>
                   ) : undefined
                 }
@@ -504,6 +625,17 @@ function PaymentsContent() {
 
           return (
             <SectionCard bodyClassName="p-0">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted/30 text-xs">
+                <span className="text-muted-foreground">
+                  Showing <strong className="text-foreground">{rows.length}</strong> payment{rows.length === 1 ? "" : "s"}
+                </span>
+                <span className="font-medium text-foreground">
+                  Total Collected (Received):{" "}
+                  <strong className="text-emerald-600 dark:text-emerald-400 font-mono">
+                    {formatMoney(totalReceivedAmount, currency)}
+                  </strong>
+                </span>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
@@ -519,7 +651,7 @@ function PaymentsContent() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {payments.map((p) => (
+                    {rows.map((p) => (
                       <tr
                         key={p.id}
                         className="hover:bg-muted/40 cursor-pointer transition-colors"

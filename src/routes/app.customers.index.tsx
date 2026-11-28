@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Edit, MoreVertical, Plus, Search, Trash2, Users, UserCheck, Upload, Download } from "lucide-react";
+import { Edit, MoreVertical, Plus, Search, Trash2, Users, UserCheck, Upload, Download, X } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -16,9 +16,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { listCustomers, listMembers, qk, type Customer } from "@/lib/crm-api";
+import { listCustomers, listMembers, customerTypes, qk, type Customer } from "@/lib/crm-api";
 import { useSession } from "@/hooks/use-session";
-import { relativeTime } from "@/lib/format";
+import { relativeTime, parseDbUtcTimestamp } from "@/lib/format";
 import { AddCustomerDialog } from "@/components/crm/AddCustomerDialog";
 import { EditCustomerDialog } from "@/components/crm/EditCustomerDialog";
 import { DeleteCustomerDialog } from "@/components/crm/DeleteCustomerDialog";
@@ -58,7 +58,10 @@ function CustomersPage() {
     dbRole === "super_admin";
 
   const [view, setView] = useState<(typeof views)[number]>("All");
+  const [customerType, setCustomerType] = useState<string>("All");
   const [q, setQ] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [assigningCustomer, setAssigningCustomer] = useState<Customer | null>(null);
@@ -78,10 +81,36 @@ function CustomersPage() {
   });
   const memberMap = new Map((membersQuery.data ?? []).map((m) => [m.id, m.full_name]));
 
+  const filterCustomer = (c: Customer) => {
+    if (view !== "All" && c.status !== view) return false;
+    if (customerType !== "All" && c.type !== customerType) return false;
+    if (q) {
+      const qLower = q.toLowerCase();
+      const matchesName = c.name.toLowerCase().includes(qLower);
+      const matchesPhone = (c.phone ?? "").includes(q);
+      const matchesEmail = (c.email ?? "").toLowerCase().includes(qLower);
+      if (!matchesName && !matchesPhone && !matchesEmail) return false;
+    }
+    if (dateFrom || dateTo) {
+      const ts = parseDbUtcTimestamp(c.created_at);
+      if (!ts) return false;
+      const dateStr = ts.toISOString().slice(0, 10);
+      if (dateFrom && dateStr < dateFrom) return false;
+      if (dateTo && dateStr > dateTo) return false;
+    }
+    return true;
+  };
+
   const handleExportCsv = () => {
     const list = customersQuery.data || [];
     if (list.length === 0) {
       toast.error("No customers available to export.");
+      return;
+    }
+
+    const filtered = list.filter(filterCustomer);
+    if (filtered.length === 0) {
+      toast.error("No customers match the current filters.");
       return;
     }
 
@@ -98,7 +127,7 @@ function CustomersPage() {
       "Created At",
     ];
 
-    const rows = list.map((c) => [
+    const rows = filtered.map((c) => [
       c.id,
       c.name,
       c.phone || "",
@@ -116,7 +145,7 @@ function CustomersPage() {
       headers,
       rows,
     });
-    toast.success(`Exported ${list.length} customers to CSV.`);
+    toast.success(`Exported ${filtered.length} customers to CSV.`);
   };
 
   return (
@@ -182,7 +211,7 @@ function CustomersPage() {
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search name or phone"
+            placeholder="Search name, phone or email"
             className="pl-9"
           />
         </div>
@@ -192,7 +221,7 @@ function CustomersPage() {
               key={v}
               onClick={() => setView(v)}
               className={
-                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors " +
+                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer " +
                 (view === v
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground")
@@ -202,15 +231,66 @@ function CustomersPage() {
             </button>
           ))}
         </div>
+
+        {/* Customer Type Filter */}
+        <select
+          value={customerType}
+          onChange={(e) => setCustomerType(e.target.value)}
+          className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer h-9"
+        >
+          <option value="All">All Types</option>
+          {customerTypes.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+
+        {/* Date range filter: From */}
+        <div className="flex items-center gap-1">
+          <label className="text-muted-foreground text-xs whitespace-nowrap">From</label>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              if (dateTo && e.target.value && dateTo < e.target.value) setDateTo("");
+            }}
+            className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer h-9"
+          />
+        </div>
+
+        {/* Date range filter: To */}
+        <div className="flex items-center gap-1">
+          <label className="text-muted-foreground text-xs whitespace-nowrap">To</label>
+          <input
+            type="date"
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer h-9"
+          />
+        </div>
+
+        {/* Reset / Clear active filter chip */}
+        {(dateFrom || dateTo || customerType !== "All" || view !== "All" || q) && (
+          <button
+            onClick={() => {
+              setDateFrom("");
+              setDateTo("");
+              setCustomerType("All");
+              setView("All");
+              setQ("");
+            }}
+            className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/30 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+          >
+            Reset Filters
+            <X className="h-3 w-3 ml-0.5" />
+          </button>
+        )}
       </div>
 
       <DataState query={customersQuery} loadingLabel="Loading customers…">
         {(customers) => {
-          const rows = customers.filter(
-            (c) =>
-              (view === "All" || c.status === view) &&
-              (c.name.toLowerCase().includes(q.toLowerCase()) || (c.phone ?? "").includes(q)),
-          );
+          const rows = customers.filter(filterCustomer);
 
           if (rows.length === 0) {
             return (
